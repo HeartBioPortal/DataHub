@@ -11,3 +11,12 @@ make validate
 # or using docker
 docker compose up validation
 ```
+
+## Git Large File Storage
+
+This repository uses [Git LFS](https://git-lfs.github.com/) for storing large
+binary datasets. Install Git LFS before cloning:
+
+```bash
+git lfs install
+```

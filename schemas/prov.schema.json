@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://heartbioportal.org/schemas/prov.schema.json",
+  "title": "Dataset Provenance",
+  "type": "object",
+  "required": ["wasDerivedFrom", "etl_pipeline_hash", "validator_version", "date_processed"],
+  "properties": {
+    "wasDerivedFrom": {"type": "string"},
+    "etl_pipeline_hash": {"type": "string", "pattern": "^[a-fA-F0-9]{40}$"},
+    "validator_version": {"type": "string"},
+    "date_processed": {"type": "string", "format": "date"}
+  }
+}
