@@ -1,0 +1,13 @@
+{
+  "dataset_id": "example_fh_vcf",
+  "title": "Example Familial Hypercholesterolemia Variants",
+  "authors": ["Doe J"],
+  "doi_or_preprint": "10.1234/exampledoi",
+  "reference_genome": "GRCh38",
+  "data_type": "VCF",
+  "disease_category": "MONDO:0005301",
+  "ancestry": "mixed",
+  "license": "CC-BY-4.0",
+  "version": "1.0.0",
+  "md5": "d41d8cd98f00b204e9800998ecf8427e"
+}

@@ -1,0 +1,6 @@
+site_name: HeartBioPortal DataHub Docs
+nav:
+  - Overview: index.md
+  - Submitting Data: submitting.md
+  - Schema Reference: schema.md
+  - FAQ: faq.md

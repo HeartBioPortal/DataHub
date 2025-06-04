@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://heartbioportal.org/schemas/metadata.schema.json",
+  "title": "Dataset Metadata",
+  "type": "object",
+  "required": [
+    "dataset_id",
+    "title",
+    "authors",
+    "doi_or_preprint",
+    "reference_genome",
+    "data_type",
+    "disease_category",
+    "ancestry",
+    "license",
+    "version",
+    "md5"
+  ],
+  "properties": {
+    "dataset_id": { "type": "string" },
+    "title": { "type": "string" },
+    "authors": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "doi_or_preprint": { "type": "string" },
+    "reference_genome": { "type": "string" },
+    "data_type": { "type": "string" },
+    "disease_category": { "$ref": "#/$defs/mondo_term" },
+    "ancestry": { "type": "string" },
+    "license": { "type": "string" },
+    "version": { "type": "string" },
+    "md5": { "type": "string", "pattern": "^[a-fA-F0-9]{32}$" }
+  },
+  "$defs": {
+    "mondo_term": {
+      "type": "string",
+      "description": "MONDO disease identifier"
+    }
+  }
+}

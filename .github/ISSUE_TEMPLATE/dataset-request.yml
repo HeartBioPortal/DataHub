@@ -1,0 +1,15 @@
+name: Dataset Request
+about: Request a new dataset to be added
+labels: dataset
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please describe the dataset and provide any source links or references.
+  - type: textarea
+    id: details
+    attributes:
+      label: Dataset details
+      description: Who produced it? What format is it in?
+    validations:
+      required: true
