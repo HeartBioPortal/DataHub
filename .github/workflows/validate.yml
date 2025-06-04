@@ -1,0 +1,25 @@
+name: CI
+on:
+  push:
+    paths:
+      - 'public/**'
+      - 'private/**'
+  pull_request:
+    paths:
+      - 'public/**'
+      - 'private/**'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - name: Validate metadata
+        run: |
+          for path in $(git ls-files 'public/*/metadata.json' 'private/*/metadata.json'); do
+            python scripts/validate_metadata.py "$path" || exit 1
+          done

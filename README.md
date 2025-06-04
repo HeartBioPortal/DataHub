@@ -1,14 +1,13 @@
-# DataHub
+# HeartBioPortal DataHub
 
-DataHub is intended to be a central place for storing, processing, and sharing
-data resources. The repository currently contains a skeleton structure that will
-be expanded as the project evolves.
+A version-controlled repository of validated cardiovascular omics datasets, harmonised to HeartBioPortal formats and FAIR4RS standards.
 
-## Project structure
+## Quick Start
 
-- `data/` – sample directory for datasets or data files.
-- `src/` – source code for processing or managing datasets.
-- `docs/` – project documentation.
-
-Feel free to add additional modules or scripts as needed. More details will be
-provided in subsequent instructions.
+```bash
+git clone <repo-url>
+cd DataHub
+make validate
+# or using docker
+docker compose up validation
+```
