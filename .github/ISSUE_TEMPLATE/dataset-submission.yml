@@ -1,0 +1,17 @@
+name: Dataset Submission
+about: Submit a dataset for inclusion
+labels: dataset
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the dataset
+    validations:
+      required: true
+  - type: input
+    id: provenance
+    attributes:
+      label: Link to provenance.json
+      description: Provide the path to the provenance file in your PR
+    validations:
+      required: true

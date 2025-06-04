@@ -1,0 +1,17 @@
+name: Data Fix
+about: Report an issue with an existing dataset
+labels: data-fix
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Describe the problem
+    validations:
+      required: true
+  - type: checkbox
+    id: doi
+    attributes:
+      label: Needs new Zenodo DOI reservation?
+      description: Check if the dataset DOI should be updated after the fix
+    validations:
+      required: false

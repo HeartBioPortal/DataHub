@@ -1,0 +1,4 @@
+[datalad "dataset"]
+default-dataset = datasets
+[datalad "siblings"]
+storage-url = ria+file:///datahub-storage

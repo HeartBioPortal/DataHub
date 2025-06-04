@@ -4,6 +4,8 @@ on:
     paths:
       - 'public/**'
       - 'private/**'
+    tags:
+      - 'v*'
   pull_request:
     paths:
       - 'public/**'
@@ -18,8 +20,25 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install -r requirements.txt
-      - name: Validate metadata
+      - name: Validate datasets
         run: |
-          for path in $(git ls-files 'public/*/metadata.json' 'private/*/metadata.json'); do
-            python scripts/validate_metadata.py "$path" || exit 1
+          for meta in $(git ls-files 'public/*/metadata.json' 'private/*/metadata.json'); do
+          tools/hbp-validate "$(dirname "$meta")" || exit 1
           done
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - run: zip -r datasets.zip public
+      - name: Upload to Zenodo
+        env:
+          ZENODO_TOKEN: ${{ secrets.ZENODO_TOKEN }}
+        run: |
+          echo "Would upload datasets.zip to Zenodo"

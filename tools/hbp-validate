@@ -1,0 +1,53 @@
+#!/usr/bin/env python3
+import json
+import sys
+from pathlib import Path
+from jsonschema import validate, ValidationError
+
+SCHEMA_DIR = Path(__file__).resolve().parents[1] / 'schemas'
+META_SCHEMA = SCHEMA_DIR / 'metadata.schema.json'
+PROV_SCHEMA = SCHEMA_DIR / 'prov.schema.json'
+
+
+def load_schema(path: Path):
+    with open(path) as f:
+        return json.load(f)
+
+meta_schema = load_schema(META_SCHEMA)
+prov_schema = load_schema(PROV_SCHEMA)
+
+
+def validate_file(data_path: Path, schema: dict):
+    with open(data_path) as f:
+        data = json.load(f)
+    validate(data, schema)
+
+
+def validate_dataset(ds_path: Path):
+    if ds_path.is_file():
+        ds_path = ds_path.parent
+    meta = ds_path / 'metadata.json'
+    prov = ds_path / 'provenance.json'
+    if not meta.exists():
+        raise FileNotFoundError(f"Missing metadata.json in {ds_path}")
+    if not prov.exists():
+        raise FileNotFoundError(f"Missing provenance.json in {ds_path}")
+    validate_file(meta, meta_schema)
+    validate_file(prov, prov_schema)
+
+
+def main(args):
+    for p in args:
+        try:
+            validate_dataset(Path(p))
+        except (ValidationError, FileNotFoundError, json.JSONDecodeError) as exc:
+            print(f"Validation error for {p}: {exc}")
+            return 1
+    return 0
+
+
+if __name__ == '__main__':
+    if len(sys.argv) < 2:
+        print("Usage: hbp-validate <dataset-path> [<dataset-path>...]")
+        sys.exit(1)
+    sys.exit(main(sys.argv[1:]))
