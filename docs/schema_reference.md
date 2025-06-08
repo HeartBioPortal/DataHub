@@ -1,12 +1,11 @@
 # Schema Reference
 
-The table below is auto-generated from our JSON schemas using
-`jsonschema2md`.
+This section summarises the JSON schemas used for dataset metadata and provenance. The schemas themselves are stored in the [`schemas/`](../schemas/) directory and rendered below.
 
 ## Metadata
 
-See `schemas/metadata.schema.json` for details.
+See [metadata.schema.json](metadata.schema.json.md) for an overview of the required fields.
 
 ## Provenance
 
-See `schemas/prov.schema.json` for provenance requirements.
+See [prov.schema.json](prov.schema.json.md) for information on provenance requirements.
