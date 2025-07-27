@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 import json
+import re
 import sys
+from datetime import datetime
 from pathlib import Path
-from jsonschema import validate, ValidationError
+
 
 SCHEMA_DIR = Path(__file__).resolve().parents[1] / 'schemas'
 META_SCHEMA = SCHEMA_DIR / 'metadata.schema.json'
@@ -17,10 +19,42 @@ meta_schema = load_schema(META_SCHEMA)
 prov_schema = load_schema(PROV_SCHEMA)
 
 
+def _check_pattern(value: str, pattern: str, field: str):
+    if not re.fullmatch(pattern, value):
+        raise ValueError(f"{field} does not match pattern {pattern}")
+
+
+def _check_date(value: str, field: str):
+    try:
+        datetime.strptime(value, "%Y-%m-%d")
+    except ValueError:
+        raise ValueError(f"{field} is not a valid date")
+
+
 def validate_file(data_path: Path, schema: dict):
     with open(data_path) as f:
         data = json.load(f)
-    validate(data, schema)
+
+    for key in schema.get("required", []):
+        if key not in data:
+            raise ValueError(f"Missing required field {key}")
+
+    props = schema.get("properties", {})
+    for field, rules in props.items():
+        if field not in data:
+            continue
+        value = data[field]
+        if rules.get("type") == "array":
+            if not isinstance(value, list):
+                raise ValueError(f"{field} should be an array")
+        elif rules.get("type") == "string" and not isinstance(value, str):
+            raise ValueError(f"{field} should be a string")
+
+        pattern = rules.get("pattern")
+        if pattern:
+            _check_pattern(str(value), pattern, field)
+        if rules.get("format") == "date":
+            _check_date(str(value), field)
 
 
 def validate_dataset(ds_path: Path):
@@ -40,7 +74,7 @@ def main(args):
     for p in args:
         try:
             validate_dataset(Path(p))
-        except (ValidationError, FileNotFoundError, json.JSONDecodeError) as exc:
+        except (ValueError, FileNotFoundError, json.JSONDecodeError) as exc:
             print(f"Validation error for {p}: {exc}")
             return 1
     return 0
