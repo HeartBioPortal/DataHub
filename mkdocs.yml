@@ -3,4 +3,5 @@ nav:
   - Overview: index.md
   - Submitting Data: submitting.md
   - Schema Reference: schema_reference.md
+  - Processing Very Large Datasets: big_data_processing.md
   - FAQ: faq.md

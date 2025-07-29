@@ -2,3 +2,4 @@ jsonschema
 pytest
 jsonschema2md
 PyGithub
+dask
