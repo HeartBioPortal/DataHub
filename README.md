@@ -46,3 +46,11 @@ or run all tests with `make validate`.
 ## Contributing
 
 We welcome new datasets and improvements. See [CONTRIBUTING.md](CONTRIBUTING.md) for a walkthrough of the submission process and consult the files in the `docs/` directory for more details.
+
+## Processing Very Large Datasets
+
+See `tools/large_dataset_processor.py` for an example using Dask to analyse VCF files over 500 GB. Run `pip install -r requirements.txt` and execute:
+
+```bash
+python tools/large_dataset_processor.py <your.vcf>
+```
