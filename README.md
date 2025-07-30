@@ -7,6 +7,7 @@ HeartBioPortal DataHub is a version-controlled collection of cardiovascular omic
 ```bash
 git clone <repo-url>
 cd DataHub
+pip install -r requirements.txt
 make validate
 # or using docker
 docker compose up validation
@@ -32,6 +33,12 @@ Datasets are organised under `public/` for open data or `private/` for embargoed
 ```
 
 The JSON schemas that describe these files live under `schemas/` and are also rendered in the documentation.
+
+You can list available datasets using:
+
+```bash
+tools/list_datasets.py
+```
 
 ## Validation
 
