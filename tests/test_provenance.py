@@ -5,68 +5,98 @@ from pathlib import Path
 
 import pytest
 
+# -----------------------------------------------------------------------------#
+#  Constants                                                                   #
+# -----------------------------------------------------------------------------#
+EXEC_REL   = Path("tools/hbp-validate")           # validator location (relative)
+DATA_REL   = Path("public/example_fh_vcf")        # default dataset
+TIMEOUT    = 180                                  # seconds
+ROOT_ENV   = "HBP_ROOT"                           # override repo root
+DATA_ENV   = "HBP_DATASET"                        # override dataset
+# -----------------------------------------------------------------------------#
 
-def _find_repo_root(start: Path) -> Path:
+
+# -----------------------------------------------------------------------------#
+#  Fixtures                                                                    #
+# -----------------------------------------------------------------------------#
+@pytest.fixture(scope="session")
+def repo_root() -> Path:
     """
-    Walk up from `start` to find a directory that contains tools/hbp-validate.
-    Fallback to current working directory.
+    Detect repository root by walking up the tree until `tools/hbp-validate`
+    is found.  Falls back to $HBP_ROOT or CWD.
     """
-    for p in [start, *start.parents]:
-        if (p / "tools" / "hbp-validate").exists():
+    env_root = os.getenv(ROOT_ENV)
+    if env_root:
+        return Path(env_root).expanduser().resolve()
+
+    here = Path(__file__).resolve()
+    for p in [here, *here.parents]:
+        if (p / EXEC_REL).exists():
             return p
     return Path.cwd()
 
 
-@pytest.mark.integration
-def test_provenance_valid():
-    """
-    Smoke test: the example dataset should validate cleanly.
+@pytest.fixture(scope="session")
+def validator(repo_root: Path) -> Path:
+    """Return path to validator; skip test if not present or not executable."""
+    tool = repo_root / EXEC_REL
+    if not tool.exists() or not os.access(tool, os.X_OK):
+        pytest.skip(f"validator missing or not executable: {tool}")
+    return tool
 
-    Improvements over the original:
-    - Resolves paths relative to repo root (works regardless of pytest -k path).
-    - Skips cleanly if the validator or dataset are missing.
-    - Adds a timeout to avoid hanging CI.
-    - Provides a detailed, consolidated failure message (cmd, cwd, stdout, stderr).
-    - Allows overriding dataset via HBP_DATASET env var.
-    """
-    start = Path(__file__).resolve()
-    root = _find_repo_root(start)
 
-    tool = root / "tools" / "hbp-validate"
-    if not tool.exists():
-        pytest.skip(f"Validator not found at {tool}")
-
-    ds_env = os.getenv("HBP_DATASET")
-    ds = Path(ds_env) if ds_env else (root / "public" / "example_fh_vcf")
+@pytest.fixture(scope="session")
+def dataset(repo_root: Path) -> Path:
+    """Return dataset path, allowing override via $HBP_DATASET."""
+    ds = Path(os.getenv(DATA_ENV, repo_root / DATA_REL))
     if not ds.exists():
-        pytest.skip(f"Dataset not found at {ds}")
+        pytest.skip(f"dataset not found: {ds}")
+    return ds
 
-    cmd = [str(tool), str(ds)]
+
+# -----------------------------------------------------------------------------#
+#  Helpers                                                                     #
+# -----------------------------------------------------------------------------#
+def _run(cmd: list[str], cwd: Path, timeout: int = TIMEOUT):
+    """Run *cmd* and return (CompletedProcess, elapsed_seconds)."""
     t0 = time.monotonic()
-    try:
-        result = subprocess.run(
-            cmd,
-            cwd=root,
-            capture_output=True,
-            text=True,
-            timeout=180,
-            check=False,
-        )
-    except subprocess.TimeoutExpired as exc:
-        pytest.fail(
-            f"Timed out after 180s\nCommand: {' '.join(cmd)}\nCWD: {root}\n"
-            f"Partial stdout:\n{exc.stdout}\nPartial stderr:\n{exc.stderr}"
-        )
+    proc = subprocess.run(
+        cmd,
+        cwd=cwd,
+        text=True,
+        capture_output=True,
+        timeout=timeout,
+        check=False,
+    )
+    return proc, time.monotonic() - t0
 
-    elapsed = time.monotonic() - t0
-    failure_msg = (
-        f"Command: {' '.join(cmd)}\n"
-        f"CWD: {root}\n"
-        f"Exit code: {result.returncode}\n"
-        f"Elapsed: {elapsed:.2f}s\n"
-        f"--- stdout ---\n{result.stdout}\n"
-        f"--- stderr ---\n{result.stderr}\n"
+
+def _format_failure(cmd: list[str], cwd: Path, proc: subprocess.CompletedProcess, elapsed: float) -> str:
+    """Build a detailed assertion message."""
+    return (
+        f"Command : {' '.join(cmd)}\n"
+        f"CWD     : {cwd}\n"
+        f"Elapsed : {elapsed:.2f}s\n"
+        f"Exit    : {proc.returncode}\n"
+        f"--- stdout ---\n{proc.stdout}\n"
+        f"--- stderr ---\n{proc.stderr}\n"
     )
 
-    assert result.returncode == 0, failure_msg
 
+# -----------------------------------------------------------------------------#
+#  Test                                                                        #
+# -----------------------------------------------------------------------------#
+@pytest.mark.integration
+def test_provenance_valid(repo_root: Path, validator: Path, dataset: Path):
+    """
+    Smoke-test that the example dataset validates cleanly.
+
+    *   Paths resolved from repo root (works from any `pytest -k` invocation).
+    *   Skips gracefully when validator or dataset are absent.
+    *   Timeout prevents hung CI jobs.
+    *   Detailed assertion output on failure.
+    *   `$HBP_ROOT` and `$HBP_DATASET` environment variables allow overrides.
+    """
+    cmd = [str(validator), str(dataset)]
+    proc, elapsed = _run(cmd, repo_root)
+    assert proc.returncode == 0, _format_failure(cmd, repo_root, proc, elapsed)
