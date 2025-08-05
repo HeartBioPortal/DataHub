@@ -1,13 +1,90 @@
 {
+  // JSON-Schema draft 2020-12
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://heartbioportal.org/schemas/prov.schema.json",
-  "title": "Dataset Provenance",
+
+  "$id": "https://heartbioportal.org/schemas/dataset_provenance/v1.0.0.json",
+
+  "title": "HeartBioPortal — Dataset Provenance",
+  "description": "Minimal machine-readable record emitted by the HBP ETL pipeline "
+               + "so that downstream analyses are fully traceable and reproducible.",
+
+  /*-------------------------------------------------------------------------*/
   "type": "object",
-  "required": ["wasDerivedFrom", "etl_pipeline_hash", "validator_version", "date_processed"],
+  "additionalProperties": false,
+
+  "required": [
+    "wasDerivedFrom",
+    "etl_pipeline_hash",
+    "validator_version",
+    "date_processed"
+  ],
+
   "properties": {
-    "wasDerivedFrom": {"type": "string"},
-    "etl_pipeline_hash": {"type": "string", "pattern": "^[a-fA-F0-9]{40}$"},
-    "validator_version": {"type": "string"},
-    "date_processed": {"type": "string", "format": "date"}
-  }
+    /*------------------------------------------------------------*
+     *  Parent dataset                                            *
+     *------------------------------------------------------------*/
+    "wasDerivedFrom": {
+      "type":   "string",
+      "format": "uri",
+      "description": "Canonical URI (e.g. DOI, S3 URL, or dbGaP accession) of the source dataset."
+    },
+
+    /*------------------------------------------------------------*
+     *  Hash of the ETL commit / container                        *
+     *------------------------------------------------------------*/
+    "etl_pipeline_hash": { "$ref": "#/$defs/sha1" },
+
+    /*------------------------------------------------------------*
+     *  hbp-validate release that signed off the dataset          *
+     *------------------------------------------------------------*/
+    "validator_version": { "$ref": "#/$defs/semver" },
+
+    /*------------------------------------------------------------*
+     *  Processing date (ISO-8601)                                *
+     *------------------------------------------------------------*/
+    "date_processed": {
+      "type":        "string",
+      "format":      "date",
+      "description": "Calendar date (YYYY-MM-DD) when ETL finished."
+    },
+
+    /*------------------------------------------------------------*
+     *  Optional free-text processor tag                          *
+     *------------------------------------------------------------*/
+    "processor": {
+      "type":        "string",
+      "description": "Image tag or notebook ID that performed the ETL run."
+    }
+  },
+
+  /*-------------------------------------------------------------------------*
+   *  Shared definitions                                                     *
+   *-------------------------------------------------------------------------*/
+  "$defs": {
+    "sha1": {
+      "type":        "string",
+      "pattern":     "^[A-Fa-f0-9]{40}$",
+      "description": "40-character hexadecimal SHA-1."
+    },
+    "semver": {
+      "type":        "string",
+      "pattern":     "^v?(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+                   + "(?:-[\\da-z\\-\\.]+)?(?:\\+[\\da-z\\-\\.]+)?$",
+      "description": "Semantic version string (e.g. 2.3.1 or v2.3.1)."
+    }
+  },
+
+  /*-------------------------------------------------------------------------*
+   *  Example                                                                *
+   *-------------------------------------------------------------------------*/
+  "examples": [
+    {
+      "wasDerivedFrom":    "https://doi.org/10.5281/zenodo.1234567",
+      "etl_pipeline_hash": "0123456789abcdef0123456789abcdef01234567",
+      "validator_version": "v2.4.0",
+      "date_processed":    "2025-08-05",
+      "processor":         "hbp-etl:2.4.0-cuda11"
+    }
+  ]
 }
+
