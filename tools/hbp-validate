@@ -1,87 +1,419 @@
 #!/usr/bin/env python3
+"""
+HBP DataHub Validator
+
+- Validates metadata.json and provenance.json against JSON Schemas
+- Recursive validation with helpful JSONPath for errors
+- Supports common JSON Schema facets without external deps
+- Optional JSON output and fail-fast mode
+"""
+
+from __future__ import annotations
+import argparse
 import json
 import re
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any, Dict, List, Tuple, Optional, Union
+from urllib.parse import urlparse
+import uuid
+import glob
 
+JSON = Dict[str, Any]
 
-SCHEMA_DIR = Path(__file__).resolve().parents[1] / 'schemas'
-META_SCHEMA = SCHEMA_DIR / 'metadata.schema.json'
-PROV_SCHEMA = SCHEMA_DIR / 'prov.schema.json'
+# ----------------------------- Schema Loading ------------------------------
 
+def load_json(path: Path) -> JSON:
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        raise
+    except json.JSONDecodeError as e:
+        raise ValueError(f"{path}: invalid JSON ({e})") from e
 
-def load_schema(path: Path):
-    with open(path) as f:
-        return json.load(f)
+def default_schema_dir() -> Path:
+    # repo/tools/hbp-validate -> repo/schemas
+    return (Path(__file__).resolve().parents[1] / "schemas")
 
-meta_schema = load_schema(META_SCHEMA)
-prov_schema = load_schema(PROV_SCHEMA)
+# ----------------------------- Format Checkers -----------------------------
 
+_date_rx = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
-def _check_pattern(value: str, pattern: str, field: str):
-    if not re.fullmatch(pattern, value):
-        raise ValueError(f"{field} does not match pattern {pattern}")
-
-
-def _check_date(value: str, field: str):
+def is_date(value: str) -> bool:
+    if not _date_rx.fullmatch(value):
+        return False
     try:
         datetime.strptime(value, "%Y-%m-%d")
+        return True
     except ValueError:
-        raise ValueError(f"{field} is not a valid date")
+        return False
 
+def is_datetime(value: str) -> bool:
+    try:
+        # allow Z and offset; fromisoformat doesn't like Z, normalize
+        v = value.replace("Z", "+00:00")
+        datetime.fromisoformat(v)
+        return True
+    except ValueError:
+        return False
 
-def validate_file(data_path: Path, schema: dict):
-    with open(data_path) as f:
-        data = json.load(f)
+def is_uri(value: str) -> bool:
+    u = urlparse(value)
+    return bool(u.scheme) and bool(u.netloc)
 
-    for key in schema.get("required", []):
-        if key not in data:
-            raise ValueError(f"Missing required field {key}")
+_email_rx = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
-    props = schema.get("properties", {})
-    for field, rules in props.items():
-        if field not in data:
-            continue
-        value = data[field]
-        if rules.get("type") == "array":
-            if not isinstance(value, list):
-                raise ValueError(f"{field} should be an array")
-        elif rules.get("type") == "string" and not isinstance(value, str):
-            raise ValueError(f"{field} should be a string")
+def is_email(value: str) -> bool:
+    return bool(_email_rx.fullmatch(value))
 
-        pattern = rules.get("pattern")
+def is_uuid(value: str) -> bool:
+    try:
+        uuid.UUID(value)
+        return True
+    except Exception:
+        return False
+
+FORMAT_CHECKERS = {
+    "date": is_date,
+    "date-time": is_datetime,
+    "uri": is_uri,
+    "email": is_email,
+    "uuid": is_uuid,
+}
+
+# ----------------------------- Validation Core -----------------------------
+
+class VError:
+    def __init__(self, path: str, message: str):
+        self.path = path
+        self.message = message
+
+    def to_dict(self):
+        return {"path": self.path, "message": self.message}
+
+    def __str__(self):
+        return f"{self.path}: {self.message}"
+
+def jpath(parent: str, token: Union[str, int]) -> str:
+    if isinstance(token, int):
+        return f"{parent}[{token}]"
+    if parent == "$":
+        return f"$.{token}"
+    return f"{parent}.{token}"
+
+def validate_value(
+    data: Any,
+    schema: JSON,
+    path: str,
+    errors: List[VError],
+    fail_fast: bool
+):
+    # Type
+    expected_type = schema.get("type")
+    if expected_type:
+        if not _type_matches(data, expected_type):
+            errors.append(VError(path, f"type mismatch: expected {expected_type}, got {type_name(data)}"))
+            if fail_fast: return
+
+    # Enum
+    if "enum" in schema:
+        if data not in schema["enum"]:
+            errors.append(VError(path, f"value {repr(data)} not in enum {schema['enum']}"))
+            if fail_fast: return
+
+    # String facets
+    if isinstance(data, str):
+        min_len = schema.get("minLength")
+        max_len = schema.get("maxLength")
+        if min_len is not None and len(data) < min_len:
+            errors.append(VError(path, f"string shorter than minLength {min_len}"))
+            if fail_fast: return
+        if max_len is not None and len(data) > max_len:
+            errors.append(VError(path, f"string longer than maxLength {max_len}"))
+            if fail_fast: return
+        pattern = schema.get("pattern")
         if pattern:
-            _check_pattern(str(value), pattern, field)
-        if rules.get("format") == "date":
-            _check_date(str(value), field)
+            if not re.fullmatch(pattern, data):
+                errors.append(VError(path, f"does not match pattern {pattern}"))
+                if fail_fast: return
+        fmt = schema.get("format")
+        if fmt:
+            checker = FORMAT_CHECKERS.get(fmt)
+            if checker and not checker(data):
+                errors.append(VError(path, f"invalid format '{fmt}'"))
+                if fail_fast: return
 
+    # Numeric facets
+    if isinstance(data, (int, float)) and not isinstance(data, bool):
+        for key, op, msg in [
+            ("minimum", lambda x,y: x >= y, "less than minimum"),
+            ("exclusiveMinimum", lambda x,y: x > y, "not greater than exclusiveMinimum"),
+            ("maximum", lambda x,y: x <= y, "greater than maximum"),
+            ("exclusiveMaximum", lambda x,y: x < y, "not less than exclusiveMaximum"),
+        ]:
+            if key in schema and not op(data, schema[key]):
+                errors.append(VError(path, f"{msg} {schema[key]}"))
+                if fail_fast: return
+        multiple_of = schema.get("multipleOf")
+        if multiple_of:
+            if (data / multiple_of) % 1 != 0:
+                errors.append(VError(path, f"not a multipleOf {multiple_of}"))
+                if fail_fast: return
 
-def validate_dataset(ds_path: Path):
+    # Array facets
+    if isinstance(data, list):
+        min_items = schema.get("minItems")
+        max_items = schema.get("maxItems")
+        if min_items is not None and len(data) < min_items:
+            errors.append(VError(path, f"array has fewer than minItems {min_items}"))
+            if fail_fast: return
+        if max_items is not None and len(data) > max_items:
+            errors.append(VError(path, f"array has more than maxItems {max_items}"))
+            if fail_fast: return
+        if schema.get("uniqueItems"):
+            seen = set()
+            for i, v in enumerate(data):
+                key = json.dumps(v, sort_keys=True) if isinstance(v, (dict, list)) else v
+                if key in seen:
+                    errors.append(VError(jpath(path, i), "duplicate item (uniqueItems)"))
+                    if fail_fast: return
+                seen.add(key)
+        items = schema.get("items")
+        if items:
+            for i, v in enumerate(data):
+                validate_value(v, items, jpath(path, i), errors, fail_fast)
+                if fail_fast and errors: return
+
+    # Object facets
+    if isinstance(data, dict):
+        # required
+        for req in schema.get("required", []):
+            if req not in data:
+                errors.append(VError(path, f"missing required field '{req}'"))
+                if fail_fast: return
+
+        props = schema.get("properties", {})
+        addl = schema.get("additionalProperties", True)
+
+        # validate known properties
+        for k, v in data.items():
+            if k in props:
+                validate_value(v, props[k], jpath(path, k), errors, fail_fast)
+                if fail_fast and errors: return
+            else:
+                if isinstance(addl, dict):
+                    # schema for additional properties
+                    validate_value(v, addl, jpath(path, k), errors, fail_fast)
+                    if fail_fast and errors: return
+                elif addl is False:
+                    errors.append(VError(jpath(path, k), "unexpected property (additionalProperties=false)"))
+                    if fail_fast: return
+
+        # propertyNames
+        pname = schema.get("propertyNames")
+        if pname and "pattern" in pname:
+            prx = re.compile(pname["pattern"])
+            for k in data.keys():
+                if not prx.fullmatch(k):
+                    errors.append(VError(jpath(path, k), f"property name does not match {pname['pattern']}"))
+                    if fail_fast: return
+
+    # allOf/anyOf/oneOf
+    if "allOf" in schema:
+        for i, sub in enumerate(schema["allOf"]):
+            before = len(errors)
+            validate_value(data, sub, path, errors, fail_fast)
+            if fail_fast and len(errors) > before: return
+    if "anyOf" in schema:
+        snapshots = []
+        matched = False
+        for sub in schema["anyOf"]:
+            tmp: List[VError] = []
+            validate_value(data, sub, path, tmp, False)
+            if not tmp:
+                matched = True
+                break
+            snapshots.append(tmp)
+        if not matched:
+            errors.append(VError(path, "failed anyOf (did not match any subschema)"))
+            if fail_fast: return
+    if "oneOf" in schema:
+        match_count = 0
+        for sub in schema["oneOf"]:
+            tmp: List[VError] = []
+            validate_value(data, sub, path, tmp, False)
+            if not tmp:
+                match_count += 1
+        if match_count != 1:
+            errors.append(VError(path, f"failed oneOf (matched {match_count} subschemas)"))
+            if fail_fast: return
+
+def _type_matches(value: Any, expected: Union[str, List[str]]) -> bool:
+    if isinstance(expected, list):
+        return any(_type_matches(value, t) for t in expected)
+    if expected == "string":
+        return isinstance(value, str)
+    if expected == "number":
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+    if expected == "integer":
+        return isinstance(value, int) and not isinstance(value, bool)
+    if expected == "boolean":
+        return isinstance(value, bool)
+    if expected == "object":
+        return isinstance(value, dict)
+    if expected == "array":
+        return isinstance(value, list)
+    if expected == "null":
+        return value is None
+    return True
+
+def type_name(v: Any) -> str:
+    if v is None: return "null"
+    if isinstance(v, bool): return "boolean"
+    if isinstance(v, int) and not isinstance(v, bool): return "integer"
+    if isinstance(v, float): return "number"
+    if isinstance(v, str): return "string"
+    if isinstance(v, list): return "array"
+    if isinstance(v, dict): return "object"
+    return type(v).__name__
+
+# ------------------------- Dataset-level validation ------------------------
+
+def load_schemas(schema_dir: Path) -> Tuple[JSON, JSON]:
+    meta_schema = load_json(schema_dir / "metadata.schema.json")
+    prov_schema = load_json(schema_dir / "prov.schema.json")
+    return meta_schema, prov_schema
+
+def validate_file_against_schema(file_path: Path, schema: JSON, fail_fast: bool) -> List[VError]:
+    data = load_json(file_path)
+    errors: List[VError] = []
+    validate_value(data, schema, "$", errors, fail_fast)
+    return errors
+
+def provenance_cross_checks(prov_data: JSON) -> List[VError]:
+    errs: List[VError] = []
+    path = "$"
+    # date_processed must be <= today (UTC)
+    dp = prov_data.get("date_processed")
+    if isinstance(dp, str) and is_date(dp):
+        dpdt = datetime.strptime(dp, "%Y-%m-%d").date()
+        today = datetime.now(timezone.utc).date()
+        if dpdt > today:
+            errs.append(VError(f"{path}.date_processed", "cannot be in the future"))
+    # optional: semantic version for validator_version if present
+    vv = prov_data.get("validator_version")
+    if isinstance(vv, str):
+        semver_rx = re.compile(r"^\d+\.\d+\.\d+(-[0-9A-Za-z\.-]+)?(\+[0-9A-Za-z\.-]+)?$")
+        if not semver_rx.fullmatch(vv):
+            errs.append(VError(f"{path}.validator_version", "should be a semantic version (e.g., 1.2.3)"))
+    return errs
+
+def validate_dataset(ds_path: Path, meta_schema: JSON, prov_schema: JSON, fail_fast: bool) -> Dict[str, Any]:
+    result = {
+        "dataset": str(ds_path),
+        "errors": [],   # type: ignore
+        "status": "ok",
+    }
+
     if ds_path.is_file():
         ds_path = ds_path.parent
-    meta = ds_path / 'metadata.json'
-    prov = ds_path / 'provenance.json'
+    meta = ds_path / "metadata.json"
+    prov = ds_path / "provenance.json"
+
     if not meta.exists():
-        raise FileNotFoundError(f"Missing metadata.json in {ds_path}")
+        result["errors"].append({"path": "$", "message": f"Missing metadata.json in {ds_path}"})
     if not prov.exists():
-        raise FileNotFoundError(f"Missing provenance.json in {ds_path}")
-    validate_file(meta, meta_schema)
-    validate_file(prov, prov_schema)
+        result["errors"].append({"path": "$", "message": f"Missing provenance.json in {ds_path}"})
 
+    if result["errors"]:
+        result["status"] = "error"
+        return result
 
-def main(args):
-    for p in args:
-        try:
-            validate_dataset(Path(p))
-        except (ValueError, FileNotFoundError, json.JSONDecodeError) as exc:
-            print(f"Validation error for {p}: {exc}")
-            return 1
-    return 0
+    # Validate metadata
+    try:
+        meta_data = load_json(meta)
+    except Exception as e:
+        result["errors"].append({"path": "$", "message": str(e)})
+        result["status"] = "error"
+        return result
 
+    meta_errors = []
+    validate_value(meta_data, meta_schema, "$", meta_errors, fail_fast)
+    result["errors"].extend(e.to_dict() for e in meta_errors)
 
-if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        print("Usage: hbp-validate <dataset-path> [<dataset-path>...]")
-        sys.exit(1)
+    # Validate provenance
+    try:
+        prov_data = load_json(prov)
+    except Exception as e:
+        result["errors"].append({"path": "$", "message": str(e)})
+        result["status"] = "error"
+        return result
+
+    prov_errors = []
+    validate_value(prov_data, prov_schema, "$", prov_errors, fail_fast)
+    prov_errors.extend(provenance_cross_checks(prov_data))
+    result["errors"].extend(e.to_dict() for e in prov_errors)
+
+    if result["errors"]:
+        result["status"] = "error"
+    return result
+
+# --------------------------------- CLI ------------------------------------
+
+def parse_args(argv: List[str]) -> argparse.Namespace:
+    p = argparse.ArgumentParser(
+        prog="hbp-validate",
+        description="Validate HBP DataHub dataset directories against schemas."
+    )
+    p.add_argument("paths", nargs="+", help="Dataset paths or globs (each containing metadata.json and provenance.json)")
+    p.add_argument("--schema-dir", type=Path, default=default_schema_dir(), help="Directory containing schema files")
+    p.add_argument("--json", action="store_true", help="Emit machine-readable JSON report")
+    p.add_argument("--fail-fast", action="store_true", help="Stop collecting errors at the first error per branch")
+    return p.parse_args(argv)
+
+def expand_paths(path_patterns: List[str]) -> List[Path]:
+    out: List[Path] = []
+    for pat in path_patterns:
+        matched = [Path(p) for p in glob.glob(pat)]
+        if matched:
+            out.extend(matched)
+        else:
+            out.append(Path(pat))
+    return out
+
+def main(argv: List[str]) -> int:
+    args = parse_args(argv)
+    try:
+        meta_schema, prov_schema = load_schemas(args.schema_dir)
+    except Exception as e:
+        print(f"Failed to load schemas from {args.schema_dir}: {e}", file=sys.stderr)
+        return 2
+
+    datasets = expand_paths(args.paths)
+    results = []
+    exit_code = 0
+
+    for p in datasets:
+        res = validate_dataset(p, meta_schema, prov_schema, args.fail_fast)
+        results.append(res)
+        if args.json:
+            continue
+        if res["status"] == "ok":
+            print(f"[OK]    {res['dataset']}")
+        else:
+            exit_code = 1
+            print(f"[ERROR] {res['dataset']}")
+            for err in res["errors"]:
+                print(f"  - {err['path']}: {err['message']}")
+
+    if args.json:
+        print(json.dumps({"results": results}, indent=2))
+        if any(r["status"] != "ok" for r in results):
+            exit_code = 1
+
+    return exit_code
+
+if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))
