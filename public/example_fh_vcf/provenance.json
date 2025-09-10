@@ -1,5 +1,5 @@
 {
-  "wasDerivedFrom": "gtex_v9",
+  "wasDerivedFrom": "https://gtexportal.org/release/v9",
   "etl_pipeline_hash": "0000000000000000000000000000000000000000",
   "validator_version": "0.1.0",
   "date_processed": "2025-06-03"
