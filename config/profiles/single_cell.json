@@ -1,0 +1,36 @@
+{
+  "name": "single_cell",
+  "dataset_type": "SINGLE_CELL",
+  "description": "Profile for single-cell and cell-type-resolved omics datasets.",
+  "required_fields": [
+    "gene_id",
+    "phenotype",
+    "metadata.cell_type"
+  ],
+  "field_policies": {
+    "gene_id": {
+      "required": true,
+      "missing_strategy": "exclude"
+    },
+    "phenotype": {
+      "required": true,
+      "missing_strategy": "exclude"
+    },
+    "metadata.cell_type": {
+      "required": true,
+      "missing_strategy": "exclude"
+    },
+    "metadata.assay": {
+      "required": true,
+      "missing_strategy": "exclude"
+    },
+    "metadata.tissue": {
+      "required": false,
+      "missing_strategy": "allow"
+    },
+    "metadata.expression_value": {
+      "required": false,
+      "missing_strategy": "allow"
+    }
+  }
+}

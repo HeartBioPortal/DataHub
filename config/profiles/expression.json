@@ -1,0 +1,31 @@
+{
+  "name": "expression",
+  "dataset_type": "EXPRESSION",
+  "description": "Profile for transcriptomic expression datasets and regulation summaries.",
+  "required_fields": [
+    "gene_id",
+    "phenotype"
+  ],
+  "field_policies": {
+    "gene_id": {
+      "required": true,
+      "missing_strategy": "exclude"
+    },
+    "phenotype": {
+      "required": true,
+      "missing_strategy": "exclude"
+    },
+    "metadata.expression_value": {
+      "required": true,
+      "missing_strategy": "exclude"
+    },
+    "metadata.expression_unit": {
+      "required": false,
+      "missing_strategy": "allow"
+    },
+    "metadata.assay": {
+      "required": false,
+      "missing_strategy": "allow"
+    }
+  }
+}

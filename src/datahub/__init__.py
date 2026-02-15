@@ -15,6 +15,7 @@ from .config import (
 )
 from .models import CanonicalRecord
 from .pipeline import DataHubPipeline, DataHubRunReport
+from .profiles import DatasetProfile, DatasetProfileLoader
 
 __all__ = [
     "CanonicalRecord",
@@ -23,6 +24,8 @@ __all__ = [
     "DatasetContract",
     "DataHubPipeline",
     "DataHubRunReport",
+    "DatasetProfile",
+    "DatasetProfileLoader",
     "FieldPolicy",
     "MissingFieldStrategy",
     "SourcePriority",

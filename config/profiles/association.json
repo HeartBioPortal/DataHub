@@ -1,0 +1,39 @@
+{
+  "name": "association",
+  "dataset_type": "ASSOCIATION",
+  "description": "Association-focused profile for variant-gene-phenotype ingestion and chart generation.",
+  "required_fields": [
+    "gene_id",
+    "variant_id",
+    "phenotype"
+  ],
+  "field_policies": {
+    "gene_id": {
+      "required": true,
+      "missing_strategy": "exclude"
+    },
+    "variant_id": {
+      "required": true,
+      "missing_strategy": "exclude"
+    },
+    "phenotype": {
+      "required": true,
+      "missing_strategy": "exclude"
+    },
+    "variation_type": {
+      "required": false,
+      "missing_strategy": "exclude",
+      "unknown_value": "Unknown"
+    },
+    "clinical_significance": {
+      "required": false,
+      "missing_strategy": "exclude",
+      "unknown_value": "Unknown"
+    },
+    "most_severe_consequence": {
+      "required": false,
+      "missing_strategy": "exclude",
+      "unknown_value": "Unknown"
+    }
+  }
+}

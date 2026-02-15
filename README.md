@@ -69,6 +69,18 @@ Field requirements are configurable via `--required-fields` and phenotype
 routing can be overridden via `--phenotype-map-json`. Redis loading uses the
 existing DataManager exporter so backend cache behavior remains unchanged.
 
+## Dataset Profiles
+
+Dataset-type validation profiles are first-class JSON configs in
+`config/profiles/`:
+
+- `association.json`
+- `expression.json`
+- `single_cell.json`
+
+These profiles can be loaded through `DatasetProfileLoader` and converted into
+runtime `DatasetContract` objects for pipeline validation.
+
 ## Contributing
 
 We welcome new datasets and improvements. See [CONTRIBUTING.md](CONTRIBUTING.md) for a walkthrough of the submission process and consult the files in the `docs/` directory for more details.
