@@ -16,6 +16,7 @@ from .config import (
 from .models import CanonicalRecord
 from .pipeline import DataHubPipeline, DataHubRunReport
 from .profiles import DatasetProfile, DatasetProfileLoader
+from .registry import AdapterPluginSpec, AdapterRegistry, build_default_adapter_registry
 
 __all__ = [
     "CanonicalRecord",
@@ -29,5 +30,8 @@ __all__ = [
     "FieldPolicy",
     "MissingFieldStrategy",
     "SourcePriority",
+    "AdapterRegistry",
+    "AdapterPluginSpec",
     "build_association_contract",
+    "build_default_adapter_registry",
 ]
