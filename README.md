@@ -81,7 +81,7 @@ Dataset-type validation profiles are first-class JSON configs in
 These profiles can be loaded through `DatasetProfileLoader` and converted into
 runtime `DatasetContract` objects for pipeline validation.
 
-## Ingestion Registry
+## Ingestion And Source Registry
 
 DataHub includes a pluggable adapter registry so community submissions can add
 new ingestion adapters without modifying core orchestration code.
@@ -93,14 +93,49 @@ Built-in adapter IDs:
 - `ensembl_association`
 - `clinvar_association`
 
+DataHub also includes a source-management layer under `src/datahub/sources/`
+that maps source manifests in `config/sources/` to adapter instances.
+
+Built-in source IDs:
+
+- `gwas_catalog`
+- `ensembl_variation`
+- `clinvar`
+
 Run configurable ingestion with:
 
 ```bash
 scripts/run_ingestion.py --config path/to/ingestion.json
 ```
 
-The JSON config can define profile, adapter list, optional plugin adapters,
-storage, enrichment source priority, and publishers.
+The JSON config can define profile, adapter list, source list, optional plugin
+adapters and source connectors, storage, enrichment source priority, and
+publishers.
+
+Example source-driven config:
+
+```json
+{
+  "profile": "association",
+  "sources": [
+    {
+      "id": "gwas_catalog",
+      "params": {
+        "input_paths": "/path/to/gwas_results.csv",
+        "dataset_id": "hbp_gwas_snapshot_2026_02"
+      }
+    }
+  ],
+  "publishers": [
+    {
+      "name": "legacy_association",
+      "params": {
+        "output_root": "/path/to/analyzed_data"
+      }
+    }
+  ]
+}
+```
 
 ## Contributing
 

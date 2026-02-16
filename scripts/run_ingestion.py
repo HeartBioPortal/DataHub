@@ -16,8 +16,11 @@ from datahub import (  # noqa: E402
     AdapterPluginSpec,
     DataHubPipeline,
     DatasetProfileLoader,
+    SourceConnectorPluginSpec,
+    SourceManifestLoader,
     SourcePriority,
     build_default_adapter_registry,
+    build_default_source_registry,
 )
 from datahub.enrichment import SourcePriorityEnricher  # noqa: E402
 from datahub.publishers import LegacyAssociationPublisher, LegacyRedisPublisher  # noqa: E402
@@ -48,6 +51,51 @@ def build_publishers(config: dict[str, Any]) -> list[Any]:
             raise ValueError(f"Unknown publisher: {name}")
 
     return publishers
+
+
+def build_adapters(config: dict[str, Any]) -> list[Any]:
+    """Build adapters from legacy ``adapters`` config and new ``sources`` config."""
+
+    adapter_registry = build_default_adapter_registry()
+    for plugin_raw in config.get("plugins", []):
+        adapter_registry.register_plugin(
+            AdapterPluginSpec(
+                name=plugin_raw["name"],
+                module=plugin_raw["module"],
+                class_name=plugin_raw["class_name"],
+            )
+        )
+
+    adapters = []
+    for adapter_raw in config.get("adapters", []):
+        adapter_name = adapter_raw["name"]
+        adapter_params = dict(adapter_raw.get("params", {}))
+        adapters.append(adapter_registry.create(adapter_name, **adapter_params))
+
+    source_loader = SourceManifestLoader(config.get("sources_dir"))
+    source_registry = build_default_source_registry(source_loader)
+    for plugin_raw in config.get("source_plugins", []):
+        source_registry.register_plugin(
+            SourceConnectorPluginSpec(
+                module=plugin_raw["module"],
+                class_name=plugin_raw["class_name"],
+                source_id=plugin_raw["source_id"],
+            ),
+            manifest_loader=source_loader,
+        )
+
+    for source_raw in config.get("sources", []):
+        source_id = source_raw["id"]
+        source_params = dict(source_raw.get("params", {}))
+        adapters.append(
+            source_registry.create_adapter(
+                source_id,
+                adapter_registry=adapter_registry,
+                params=source_params,
+            )
+        )
+
+    return adapters
 
 
 def build_storage(config: dict[str, Any]) -> Any:
@@ -88,24 +136,10 @@ def main() -> int:
     else:
         profile = profile_loader.load(config.get("profile", "association"))
 
-    registry = build_default_adapter_registry()
-    for plugin_raw in config.get("plugins", []):
-        registry.register_plugin(
-            AdapterPluginSpec(
-                name=plugin_raw["name"],
-                module=plugin_raw["module"],
-                class_name=plugin_raw["class_name"],
-            )
-        )
-
-    adapters = []
-    for adapter_raw in config.get("adapters", []):
-        adapter_name = adapter_raw["name"]
-        adapter_params = dict(adapter_raw.get("params", {}))
-        adapters.append(registry.create(adapter_name, **adapter_params))
+    adapters = build_adapters(config)
 
     if not adapters:
-        raise ValueError("No adapters configured")
+        raise ValueError("No adapters configured. Set adapters[] and/or sources[].")
 
     report = DataHubPipeline(
         contract=profile.to_contract(),
