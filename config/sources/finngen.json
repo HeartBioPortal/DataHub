@@ -1,0 +1,19 @@
+{
+  "source_id": "finngen",
+  "display_name": "FinnGen",
+  "description": "Finnish biobank-scale cohort with phenotype-genotype association releases.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["ASSOCIATION"],
+  "modalities": ["genomics", "association", "cohort"],
+  "access_mode": "download",
+  "homepage_url": "https://www.finngen.fi/en",
+  "api_base_url": null,
+  "bulk_download_url": "https://finngen.gitbook.io/documentation/",
+  "license_name": "FinnGen data access terms",
+  "update_frequency": "release-based",
+  "priority_tier": 1,
+  "provenance_tags": ["cohort", "cvd", "association"],
+  "data_category": "cvd_focused_portals",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

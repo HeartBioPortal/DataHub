@@ -1,0 +1,19 @@
+{
+  "source_id": "cellxgene",
+  "display_name": "CZ CELLxGENE",
+  "description": "Single-cell open census and curated datasets with searchable cell metadata.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["SINGLE_CELL"],
+  "modalities": ["single_cell", "rna_seq", "cell_metadata"],
+  "access_mode": "api",
+  "homepage_url": "https://cellxgene.cziscience.com/",
+  "api_base_url": "https://api.cellxgene.cziscience.com/",
+  "bulk_download_url": "https://chanzuckerberg.github.io/cellxgene-census/",
+  "license_name": "CELLxGENE terms of use",
+  "update_frequency": "continuous",
+  "priority_tier": 1,
+  "provenance_tags": ["single_cell", "census", "atlas"],
+  "data_category": "single_cell_spatial",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

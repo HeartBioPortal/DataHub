@@ -1,0 +1,19 @@
+{
+  "source_id": "open_targets",
+  "display_name": "Open Targets Platform",
+  "description": "Integrated target-disease evidence and prioritization from genetics and functional data.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["TRANSLATIONAL"],
+  "modalities": ["target_disease", "evidence_integration", "genetics"],
+  "access_mode": "hybrid",
+  "homepage_url": "https://platform.opentargets.org/",
+  "api_base_url": "https://api.platform.opentargets.org/api/v4/graphql",
+  "bulk_download_url": "https://platform-docs.opentargets.org/data-access/datasets",
+  "license_name": "Open Targets data licensing",
+  "update_frequency": "release-based",
+  "priority_tier": 1,
+  "provenance_tags": ["target", "disease", "evidence"],
+  "data_category": "drug_target_translational",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

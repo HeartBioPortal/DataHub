@@ -1,0 +1,19 @@
+{
+  "source_id": "pharmgkb",
+  "display_name": "PharmGKB",
+  "description": "Pharmacogenomic knowledgebase linking variants, genes, drugs, and clinical annotations.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["TRANSLATIONAL"],
+  "modalities": ["pharmacogenomics", "clinical_annotation", "drug_gene"],
+  "access_mode": "hybrid",
+  "homepage_url": "https://www.pharmgkb.org/",
+  "api_base_url": null,
+  "bulk_download_url": "https://www.pharmgkb.org/downloads",
+  "license_name": "PharmGKB terms of use",
+  "update_frequency": "continuous",
+  "priority_tier": 1,
+  "provenance_tags": ["pharmacogenomics", "clinical", "drug_response"],
+  "data_category": "drug_target_translational",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

@@ -1,0 +1,19 @@
+{
+  "source_id": "alfa",
+  "display_name": "NCBI ALFA",
+  "description": "Allele Frequency Aggregator with broad cohort-based variant frequencies.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["ASSOCIATION"],
+  "modalities": ["genomics", "population_frequency", "reference"],
+  "access_mode": "hybrid",
+  "homepage_url": "https://www.ncbi.nlm.nih.gov/snp/docs/gsr/alfa/",
+  "api_base_url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/",
+  "bulk_download_url": null,
+  "license_name": "NCBI Disclaimer and Copyright Notice",
+  "update_frequency": "continuous",
+  "priority_tier": 2,
+  "provenance_tags": ["ncbi", "allele_frequency", "population"],
+  "data_category": "population_reference_variation",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

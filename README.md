@@ -102,6 +102,24 @@ Built-in source IDs:
 - `ensembl_variation`
 - `clinvar`
 
+Additional source manifests are included for cataloging major databases across
+these categories:
+
+- `cvd_focused_portals`
+- `gwas_statistical_genetics`
+- `population_reference_variation`
+- `clinical_variant_interpretation`
+- `bulk_transcriptomics_qtl`
+- `single_cell_spatial`
+- `epigenomics_regulatory`
+- `proteomics`
+- `metabolomics_lipidomics`
+- `pathways_interactions_networks`
+- `drug_target_translational`
+- `ontologies_standards`
+
+Most of these are marked `catalog_only` until a dedicated adapter is wired.
+
 Run configurable ingestion with:
 
 ```bash

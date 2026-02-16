@@ -1,0 +1,19 @@
+{
+  "source_id": "metabolights",
+  "display_name": "MetaboLights",
+  "description": "Metabolomics study repository with raw and processed metabolite profiles.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["METABOLOMICS"],
+  "modalities": ["metabolomics", "study_archive"],
+  "access_mode": "hybrid",
+  "homepage_url": "https://www.ebi.ac.uk/metabolights/",
+  "api_base_url": "https://www.ebi.ac.uk:443/metabolights/ws",
+  "bulk_download_url": "https://www.ebi.ac.uk/metabolights/download",
+  "license_name": "EMBL-EBI terms of use",
+  "update_frequency": "continuous",
+  "priority_tier": 1,
+  "provenance_tags": ["metabolomics", "study", "repository"],
+  "data_category": "metabolomics_lipidomics",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

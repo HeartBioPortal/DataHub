@@ -1,0 +1,19 @@
+{
+  "source_id": "wikipathways",
+  "display_name": "WikiPathways",
+  "description": "Community-curated biological pathways with programmatic and RDF access.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["PATHWAY"],
+  "modalities": ["pathway", "community_curation", "knowledge_graph"],
+  "access_mode": "hybrid",
+  "homepage_url": "https://www.wikipathways.org/",
+  "api_base_url": "https://webservice.wikipathways.org/",
+  "bulk_download_url": "https://data.wikipathways.org/current/gpml/",
+  "license_name": "Creative Commons license",
+  "update_frequency": "continuous",
+  "priority_tier": 2,
+  "provenance_tags": ["pathway", "community", "rdf"],
+  "data_category": "pathways_interactions_networks",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

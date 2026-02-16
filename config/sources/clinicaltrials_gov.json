@@ -1,0 +1,19 @@
+{
+  "source_id": "clinicaltrials_gov",
+  "display_name": "ClinicalTrials.gov",
+  "description": "Registry and results database of publicly and privately supported clinical studies.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["TRANSLATIONAL"],
+  "modalities": ["clinical_trials", "intervention", "outcomes"],
+  "access_mode": "api",
+  "homepage_url": "https://clinicaltrials.gov/",
+  "api_base_url": "https://clinicaltrials.gov/api/v2/",
+  "bulk_download_url": "https://clinicaltrials.gov/data-api/about-api",
+  "license_name": "ClinicalTrials.gov data use policy",
+  "update_frequency": "continuous",
+  "priority_tier": 1,
+  "provenance_tags": ["clinical_trials", "interventions", "outcomes"],
+  "data_category": "drug_target_translational",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

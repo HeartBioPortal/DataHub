@@ -13,6 +13,8 @@
   "update_frequency": "weekly",
   "priority_tier": 1,
   "provenance_tags": ["clinvar", "clinical_significance", "variant"],
+  "data_category": "clinical_variant_interpretation",
+  "integration_status": "integrated",
   "default_params": {
     "source": "clinvar"
   }

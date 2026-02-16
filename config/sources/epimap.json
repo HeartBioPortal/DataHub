@@ -1,0 +1,19 @@
+{
+  "source_id": "epimap",
+  "display_name": "EpiMap",
+  "description": "Integrated enhancer and chromatin-state maps across human tissues and cell types.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["EPIGENOMICS"],
+  "modalities": ["epigenomics", "enhancer", "regulatory_annotation"],
+  "access_mode": "download",
+  "homepage_url": "https://compbio.mit.edu/epimap",
+  "api_base_url": null,
+  "bulk_download_url": "https://compbio.mit.edu/epimap/data",
+  "license_name": "EpiMap data usage terms",
+  "update_frequency": "release-based",
+  "priority_tier": 2,
+  "provenance_tags": ["enhancer", "chromatin_state", "tissue_specific"],
+  "data_category": "epigenomics_regulatory",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

@@ -1,0 +1,19 @@
+{
+  "source_id": "biogrid",
+  "display_name": "BioGRID",
+  "description": "Curated repository of physical and genetic interactions from the literature.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["PATHWAY"],
+  "modalities": ["protein_interaction", "genetic_interaction", "network"],
+  "access_mode": "download",
+  "homepage_url": "https://thebiogrid.org/",
+  "api_base_url": null,
+  "bulk_download_url": "https://downloads.thebiogrid.org/BioGRID/",
+  "license_name": "BioGRID terms of use",
+  "update_frequency": "continuous",
+  "priority_tier": 2,
+  "provenance_tags": ["interaction", "curation", "network"],
+  "data_category": "pathways_interactions_networks",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

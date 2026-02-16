@@ -1,0 +1,19 @@
+{
+  "source_id": "efo",
+  "display_name": "Experimental Factor Ontology",
+  "description": "Ontology for experimental variables, traits, diseases, and biomedical concepts.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["ONTOLOGY"],
+  "modalities": ["ontology", "trait_mapping", "standardization"],
+  "access_mode": "download",
+  "homepage_url": "https://www.ebi.ac.uk/efo/",
+  "api_base_url": null,
+  "bulk_download_url": "https://github.com/EBISPOT/efo/releases",
+  "license_name": "Creative Commons Attribution 4.0",
+  "update_frequency": "release-based",
+  "priority_tier": 1,
+  "provenance_tags": ["ontology", "traits", "ebi"],
+  "data_category": "ontologies_standards",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

@@ -1,0 +1,19 @@
+{
+  "source_id": "cptac",
+  "display_name": "CPTAC Data Portal",
+  "description": "Clinical Proteomic Tumor Analysis Consortium datasets and proteogenomic resources.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["PROTEOMICS"],
+  "modalities": ["proteomics", "proteogenomics"],
+  "access_mode": "hybrid",
+  "homepage_url": "https://proteomic.datacommons.cancer.gov/pdc/",
+  "api_base_url": "https://pdc.cancer.gov/pdc/graphql",
+  "bulk_download_url": null,
+  "license_name": "CPTAC / PDC data usage terms",
+  "update_frequency": "continuous",
+  "priority_tier": 3,
+  "provenance_tags": ["proteomics", "clinical", "consortium"],
+  "data_category": "proteomics",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

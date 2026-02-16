@@ -1,0 +1,19 @@
+{
+  "source_id": "roadmap_epigenomics",
+  "display_name": "Roadmap Epigenomics",
+  "description": "Reference epigenome maps including histone marks, methylation, and chromatin states.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["EPIGENOMICS"],
+  "modalities": ["epigenomics", "chromatin_state", "methylation"],
+  "access_mode": "download",
+  "homepage_url": "https://egg2.wustl.edu/roadmap/web_portal/",
+  "api_base_url": null,
+  "bulk_download_url": "https://egg2.wustl.edu/roadmap/data/byFileType/",
+  "license_name": "NIH Roadmap data usage terms",
+  "update_frequency": "release-based",
+  "priority_tier": 2,
+  "provenance_tags": ["epigenome", "histone_marks", "reference_maps"],
+  "data_category": "epigenomics_regulatory",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

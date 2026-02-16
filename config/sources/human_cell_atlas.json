@@ -1,0 +1,19 @@
+{
+  "source_id": "human_cell_atlas",
+  "display_name": "Human Cell Atlas",
+  "description": "Global reference atlas of human single-cell transcriptomic datasets.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["SINGLE_CELL"],
+  "modalities": ["single_cell", "rna_seq", "cell_atlas"],
+  "access_mode": "hybrid",
+  "homepage_url": "https://data.humancellatlas.org/",
+  "api_base_url": "https://service.azul.data.humancellatlas.org/",
+  "bulk_download_url": "https://data.humancellatlas.org/explore/projects",
+  "license_name": "Human Cell Atlas data use policy",
+  "update_frequency": "continuous",
+  "priority_tier": 1,
+  "provenance_tags": ["single_cell", "atlas", "reference"],
+  "data_category": "single_cell_spatial",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

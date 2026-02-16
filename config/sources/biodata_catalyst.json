@@ -1,0 +1,19 @@
+{
+  "source_id": "biodata_catalyst",
+  "display_name": "NHLBI BioData Catalyst",
+  "description": "NHLBI cloud ecosystem providing access to heart, lung, blood, and sleep datasets.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["ASSOCIATION"],
+  "modalities": ["genomics", "cohort", "multimodal"],
+  "access_mode": "hybrid",
+  "homepage_url": "https://biodatacatalyst.nhlbi.nih.gov/",
+  "api_base_url": null,
+  "bulk_download_url": null,
+  "license_name": "NHLBI BioData Catalyst data access terms",
+  "update_frequency": "continuous",
+  "priority_tier": 1,
+  "provenance_tags": ["nhlbi", "cohort", "cvd"],
+  "data_category": "cvd_focused_portals",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

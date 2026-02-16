@@ -1,0 +1,19 @@
+{
+  "source_id": "uberon",
+  "display_name": "Uberon Anatomy Ontology",
+  "description": "Cross-species anatomy ontology for harmonized tissue and organ mappings.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["ONTOLOGY"],
+  "modalities": ["ontology", "anatomy_mapping", "standardization"],
+  "access_mode": "download",
+  "homepage_url": "https://obophenotype.github.io/uberon/",
+  "api_base_url": null,
+  "bulk_download_url": "https://github.com/obophenotype/uberon/releases",
+  "license_name": "CC-BY 4.0",
+  "update_frequency": "release-based",
+  "priority_tier": 2,
+  "provenance_tags": ["ontology", "anatomy", "tissue"],
+  "data_category": "ontologies_standards",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

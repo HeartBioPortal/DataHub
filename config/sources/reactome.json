@@ -1,0 +1,19 @@
+{
+  "source_id": "reactome",
+  "display_name": "Reactome",
+  "description": "Curated human pathways and reactions with molecular event hierarchy.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["PATHWAY"],
+  "modalities": ["pathway", "network", "knowledge_graph"],
+  "access_mode": "hybrid",
+  "homepage_url": "https://reactome.org/",
+  "api_base_url": "https://reactome.org/ContentService/",
+  "bulk_download_url": "https://reactome.org/download-data",
+  "license_name": "Reactome open license",
+  "update_frequency": "release-based",
+  "priority_tier": 1,
+  "provenance_tags": ["pathway", "curated", "reaction"],
+  "data_category": "pathways_interactions_networks",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

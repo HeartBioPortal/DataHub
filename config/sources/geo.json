@@ -1,0 +1,19 @@
+{
+  "source_id": "geo",
+  "display_name": "NCBI GEO",
+  "description": "Gene expression and functional genomics archive with microarray and sequencing datasets.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["EXPRESSION"],
+  "modalities": ["bulk_rna", "single_cell", "epigenomics"],
+  "access_mode": "hybrid",
+  "homepage_url": "https://www.ncbi.nlm.nih.gov/geo/",
+  "api_base_url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/",
+  "bulk_download_url": "https://ftp.ncbi.nlm.nih.gov/geo/",
+  "license_name": "NCBI Disclaimer and Copyright Notice",
+  "update_frequency": "continuous",
+  "priority_tier": 2,
+  "provenance_tags": ["expression", "functional_genomics", "archive"],
+  "data_category": "bulk_transcriptomics_qtl",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

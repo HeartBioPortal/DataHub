@@ -13,6 +13,8 @@
   "update_frequency": "continuous",
   "priority_tier": 1,
   "provenance_tags": ["gwas", "association", "variant"],
+  "data_category": "gwas_statistical_genetics",
+  "integration_status": "integrated",
   "default_params": {
     "source": "gwas_catalog"
   }

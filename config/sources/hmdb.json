@@ -1,0 +1,19 @@
+{
+  "source_id": "hmdb",
+  "display_name": "Human Metabolome Database",
+  "description": "Curated human metabolite structures, concentrations, and pathway annotations.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["METABOLOMICS"],
+  "modalities": ["metabolomics", "compound_annotation", "clinical_reference"],
+  "access_mode": "download",
+  "homepage_url": "https://hmdb.ca/",
+  "api_base_url": null,
+  "bulk_download_url": "https://hmdb.ca/downloads",
+  "license_name": "HMDB license and terms of use",
+  "update_frequency": "release-based",
+  "priority_tier": 1,
+  "provenance_tags": ["metabolite", "annotation", "reference"],
+  "data_category": "metabolomics_lipidomics",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

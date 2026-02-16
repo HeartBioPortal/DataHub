@@ -1,0 +1,19 @@
+{
+  "source_id": "arrayexpress",
+  "display_name": "ArrayExpress",
+  "description": "EMBL-EBI archive of functional genomics experiments and processed expression data.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["EXPRESSION"],
+  "modalities": ["bulk_rna", "functional_genomics"],
+  "access_mode": "download",
+  "homepage_url": "https://www.ebi.ac.uk/arrayexpress/",
+  "api_base_url": null,
+  "bulk_download_url": "https://www.ebi.ac.uk/biostudies/arrayexpress",
+  "license_name": "EMBL-EBI terms of use",
+  "update_frequency": "continuous",
+  "priority_tier": 2,
+  "provenance_tags": ["expression_archive", "functional_genomics"],
+  "data_category": "bulk_transcriptomics_qtl",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

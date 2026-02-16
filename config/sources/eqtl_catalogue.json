@@ -1,0 +1,19 @@
+{
+  "source_id": "eqtl_catalogue",
+  "display_name": "eQTL Catalogue",
+  "description": "Uniformly processed eQTL and molecular QTL datasets from multiple studies.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["EXPRESSION"],
+  "modalities": ["eqtl", "sqtl", "molecular_qtl"],
+  "access_mode": "hybrid",
+  "homepage_url": "https://www.ebi.ac.uk/eqtl/",
+  "api_base_url": null,
+  "bulk_download_url": "https://ftp.ebi.ac.uk/pub/databases/spot/eQTL/",
+  "license_name": "EMBL-EBI terms of use",
+  "update_frequency": "release-based",
+  "priority_tier": 1,
+  "provenance_tags": ["qtl", "expression", "harmonized"],
+  "data_category": "bulk_transcriptomics_qtl",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

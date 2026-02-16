@@ -1,0 +1,19 @@
+{
+  "source_id": "mondo",
+  "display_name": "MONDO Disease Ontology",
+  "description": "Unified disease ontology integrating multiple disease vocabularies and mappings.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["ONTOLOGY"],
+  "modalities": ["ontology", "disease_mapping", "standardization"],
+  "access_mode": "download",
+  "homepage_url": "https://mondo.monarchinitiative.org/",
+  "api_base_url": null,
+  "bulk_download_url": "https://github.com/monarch-initiative/mondo/releases",
+  "license_name": "CC-BY 4.0",
+  "update_frequency": "release-based",
+  "priority_tier": 1,
+  "provenance_tags": ["ontology", "disease", "mapping"],
+  "data_category": "ontologies_standards",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

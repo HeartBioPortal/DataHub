@@ -1,0 +1,19 @@
+{
+  "source_id": "intact",
+  "display_name": "IntAct",
+  "description": "Manually curated molecular interaction database hosted by EMBL-EBI.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["PATHWAY"],
+  "modalities": ["molecular_interaction", "network", "curated_evidence"],
+  "access_mode": "hybrid",
+  "homepage_url": "https://www.ebi.ac.uk/intact/",
+  "api_base_url": "https://www.ebi.ac.uk/intact/ws/",
+  "bulk_download_url": "https://ftp.ebi.ac.uk/pub/databases/intact/",
+  "license_name": "EMBL-EBI terms of use",
+  "update_frequency": "continuous",
+  "priority_tier": 2,
+  "provenance_tags": ["interaction", "curated", "ebi"],
+  "data_category": "pathways_interactions_networks",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

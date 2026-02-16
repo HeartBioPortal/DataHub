@@ -1,0 +1,19 @@
+{
+  "source_id": "hubmap",
+  "display_name": "HuBMAP",
+  "description": "Human BioMolecular Atlas Program portal with spatial and single-cell molecular maps.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["SINGLE_CELL"],
+  "modalities": ["single_cell", "spatial", "multiomics"],
+  "access_mode": "hybrid",
+  "homepage_url": "https://portal.hubmapconsortium.org/",
+  "api_base_url": "https://portal.hubmapconsortium.org/api/",
+  "bulk_download_url": null,
+  "license_name": "HuBMAP data usage policy",
+  "update_frequency": "continuous",
+  "priority_tier": 1,
+  "provenance_tags": ["spatial", "single_cell", "atlas"],
+  "data_category": "single_cell_spatial",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

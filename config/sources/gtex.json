@@ -1,0 +1,19 @@
+{
+  "source_id": "gtex",
+  "display_name": "GTEx Portal",
+  "description": "Gene expression and eQTL resources across human tissues.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["EXPRESSION"],
+  "modalities": ["bulk_rna", "eqtl", "tissue_expression"],
+  "access_mode": "hybrid",
+  "homepage_url": "https://gtexportal.org/home/",
+  "api_base_url": "https://gtexportal.org/api/v2/",
+  "bulk_download_url": "https://gtexportal.org/home/downloads/adult-gtex",
+  "license_name": "GTEx terms of use",
+  "update_frequency": "release-based",
+  "priority_tier": 1,
+  "provenance_tags": ["expression", "eqtl", "tissue"],
+  "data_category": "bulk_transcriptomics_qtl",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

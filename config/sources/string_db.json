@@ -1,0 +1,19 @@
+{
+  "source_id": "string_db",
+  "display_name": "STRING",
+  "description": "Protein-protein association network with confidence scoring and evidence channels.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["PATHWAY"],
+  "modalities": ["protein_interaction", "network", "functional_association"],
+  "access_mode": "api",
+  "homepage_url": "https://string-db.org/",
+  "api_base_url": "https://string-db.org/api",
+  "bulk_download_url": "https://string-db.org/cgi/download",
+  "license_name": "STRING license terms",
+  "update_frequency": "release-based",
+  "priority_tier": 2,
+  "provenance_tags": ["ppi", "network", "association"],
+  "data_category": "pathways_interactions_networks",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

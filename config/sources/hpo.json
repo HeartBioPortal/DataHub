@@ -1,0 +1,19 @@
+{
+  "source_id": "hpo",
+  "display_name": "Human Phenotype Ontology",
+  "description": "Standardized phenotype vocabulary for disease and clinical feature annotation.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["ONTOLOGY"],
+  "modalities": ["ontology", "phenotype_mapping", "standardization"],
+  "access_mode": "download",
+  "homepage_url": "https://hpo.jax.org/app/",
+  "api_base_url": null,
+  "bulk_download_url": "https://hpo.jax.org/app/download/ontology",
+  "license_name": "HPO data license",
+  "update_frequency": "continuous",
+  "priority_tier": 1,
+  "provenance_tags": ["ontology", "phenotype", "clinical"],
+  "data_category": "ontologies_standards",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

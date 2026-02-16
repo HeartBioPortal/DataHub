@@ -1,0 +1,19 @@
+{
+  "source_id": "dbsnp",
+  "display_name": "NCBI dbSNP",
+  "description": "Reference catalog of short genetic variants and associated identifiers.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["ASSOCIATION"],
+  "modalities": ["genomics", "reference", "annotation"],
+  "access_mode": "hybrid",
+  "homepage_url": "https://www.ncbi.nlm.nih.gov/snp/",
+  "api_base_url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/",
+  "bulk_download_url": "https://ftp.ncbi.nih.gov/snp/",
+  "license_name": "NCBI Disclaimer and Copyright Notice",
+  "update_frequency": "continuous",
+  "priority_tier": 1,
+  "provenance_tags": ["dbsnp", "rsid", "variant"],
+  "data_category": "population_reference_variation",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

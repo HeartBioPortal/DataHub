@@ -1,0 +1,19 @@
+{
+  "source_id": "gnomad",
+  "display_name": "gnomAD",
+  "description": "Population-scale allele frequencies and constraint metrics for human variants.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["ASSOCIATION"],
+  "modalities": ["genomics", "population_frequency", "reference"],
+  "access_mode": "hybrid",
+  "homepage_url": "https://gnomad.broadinstitute.org/",
+  "api_base_url": "https://gnomad.broadinstitute.org/api",
+  "bulk_download_url": "https://gnomad.broadinstitute.org/downloads",
+  "license_name": "gnomAD terms of use",
+  "update_frequency": "release-based",
+  "priority_tier": 1,
+  "provenance_tags": ["population_frequency", "reference", "variant"],
+  "data_category": "population_reference_variation",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

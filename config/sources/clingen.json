@@ -1,0 +1,19 @@
+{
+  "source_id": "clingen",
+  "display_name": "ClinGen",
+  "description": "Clinically curated gene and variant validity and actionability resources.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["ASSOCIATION"],
+  "modalities": ["clinical_annotation", "genomics", "evidence"],
+  "access_mode": "hybrid",
+  "homepage_url": "https://www.clinicalgenome.org/",
+  "api_base_url": null,
+  "bulk_download_url": null,
+  "license_name": "ClinGen terms and attribution policy",
+  "update_frequency": "continuous",
+  "priority_tier": 1,
+  "provenance_tags": ["clinical_curation", "gene_validity", "variant"],
+  "data_category": "clinical_variant_interpretation",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

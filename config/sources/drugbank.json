@@ -1,0 +1,19 @@
+{
+  "source_id": "drugbank",
+  "display_name": "DrugBank",
+  "description": "Drug, target, and mechanism knowledgebase used for translational target prioritization.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["TRANSLATIONAL"],
+  "modalities": ["drug_target", "compound_annotation", "mechanism"],
+  "access_mode": "hybrid",
+  "homepage_url": "https://go.drugbank.com/",
+  "api_base_url": null,
+  "bulk_download_url": null,
+  "license_name": "DrugBank licensing terms",
+  "update_frequency": "continuous",
+  "priority_tier": 2,
+  "provenance_tags": ["drug", "target", "mechanism"],
+  "data_category": "drug_target_translational",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

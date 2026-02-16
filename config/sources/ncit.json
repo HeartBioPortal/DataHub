@@ -1,0 +1,19 @@
+{
+  "source_id": "ncit",
+  "display_name": "NCI Thesaurus",
+  "description": "Biomedical ontology covering diseases, drugs, genes, anatomy, and trial terminology.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["ONTOLOGY"],
+  "modalities": ["ontology", "terminology", "mapping"],
+  "access_mode": "download",
+  "homepage_url": "https://ncit.nci.nih.gov/ncitbrowser/",
+  "api_base_url": null,
+  "bulk_download_url": "https://evs.nci.nih.gov/ftp1/NCI_Thesaurus/",
+  "license_name": "NCI terms of use",
+  "update_frequency": "release-based",
+  "priority_tier": 2,
+  "provenance_tags": ["ontology", "terminology", "ncit"],
+  "data_category": "ontologies_standards",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

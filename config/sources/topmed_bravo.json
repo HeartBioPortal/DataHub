@@ -1,0 +1,19 @@
+{
+  "source_id": "topmed_bravo",
+  "display_name": "TOPMed BRAVO",
+  "description": "NHLBI TOPMed variant browser with deep sequencing allele frequencies.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["ASSOCIATION"],
+  "modalities": ["genomics", "population_frequency", "reference"],
+  "access_mode": "api",
+  "homepage_url": "https://bravo.sph.umich.edu/freeze8/hg38/",
+  "api_base_url": null,
+  "bulk_download_url": null,
+  "license_name": "TOPMed / NHLBI data access policy",
+  "update_frequency": "release-based",
+  "priority_tier": 1,
+  "provenance_tags": ["topmed", "nhlbi", "frequency"],
+  "data_category": "population_reference_variation",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

@@ -1,0 +1,19 @@
+{
+  "source_id": "metabolomics_workbench",
+  "display_name": "Metabolomics Workbench",
+  "description": "NIH repository for metabolomics studies, protocols, and metabolite data.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["METABOLOMICS"],
+  "modalities": ["metabolomics", "study_archive", "assay_metadata"],
+  "access_mode": "hybrid",
+  "homepage_url": "https://www.metabolomicsworkbench.org/",
+  "api_base_url": "https://www.metabolomicsworkbench.org/rest/",
+  "bulk_download_url": null,
+  "license_name": "Metabolomics Workbench data use policy",
+  "update_frequency": "continuous",
+  "priority_tier": 2,
+  "provenance_tags": ["metabolomics", "nih", "study"],
+  "data_category": "metabolomics_lipidomics",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

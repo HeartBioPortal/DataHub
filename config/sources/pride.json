@@ -1,0 +1,19 @@
+{
+  "source_id": "pride",
+  "display_name": "PRIDE",
+  "description": "Mass spectrometry-based proteomics repository in the ProteomeXchange consortium.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["PROTEOMICS"],
+  "modalities": ["proteomics", "mass_spectrometry"],
+  "access_mode": "hybrid",
+  "homepage_url": "https://www.ebi.ac.uk/pride/",
+  "api_base_url": "https://www.ebi.ac.uk/pride/ws/archive/v2/",
+  "bulk_download_url": "https://ftp.pride.ebi.ac.uk/pride/data/archive/",
+  "license_name": "EMBL-EBI terms of use",
+  "update_frequency": "continuous",
+  "priority_tier": 2,
+  "provenance_tags": ["proteomics", "ms", "repository"],
+  "data_category": "proteomics",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

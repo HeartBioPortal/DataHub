@@ -1,0 +1,19 @@
+{
+  "source_id": "uk_biobank",
+  "display_name": "UK Biobank",
+  "description": "Large prospective cohort with genotype, phenotype, and longitudinal health records.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["ASSOCIATION"],
+  "modalities": ["genomics", "clinical", "cohort"],
+  "access_mode": "hybrid",
+  "homepage_url": "https://www.ukbiobank.ac.uk/",
+  "api_base_url": null,
+  "bulk_download_url": null,
+  "license_name": "UK Biobank access policy",
+  "update_frequency": "release-based",
+  "priority_tier": 1,
+  "provenance_tags": ["cohort", "cvd", "population"],
+  "data_category": "cvd_focused_portals",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

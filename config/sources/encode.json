@@ -1,0 +1,19 @@
+{
+  "source_id": "encode",
+  "display_name": "ENCODE",
+  "description": "Comprehensive regulatory genomics datasets, including TF binding and chromatin assays.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["EPIGENOMICS"],
+  "modalities": ["epigenomics", "regulatory", "functional_genomics"],
+  "access_mode": "api",
+  "homepage_url": "https://www.encodeproject.org/",
+  "api_base_url": "https://www.encodeproject.org/",
+  "bulk_download_url": "https://www.encodeproject.org/matrix/?type=Experiment",
+  "license_name": "ENCODE data use policy",
+  "update_frequency": "continuous",
+  "priority_tier": 1,
+  "provenance_tags": ["regulatory", "chromatin", "functional_genomics"],
+  "data_category": "epigenomics_regulatory",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

@@ -1,0 +1,19 @@
+{
+  "source_id": "human_protein_atlas",
+  "display_name": "Human Protein Atlas",
+  "description": "Tissue and cell-type protein expression with transcript and pathology support data.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["PROTEOMICS"],
+  "modalities": ["proteomics", "tissue_expression", "antibody_based"],
+  "access_mode": "download",
+  "homepage_url": "https://www.proteinatlas.org/",
+  "api_base_url": null,
+  "bulk_download_url": "https://www.proteinatlas.org/about/download",
+  "license_name": "Human Protein Atlas terms of use",
+  "update_frequency": "release-based",
+  "priority_tier": 1,
+  "provenance_tags": ["protein_expression", "tissue", "atlas"],
+  "data_category": "proteomics",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

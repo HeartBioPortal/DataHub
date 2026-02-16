@@ -1,0 +1,19 @@
+{
+  "source_id": "dbgap",
+  "display_name": "dbGaP",
+  "description": "NCBI repository for genotype-phenotype studies including many cardiovascular cohorts.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["ASSOCIATION"],
+  "modalities": ["genomics", "clinical", "cohort"],
+  "access_mode": "hybrid",
+  "homepage_url": "https://www.ncbi.nlm.nih.gov/gap/",
+  "api_base_url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/",
+  "bulk_download_url": null,
+  "license_name": "NCBI dbGaP access and data use policy",
+  "update_frequency": "continuous",
+  "priority_tier": 2,
+  "provenance_tags": ["dbgap", "cohort", "genotype_phenotype"],
+  "data_category": "cvd_focused_portals",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

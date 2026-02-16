@@ -1,0 +1,19 @@
+{
+  "source_id": "biolink_model",
+  "display_name": "Biolink Model",
+  "description": "Semantic data model for harmonizing biomedical entities and relationships.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["ONTOLOGY"],
+  "modalities": ["semantic_model", "knowledge_graph", "standardization"],
+  "access_mode": "download",
+  "homepage_url": "https://biolink.github.io/biolink-model/",
+  "api_base_url": null,
+  "bulk_download_url": "https://github.com/biolink/biolink-model/releases",
+  "license_name": "Biolink Model license",
+  "update_frequency": "release-based",
+  "priority_tier": 1,
+  "provenance_tags": ["semantic_layer", "kg", "interoperability"],
+  "data_category": "ontologies_standards",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

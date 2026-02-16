@@ -1,0 +1,19 @@
+{
+  "source_id": "expression_atlas",
+  "display_name": "Expression Atlas",
+  "description": "Curated baseline and differential expression resources across tissues and conditions.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["EXPRESSION"],
+  "modalities": ["bulk_rna", "single_cell", "differential_expression"],
+  "access_mode": "hybrid",
+  "homepage_url": "https://www.ebi.ac.uk/gxa/home",
+  "api_base_url": null,
+  "bulk_download_url": "https://www.ebi.ac.uk/gxa/downloads.html",
+  "license_name": "EMBL-EBI terms of use",
+  "update_frequency": "continuous",
+  "priority_tier": 2,
+  "provenance_tags": ["expression", "curated", "atlas"],
+  "data_category": "bulk_transcriptomics_qtl",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

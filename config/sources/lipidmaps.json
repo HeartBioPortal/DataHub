@@ -1,0 +1,19 @@
+{
+  "source_id": "lipidmaps",
+  "display_name": "LIPID MAPS",
+  "description": "Lipid structures, nomenclature, and lipidomics pathway resources.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["METABOLOMICS"],
+  "modalities": ["lipidomics", "compound_annotation", "pathway"],
+  "access_mode": "download",
+  "homepage_url": "https://www.lipidmaps.org/",
+  "api_base_url": null,
+  "bulk_download_url": "https://www.lipidmaps.org/resources/downloads",
+  "license_name": "LIPID MAPS terms of use",
+  "update_frequency": "release-based",
+  "priority_tier": 2,
+  "provenance_tags": ["lipid", "annotation", "reference"],
+  "data_category": "metabolomics_lipidomics",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

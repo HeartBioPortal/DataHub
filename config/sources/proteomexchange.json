@@ -1,0 +1,19 @@
+{
+  "source_id": "proteomexchange",
+  "display_name": "ProteomeXchange",
+  "description": "Consortium gateway for public proteomics datasets across partner repositories.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["PROTEOMICS"],
+  "modalities": ["proteomics", "repository_index"],
+  "access_mode": "hybrid",
+  "homepage_url": "http://www.proteomexchange.org/",
+  "api_base_url": null,
+  "bulk_download_url": null,
+  "license_name": "ProteomeXchange terms and partner repository licenses",
+  "update_frequency": "continuous",
+  "priority_tier": 2,
+  "provenance_tags": ["proteomics", "consortium", "index"],
+  "data_category": "proteomics",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

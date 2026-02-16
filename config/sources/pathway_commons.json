@@ -1,0 +1,19 @@
+{
+  "source_id": "pathway_commons",
+  "display_name": "Pathway Commons",
+  "description": "Integrated pathway and interaction network resource aggregated from multiple providers.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["PATHWAY"],
+  "modalities": ["pathway", "interaction_network", "knowledge_graph"],
+  "access_mode": "api",
+  "homepage_url": "https://www.pathwaycommons.org/",
+  "api_base_url": "https://www.pathwaycommons.org/pc2/",
+  "bulk_download_url": "https://www.pathwaycommons.org/archives/",
+  "license_name": "Pathway Commons data source licenses",
+  "update_frequency": "release-based",
+  "priority_tier": 1,
+  "provenance_tags": ["pathway", "aggregated", "interaction"],
+  "data_category": "pathways_interactions_networks",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

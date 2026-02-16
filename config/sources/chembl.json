@@ -1,0 +1,19 @@
+{
+  "source_id": "chembl",
+  "display_name": "ChEMBL",
+  "description": "Bioactive molecule and target activity database for drug discovery and translational analysis.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["TRANSLATIONAL"],
+  "modalities": ["drug_target", "compound_activity", "assay"],
+  "access_mode": "hybrid",
+  "homepage_url": "https://www.ebi.ac.uk/chembl/",
+  "api_base_url": "https://www.ebi.ac.uk/chembl/api/data/",
+  "bulk_download_url": "https://ftp.ebi.ac.uk/pub/databases/chembl/",
+  "license_name": "EMBL-EBI terms of use",
+  "update_frequency": "release-based",
+  "priority_tier": 1,
+  "provenance_tags": ["compound", "target", "bioactivity"],
+  "data_category": "drug_target_translational",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}
