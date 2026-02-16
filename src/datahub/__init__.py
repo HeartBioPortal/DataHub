@@ -17,6 +17,19 @@ from .models import CanonicalRecord
 from .pipeline import DataHubPipeline, DataHubRunReport
 from .profiles import DatasetProfile, DatasetProfileLoader
 from .registry import AdapterPluginSpec, AdapterRegistry, build_default_adapter_registry
+from .sources import (
+    ClinVarSourceConnector,
+    EnsemblSourceConnector,
+    GWASSourceConnector,
+    ManifestSourceConnector,
+    SourceAccessMode,
+    SourceConnector,
+    SourceConnectorPluginSpec,
+    SourceManifest,
+    SourceManifestLoader,
+    SourceRegistry,
+    build_default_source_registry,
+)
 
 __all__ = [
     "CanonicalRecord",
@@ -32,6 +45,17 @@ __all__ = [
     "SourcePriority",
     "AdapterRegistry",
     "AdapterPluginSpec",
+    "SourceAccessMode",
+    "SourceManifest",
+    "SourceManifestLoader",
+    "SourceConnector",
+    "ManifestSourceConnector",
+    "GWASSourceConnector",
+    "EnsemblSourceConnector",
+    "ClinVarSourceConnector",
+    "SourceRegistry",
+    "SourceConnectorPluginSpec",
     "build_association_contract",
     "build_default_adapter_registry",
+    "build_default_source_registry",
 ]

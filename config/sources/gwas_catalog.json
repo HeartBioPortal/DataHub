@@ -1,0 +1,19 @@
+{
+  "source_id": "gwas_catalog",
+  "display_name": "NHGRI-EBI GWAS Catalog",
+  "description": "Genome-wide association summary data and variant-trait associations.",
+  "adapter_name": "gwas_association",
+  "dataset_types": ["ASSOCIATION"],
+  "modalities": ["genomics", "association"],
+  "access_mode": "download",
+  "homepage_url": "https://www.ebi.ac.uk/gwas/",
+  "api_base_url": "https://www.ebi.ac.uk/gwas/rest/api",
+  "bulk_download_url": "https://www.ebi.ac.uk/gwas/docs/file-downloads",
+  "license_name": "EMBL-EBI Terms of Use",
+  "update_frequency": "continuous",
+  "priority_tier": 1,
+  "provenance_tags": ["gwas", "association", "variant"],
+  "default_params": {
+    "source": "gwas_catalog"
+  }
+}

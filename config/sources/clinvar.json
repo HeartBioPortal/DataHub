@@ -1,0 +1,19 @@
+{
+  "source_id": "clinvar",
+  "display_name": "NCBI ClinVar",
+  "description": "Clinical significance assertions and supporting metadata for human variants.",
+  "adapter_name": "clinvar_association",
+  "dataset_types": ["ASSOCIATION"],
+  "modalities": ["genomics", "clinical_annotation"],
+  "access_mode": "hybrid",
+  "homepage_url": "https://www.ncbi.nlm.nih.gov/clinvar/",
+  "api_base_url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/",
+  "bulk_download_url": "https://ftp.ncbi.nlm.nih.gov/pub/clinvar/",
+  "license_name": "NCBI Disclaimer and Copyright Notice",
+  "update_frequency": "weekly",
+  "priority_tier": 1,
+  "provenance_tags": ["clinvar", "clinical_significance", "variant"],
+  "default_params": {
+    "source": "clinvar"
+  }
+}

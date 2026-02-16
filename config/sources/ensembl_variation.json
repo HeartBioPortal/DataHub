@@ -1,0 +1,19 @@
+{
+  "source_id": "ensembl_variation",
+  "display_name": "Ensembl Variation",
+  "description": "Variant consequence and population-frequency annotations from Ensembl.",
+  "adapter_name": "ensembl_association",
+  "dataset_types": ["ASSOCIATION"],
+  "modalities": ["genomics", "population_frequency", "annotation"],
+  "access_mode": "hybrid",
+  "homepage_url": "https://www.ensembl.org/",
+  "api_base_url": "https://rest.ensembl.org",
+  "bulk_download_url": "https://ftp.ensembl.org/pub/",
+  "license_name": "Ensembl Terms of Use",
+  "update_frequency": "release-based",
+  "priority_tier": 1,
+  "provenance_tags": ["ensembl", "consequence", "ancestry"],
+  "default_params": {
+    "source": "ensembl"
+  }
+}
