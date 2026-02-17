@@ -15,6 +15,13 @@ from .config import (
 )
 from .models import CanonicalRecord
 from .pipeline import DataHubPipeline, DataHubRunReport
+from .prep import (
+    PREPARED_ASSOCIATION_COLUMNS,
+    AssociationRawPreparer,
+    PreparationReport,
+    RawAssociationPreparationProfile,
+    RawAssociationPreparationProfileLoader,
+)
 from .profiles import DatasetProfile, DatasetProfileLoader
 from .registry import AdapterPluginSpec, AdapterRegistry, build_default_adapter_registry
 from .sources import (
@@ -38,6 +45,11 @@ __all__ = [
     "DatasetContract",
     "DataHubPipeline",
     "DataHubRunReport",
+    "PREPARED_ASSOCIATION_COLUMNS",
+    "AssociationRawPreparer",
+    "PreparationReport",
+    "RawAssociationPreparationProfile",
+    "RawAssociationPreparationProfileLoader",
     "DatasetProfile",
     "DatasetProfileLoader",
     "FieldPolicy",

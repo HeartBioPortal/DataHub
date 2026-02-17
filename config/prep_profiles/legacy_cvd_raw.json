@@ -1,0 +1,34 @@
+{
+  "name": "legacy_cvd_raw",
+  "dataset_type": "CVD",
+  "source_name": "legacy_cvd_gwas",
+  "field_candidates": {
+    "marker_id": ["MarkerID"],
+    "study_id": [],
+    "study": ["Study"],
+    "pmid": ["PMID"],
+    "study_genome_build": ["StudyGenomeBuild"],
+    "rsid": ["dbsnp.rsid", "MarkerID"],
+    "pval": ["pval"],
+    "gene": ["snpeff.ann.gene_id"],
+    "phenotype": ["Phenotype"],
+    "functional_class": ["snpeff.ann.putative_impact"],
+    "var_class": ["dbsnp.vartype"],
+    "clinical_significance": ["clinvar.rcv.clinical_significance"],
+    "most_severe_consequence": ["snpeff.ann.effect"],
+    "allele_string": ["dbsnp.alleles.allele"],
+    "protein_start": [],
+    "protein_end": []
+  },
+  "ancestry_fields": {
+    "gnomad_genome.af.af": "Total",
+    "gnomad_genome.af.af_afr": "African",
+    "gnomad_genome.af.af_amr": "Admixed American",
+    "gnomad_genome.af.af_asj": "Ashkenazi Jewish",
+    "gnomad_genome.af.af_eas": "East Asian",
+    "gnomad_genome.af.af_fin": "Finnish",
+    "gnomad_genome.af.af_nfe": "European",
+    "gnomad_genome.af.af_oth": "Other"
+  },
+  "defaults": {}
+}
