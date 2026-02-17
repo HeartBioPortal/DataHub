@@ -79,6 +79,17 @@ def parse_args() -> argparse.Namespace:
         help="Publish generated association JSON into the legacy Redis schema.",
     )
     parser.add_argument(
+        "--ancestry-precision",
+        type=int,
+        default=None,
+        help="Optional rounding precision for ancestry numeric values (for smaller JSON output).",
+    )
+    parser.add_argument(
+        "--disable-ancestry-dedup",
+        action="store_true",
+        help="Keep duplicate ancestry points per rsid if source has repeated rows.",
+    )
+    parser.add_argument(
         "--redis-strict",
         action="store_true",
         help="Fail fast if Redis publishing fails.",
@@ -136,6 +147,8 @@ def main() -> int:
         LegacyAssociationPublisher(
             output_root=args.output_root,
             skip_unknown_axis_values=not args.keep_unknown_axis,
+            ancestry_value_precision=args.ancestry_precision,
+            deduplicate_ancestry_points=not args.disable_ancestry_dedup,
         )
     ]
     if args.publish_redis:

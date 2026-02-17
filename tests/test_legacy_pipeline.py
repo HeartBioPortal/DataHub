@@ -8,6 +8,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from datahub import MissingFieldStrategy, build_association_contract
 from datahub.adapters import LegacyAssociationCsvAdapter, PhenotypeMapper
+from datahub.models import CanonicalRecord
 from datahub.pipeline import DataHubPipeline
 from datahub.publishers import LegacyAssociationPublisher
 
@@ -153,3 +154,48 @@ def test_missing_axis_can_be_bucketed_as_unknown(tmp_path: Path) -> None:
 
     assert vc["SNP"] == 1
     assert vc["Unknown"] == 1
+
+
+def test_publisher_deduplicates_ancestry_points_by_rsid(tmp_path: Path) -> None:
+    records = [
+        CanonicalRecord(
+            dataset_id="d1",
+            dataset_type="CVD",
+            source="s1",
+            gene_id="GENE1",
+            variant_id="rs1",
+            phenotype="cardiomyopathy",
+            disease_category="cardiomyopathies",
+            variation_type="SNP",
+            ancestry={"African": 0.1234567},
+        ),
+        CanonicalRecord(
+            dataset_id="d1",
+            dataset_type="CVD",
+            source="s1",
+            gene_id="GENE1",
+            variant_id="rs1",
+            phenotype="cardiomyopathy",
+            disease_category="cardiomyopathies",
+            variation_type="SNP",
+            ancestry={"African": 0.1234567},
+        ),
+    ]
+
+    publisher = LegacyAssociationPublisher(
+        output_root=tmp_path / "out",
+        ancestry_value_precision=4,
+        deduplicate_ancestry_points=True,
+    )
+    publisher.publish(records)
+
+    cvd_path = tmp_path / "out" / "association" / "final" / "association" / "CVD" / "GENE1.json"
+    payload = json.loads(cvd_path.read_text())
+    ancestry_items = {
+        item["name"]: item["data"]
+        for item in payload[0]["ancestry"]
+    }
+
+    assert len(ancestry_items["African"]) == 1
+    assert ancestry_items["African"][0]["rsid"] == "rs1"
+    assert ancestry_items["African"][0]["value"] == 0.1235

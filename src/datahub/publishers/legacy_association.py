@@ -19,9 +19,13 @@ class LegacyAssociationPublisher(Publisher):
         *,
         output_root: str | Path,
         skip_unknown_axis_values: bool = True,
+        ancestry_value_precision: int | None = None,
+        deduplicate_ancestry_points: bool = True,
     ) -> None:
         self.output_root = Path(output_root)
         self.skip_unknown_axis_values = skip_unknown_axis_values
+        self.ancestry_value_precision = ancestry_value_precision
+        self.deduplicate_ancestry_points = deduplicate_ancestry_points
 
     def publish(self, records: list[CanonicalRecord]) -> None:
         grouped_by_dtype: dict[str, dict[str, dict[tuple[str, str], list[CanonicalRecord]]]] = defaultdict(
@@ -91,7 +95,7 @@ class LegacyAssociationPublisher(Publisher):
         label: tuple[str, str],
         records: list[CanonicalRecord],
     ) -> dict[str, Any]:
-        ancestry: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        ancestry_points: dict[str, dict[str, Any]] = defaultdict(dict)
         vc_counter: Counter[str] = Counter()
         msc_counter: Counter[str] = Counter()
         cs_counter: Counter[str] = Counter()
@@ -108,13 +112,28 @@ class LegacyAssociationPublisher(Publisher):
             for population, value in record.ancestry.items():
                 if self._is_unknown(value):
                     continue
-                ancestry[population].append({"rsid": record.variant_id, "value": value})
+                normalized_value = self._normalize_ancestry_value(value)
+                if self.deduplicate_ancestry_points:
+                    ancestry_points[population][record.variant_id] = normalized_value
+                else:
+                    ancestry_points[population][f"{record.variant_id}::{len(ancestry_points[population])}"] = {
+                        "rsid": record.variant_id,
+                        "value": normalized_value,
+                    }
 
         payload = {
             "ancestry": [
-                {"name": population, "data": points}
-                for population, points in sorted(ancestry.items(), key=lambda item: item[0])
-                if points
+                {
+                    "name": population,
+                    "data": self._ancestry_points_to_payload(
+                        population_points,
+                    ),
+                }
+                for population, population_points in sorted(
+                    ancestry_points.items(),
+                    key=lambda item: item[0],
+                )
+                if population_points
             ],
             "vc": self._counter_to_items(vc_counter),
             "msc": self._counter_to_items(msc_counter),
@@ -150,7 +169,7 @@ class LegacyAssociationPublisher(Publisher):
             for population, value in record.ancestry.items():
                 if self._is_unknown(value):
                     continue
-                overall_data["ancestry"][population][record.variant_id] = value
+                overall_data["ancestry"][population][record.variant_id] = self._normalize_ancestry_value(value)
 
     def _update_axis_counter(
         self,
@@ -189,3 +208,21 @@ class LegacyAssociationPublisher(Publisher):
 
         text = str(value).strip()
         return not text or text.lower() in {"nan", "none", "null", "unknown"}
+
+    def _normalize_ancestry_value(self, value: Any) -> Any:
+        if self.ancestry_value_precision is None:
+            return value
+
+        try:
+            return round(float(value), self.ancestry_value_precision)
+        except (TypeError, ValueError):
+            return value
+
+    def _ancestry_points_to_payload(self, population_points: dict[str, Any]) -> list[dict[str, Any]]:
+        if not self.deduplicate_ancestry_points:
+            return list(population_points.values())
+
+        return [
+            {"rsid": rsid, "value": value}
+            for rsid, value in sorted(population_points.items(), key=lambda item: item[0])
+        ]

@@ -68,6 +68,31 @@ scripts/build_legacy_association.py \
 Field requirements are configurable via `--required-fields` and phenotype
 routing can be overridden via `--phenotype-map-json`. Redis loading uses the
 existing DataManager exporter so backend cache behavior remains unchanged.
+Use `--ancestry-precision` and default ancestry-point deduplication to reduce
+JSON payload size while keeping the same response shape.
+
+## Raw Data Preparation
+
+DataHub includes a profile-driven preparation layer to clean legacy/raw source
+columns into a stable schema before aggregation.
+
+Built-in preparation profiles:
+
+- `legacy_cvd_raw`
+- `legacy_trait_raw`
+
+Run preparation:
+
+```bash
+scripts/prepare_association_raw.py \
+  --input-csv /path/to/raw_cvd.csv \
+  --output-csv /path/to/prepared_cvd.csv \
+  --profile legacy_cvd_raw
+```
+
+Prepared output columns are standardized and include:
+`rsid,pval,gene,phenotype,functional_class,var_class,clinical_significance,most_severe_consequence,allele_string,protein_start,protein_end,ancestry_data`
+plus provenance fields such as `study`, `pmid`, and `study_genome_build`.
 
 ## Dataset Profiles
 
