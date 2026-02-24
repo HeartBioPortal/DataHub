@@ -179,6 +179,21 @@ def parse_args() -> argparse.Namespace:
         help="DuckDB thread count (0 keeps DuckDB default).",
     )
     parser.add_argument(
+        "--memory-limit",
+        default="8GB",
+        help="DuckDB memory limit (for example: 8GB). Use empty string to keep DuckDB default.",
+    )
+    parser.add_argument(
+        "--temp-directory",
+        default="/data/hbp/datamart/duckdb_tmp",
+        help="DuckDB temp spill directory.",
+    )
+    parser.add_argument(
+        "--preserve-insertion-order",
+        action="store_true",
+        help="Keep DuckDB insertion-order preservation enabled (uses more memory).",
+    )
+    parser.add_argument(
         "--duckdb-progress-bar",
         dest="duckdb_progress_bar",
         action="store_true",
@@ -344,14 +359,31 @@ resolved AS (
         ON pm.phenotype_slug = r.phenotype
     WHERE r.gene_id <> '' AND r.variant_id <> '' AND r.phenotype <> ''
 ),
-ranked AS (
+aggregated AS (
     SELECT
-        *,
-        row_number() OVER (
-            PARTITION BY dataset_type, gene_id, variant_id, phenotype, coalesce(ancestry, '')
-            ORDER BY p_value ASC NULLS LAST
-        ) AS rn
+        dataset_id,
+        source,
+        dataset_type,
+        gene_id,
+        variant_id,
+        phenotype,
+        disease_category,
+        variation_type,
+        ancestry,
+        min(p_value) AS p_value,
+        min(af) AS ancestry_af,
+        min(phenotype_key) AS phenotype_key
     FROM resolved
+    GROUP BY
+        dataset_id,
+        source,
+        dataset_type,
+        gene_id,
+        variant_id,
+        phenotype,
+        disease_category,
+        variation_type,
+        ancestry
 )
 SELECT
     dataset_id,
@@ -366,12 +398,11 @@ SELECT
     NULL::VARCHAR AS most_severe_consequence,
     p_value,
     ancestry,
-    af AS ancestry_af,
+    ancestry_af,
     phenotype_key,
     ? AS source_file,
     now() AS ingested_at
-FROM ranked
-WHERE rn = 1
+FROM aggregated
 {include_filter};
 """
     params = [
@@ -482,6 +513,17 @@ def main() -> int:
     connection = duckdb.connect(str(db_path))
     if args.threads > 0:
         connection.execute(f"PRAGMA threads={int(args.threads)}")
+    if args.memory_limit:
+        mem = str(args.memory_limit).strip().replace("'", "")
+        if mem:
+            connection.execute(f"SET memory_limit='{mem}'")
+    if not args.preserve_insertion_order:
+        connection.execute("SET preserve_insertion_order=false")
+    if args.temp_directory:
+        temp_dir = Path(args.temp_directory)
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        safe_temp = str(temp_dir).replace("'", "")
+        connection.execute(f"SET temp_directory='{safe_temp}'")
     if args.duckdb_progress_bar:
         try:
             connection.execute("SET enable_progress_bar = true")
@@ -493,6 +535,14 @@ def main() -> int:
             logger.info("DuckDB internal progress bar enabled.")
         except Exception as exc:
             logger.warning("Could not enable DuckDB progress bar: %s", exc)
+
+    logger.info(
+        "DuckDB runtime settings: threads=%s memory_limit=%s preserve_insertion_order=%s temp_directory=%s",
+        str(args.threads if args.threads > 0 else "default"),
+        str(args.memory_limit or "default"),
+        str(args.preserve_insertion_order),
+        str(args.temp_directory or "default"),
+    )
 
     _ensure_target_table(connection, table_name)
     _ensure_slug_macro(connection)

@@ -9,7 +9,9 @@ integration workflows.
 scripts/dataset_specific_scripts/mvp/ingest_mvp_duckdb_fast.py \
   --input-path "/data/aggregated_phenotypes/*.csv.gz" \
   --db-path /data/hbp/datamart/mvp_fast.duckdb \
-  --threads 16 \
+  --threads 8 \
+  --memory-limit 8GB \
+  --temp-directory /data/hbp/datamart/duckdb_tmp \
   --duckdb-progress-bar \
   --log-level INFO
 ```
@@ -23,6 +25,7 @@ Resume behavior:
 - Reruns skip completed files automatically.
 - Use `--reset-checkpoint` to force full re-ingest.
 - Per-file phase progress bars are logged (stage query, insert, checkpoint).
+- OOM mitigation defaults are included (`--memory-limit`, temp spill dir, insertion-order disabled).
 
 ## 2) Run full MVP legacy-compatible JSON pipeline
 
