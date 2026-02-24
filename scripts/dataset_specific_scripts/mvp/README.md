@@ -26,6 +26,8 @@ Resume behavior:
 - Use `--reset-checkpoint` to force full re-ingest.
 - Per-file phase progress bars are logged (stage query, insert, checkpoint).
 - OOM mitigation defaults are included (`--memory-limit`, temp spill dir, insertion-order disabled).
+- CSV parsing defaults are tolerant (`ignore_errors=true`, `null_padding=true`, `strict_mode=false`).
+- File ingest is transaction-wrapped and idempotent by `source_file`, so reruns do not duplicate rows.
 
 ## 2) Run full MVP legacy-compatible JSON pipeline
 

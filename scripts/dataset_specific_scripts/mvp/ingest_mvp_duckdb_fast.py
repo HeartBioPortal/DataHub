@@ -194,6 +194,37 @@ def parse_args() -> argparse.Namespace:
         help="Keep DuckDB insertion-order preservation enabled (uses more memory).",
     )
     parser.add_argument(
+        "--csv-strict-mode",
+        action="store_true",
+        help="Enable strict CSV parsing (default is tolerant parsing).",
+    )
+    parser.add_argument(
+        "--csv-ignore-errors",
+        dest="csv_ignore_errors",
+        action="store_true",
+        help="Skip malformed CSV rows during ingest.",
+    )
+    parser.add_argument(
+        "--no-csv-ignore-errors",
+        dest="csv_ignore_errors",
+        action="store_false",
+        help="Fail on malformed CSV rows.",
+    )
+    parser.set_defaults(csv_ignore_errors=True)
+    parser.add_argument(
+        "--csv-null-padding",
+        dest="csv_null_padding",
+        action="store_true",
+        help="Pad missing trailing columns with NULL.",
+    )
+    parser.add_argument(
+        "--no-csv-null-padding",
+        dest="csv_null_padding",
+        action="store_false",
+        help="Disable CSV null padding.",
+    )
+    parser.set_defaults(csv_null_padding=True)
+    parser.add_argument(
         "--duckdb-progress-bar",
         dest="duckdb_progress_bar",
         action="store_true",
@@ -300,6 +331,9 @@ def _build_stage_sql(
     source: str,
     fallback_dataset_type: str,
     include_dataset_types: set[str] | None,
+    csv_strict_mode: bool,
+    csv_ignore_errors: bool,
+    csv_null_padding: bool,
 ) -> tuple[str, list[str]]:
     fallback = fallback_dataset_type.upper()
     include_filter = ""
@@ -308,6 +342,10 @@ def _build_stage_sql(
         placeholders = ",".join("?" for _ in sorted(include_dataset_types))
         include_filter = f"AND dataset_type IN ({placeholders})"
         include_params = sorted(include_dataset_types)
+
+    strict_mode = "true" if csv_strict_mode else "false"
+    ignore_errors = "true" if csv_ignore_errors else "false"
+    null_padding = "true" if csv_null_padding else "false"
 
     sql = f"""
 CREATE OR REPLACE TEMP TABLE __mvp_file_rows AS
@@ -323,7 +361,15 @@ WITH raw AS (
         TRY_CAST(af AS DOUBLE) AS af,
         TRY_CAST(pval AS DOUBLE) AS p_value,
         trim(phenotype_key) AS phenotype_key
-    FROM read_csv_auto(?, header=true, compression='auto', all_varchar=true)
+    FROM read_csv_auto(
+        ?,
+        header=true,
+        compression='auto',
+        all_varchar=true,
+        strict_mode={strict_mode},
+        ignore_errors={ignore_errors},
+        null_padding={null_padding}
+    )
 ),
 resolved AS (
     SELECT
@@ -543,6 +589,12 @@ def main() -> int:
         str(args.preserve_insertion_order),
         str(args.temp_directory or "default"),
     )
+    logger.info(
+        "CSV runtime settings: strict_mode=%s ignore_errors=%s null_padding=%s",
+        str(args.csv_strict_mode),
+        str(args.csv_ignore_errors),
+        str(args.csv_null_padding),
+    )
 
     _ensure_target_table(connection, table_name)
     _ensure_slug_macro(connection)
@@ -578,37 +630,54 @@ def main() -> int:
                 source=args.source,
                 fallback_dataset_type=args.fallback_dataset_type,
                 include_dataset_types=include_dataset_types,
-            )
-            stage_started = time.perf_counter()
-            connection.execute(stage_sql, stage_params)
-            stage_elapsed = time.perf_counter() - stage_started
-            _log_file_progress(
-                logger,
-                file_index=index,
-                total_files=len(pending_files),
-                file_name=file_path.name,
-                progress=0.75,
-                phase="stage query complete",
-                extra=f"elapsed={stage_elapsed:.2f}s",
+                csv_strict_mode=args.csv_strict_mode,
+                csv_ignore_errors=args.csv_ignore_errors,
+                csv_null_padding=args.csv_null_padding,
             )
 
-            insert_started = time.perf_counter()
-            connection.execute(f"INSERT INTO {table_name} SELECT * FROM __mvp_file_rows")
-            insert_elapsed = time.perf_counter() - insert_started
-            _log_file_progress(
-                logger,
-                file_index=index,
-                total_files=len(pending_files),
-                file_name=file_path.name,
-                progress=0.90,
-                phase="insert complete",
-                extra=f"elapsed={insert_elapsed:.2f}s",
-            )
+            rows_inserted = 0
+            connection.execute("BEGIN TRANSACTION")
+            try:
+                stage_started = time.perf_counter()
+                connection.execute(stage_sql, stage_params)
+                stage_elapsed = time.perf_counter() - stage_started
+                _log_file_progress(
+                    logger,
+                    file_index=index,
+                    total_files=len(pending_files),
+                    file_name=file_path.name,
+                    progress=0.75,
+                    phase="stage query complete",
+                    extra=f"elapsed={stage_elapsed:.2f}s",
+                )
 
-            rows_inserted = int(
-                connection.execute("SELECT COUNT(*) FROM __mvp_file_rows").fetchone()[0]
-            )
-            connection.execute("DROP TABLE IF EXISTS __mvp_file_rows")
+                connection.execute(
+                    f"DELETE FROM {table_name} WHERE source_file = ?",
+                    [str(file_path)],
+                )
+
+                insert_started = time.perf_counter()
+                connection.execute(f"INSERT INTO {table_name} SELECT * FROM __mvp_file_rows")
+                insert_elapsed = time.perf_counter() - insert_started
+                _log_file_progress(
+                    logger,
+                    file_index=index,
+                    total_files=len(pending_files),
+                    file_name=file_path.name,
+                    progress=0.90,
+                    phase="insert complete",
+                    extra=f"elapsed={insert_elapsed:.2f}s",
+                )
+
+                rows_inserted = int(
+                    connection.execute("SELECT COUNT(*) FROM __mvp_file_rows").fetchone()[0]
+                )
+                connection.execute("DROP TABLE IF EXISTS __mvp_file_rows")
+                connection.execute("COMMIT")
+            except Exception:
+                connection.execute("ROLLBACK")
+                connection.execute("DROP TABLE IF EXISTS __mvp_file_rows")
+                raise
 
             total_inserted += rows_inserted
             processed_files += 1
