@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
@@ -56,6 +57,9 @@ class MVPAssociationAdapter(DataAdapter, TabularAdapterMixin):
         ancestry_code_map: dict[str, str] | None = None,
         chunksize: int = 200_000,
         prefer_parent_phenotype_as_category: bool = True,
+        log_progress: bool = False,
+        progress_every_rows: int = 200_000,
+        logger_name: str = "datahub.adapters.mvp",
     ) -> None:
         self.input_paths = expand_input_paths(input_paths)
         self.dataset_id = dataset_id
@@ -72,6 +76,9 @@ class MVPAssociationAdapter(DataAdapter, TabularAdapterMixin):
         }
         self.chunksize = chunksize
         self.prefer_parent_phenotype_as_category = prefer_parent_phenotype_as_category
+        self.log_progress = log_progress
+        self.progress_every_rows = max(int(progress_every_rows), 1)
+        self.logger = logging.getLogger(logger_name)
 
     def read(self) -> Iterable[CanonicalRecord]:
         usecols = {
@@ -102,8 +109,20 @@ class MVPAssociationAdapter(DataAdapter, TabularAdapterMixin):
             "is_sub_phenotype",
         }
 
+        if self.log_progress:
+            self.logger.info(
+                "MVP adapter start: files=%d, chunksize=%d",
+                len(self.input_paths),
+                self.chunksize,
+            )
+
         for input_path in self.input_paths:
             accumulators: dict[tuple[str, str, str, str], _MVPAccumulator] = {}
+            total_rows = 0
+            progress_marker = 0
+            if self.log_progress:
+                self.logger.info("MVP adapter file start: %s", input_path)
+
             frame_iter = pd.read_csv(
                 input_path,
                 usecols=lambda col: col in usecols,
@@ -112,8 +131,26 @@ class MVPAssociationAdapter(DataAdapter, TabularAdapterMixin):
             )
 
             for frame in frame_iter:
+                total_rows += len(frame)
                 for row in frame.to_dict(orient="records"):
                     self._consume_row(row, source_path=input_path, accumulators=accumulators)
+
+                if self.log_progress and (total_rows - progress_marker) >= self.progress_every_rows:
+                    progress_marker = total_rows
+                    self.logger.info(
+                        "MVP adapter progress: file=%s rows=%d canonical_groups=%d",
+                        input_path.name,
+                        total_rows,
+                        len(accumulators),
+                    )
+
+            if self.log_progress:
+                self.logger.info(
+                    "MVP adapter file complete: %s rows=%d canonical_groups=%d",
+                    input_path,
+                    total_rows,
+                    len(accumulators),
+                )
 
             for key in sorted(accumulators.keys()):
                 yield accumulators[key].record

@@ -1,6 +1,9 @@
 import csv
+import logging
 import sys
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -162,3 +165,48 @@ def test_mvp_adapter_respects_dataset_type_filter(tmp_path: Path) -> None:
         include_dataset_types={"TRAIT"},
     )
     assert list(adapter.read()) == []
+
+
+def test_mvp_adapter_emits_progress_logs(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    csv_path = tmp_path / "mvp.csv"
+    with csv_path.open("w", newline="") as stream:
+        writer = csv.DictWriter(
+            stream,
+            fieldnames=[
+                "SNP_ID",
+                "gene_symbol",
+                "phenotype_description",
+                "ancestry",
+                "af",
+                "ref",
+                "alt",
+            ],
+        )
+        writer.writeheader()
+        writer.writerow(
+            {
+                "SNP_ID": "rs1",
+                "gene_symbol": "GENE1",
+                "phenotype_description": "arrhythmia",
+                "ancestry": "EUR",
+                "af": "0.1",
+                "ref": "A",
+                "alt": "G",
+            }
+        )
+
+    mapper = PhenotypeMapper(mapping={"arrhythmia": ("CVD", "cardiac_dysrhythmias")})
+    adapter = MVPAssociationAdapter(
+        input_paths=csv_path,
+        phenotype_mapper=mapper,
+        log_progress=True,
+        progress_every_rows=1,
+    )
+
+    with caplog.at_level(logging.INFO):
+        records = list(adapter.read())
+
+    assert records
+    assert any("MVP adapter file start" in line for line in caplog.messages)
+    assert any("MVP adapter progress" in line for line in caplog.messages)
+    assert any("MVP adapter file complete" in line for line in caplog.messages)

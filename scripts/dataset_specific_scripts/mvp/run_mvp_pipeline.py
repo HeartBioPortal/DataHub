@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import sys
+import time
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -107,6 +109,18 @@ def parse_args() -> argparse.Namespace:
         default=200_000,
         help="CSV chunk size for MVP ingest.",
     )
+    parser.add_argument(
+        "--progress-every-rows",
+        type=int,
+        default=200_000,
+        help="Emit progress logs every N raw rows per file.",
+    )
+    parser.add_argument(
+        "--log-level",
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        help="Log level for pipeline output.",
+    )
     return parser.parse_args()
 
 
@@ -126,6 +140,21 @@ def _load_mapper(args: argparse.Namespace) -> PhenotypeMapper:
 
 def main() -> int:
     args = parse_args()
+    logging.basicConfig(
+        level=getattr(logging, args.log_level),
+        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    )
+    logger = logging.getLogger("datahub.mvp.pipeline")
+    started = time.perf_counter()
+
+    logger.info("Starting MVP pipeline")
+    logger.info(
+        "Config: inputs=%s output_root=%s chunksize=%d progress_every_rows=%d",
+        args.input_paths,
+        args.output_root,
+        args.chunksize,
+        args.progress_every_rows,
+    )
     mapper = _load_mapper(args)
 
     include_dataset_types = (
@@ -140,6 +169,8 @@ def main() -> int:
         phenotype_mapper=mapper,
         include_dataset_types=include_dataset_types,
         chunksize=args.chunksize,
+        log_progress=True,
+        progress_every_rows=args.progress_every_rows,
     )
 
     contract = build_association_contract(
@@ -152,10 +183,13 @@ def main() -> int:
     if bool(args.duckdb_path) ^ bool(args.parquet_path):
         raise ValueError("Provide both --duckdb-path and --parquet-path, or neither.")
     if args.duckdb_path and args.parquet_path:
+        logger.info("Storage enabled: DuckDB=%s Parquet=%s", args.duckdb_path, args.parquet_path)
         storage = DuckDBParquetStorage(
             db_path=args.duckdb_path,
             parquet_path=args.parquet_path,
         )
+    else:
+        logger.info("Storage disabled")
 
     publishers = [
         LegacyAssociationPublisher(
@@ -180,13 +214,24 @@ def main() -> int:
                 strict=args.redis_strict,
             )
         )
+    logger.info("Publishers: %s", [type(item).__name__ for item in publishers])
 
+    logger.info("Running DataHub pipeline...")
     report = DataHubPipeline(
         contract=contract,
         adapters=[adapter],
         storage=storage,
         publishers=publishers,
     ).run()
+    elapsed = time.perf_counter() - started
+    logger.info(
+        "Pipeline complete in %.2fs | ingested=%d validated=%d dropped=%d issues=%d",
+        elapsed,
+        report.ingested_records,
+        report.validated_records,
+        report.dropped_records,
+        len(report.issues),
+    )
 
     print(
         json.dumps(
@@ -197,6 +242,7 @@ def main() -> int:
                 "validated_records": report.validated_records,
                 "dropped_records": report.dropped_records,
                 "issues": len(report.issues),
+                "elapsed_seconds": round(elapsed, 2),
             },
             indent=2,
         )

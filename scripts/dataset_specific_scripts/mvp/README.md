@@ -11,7 +11,9 @@ scripts/dataset_specific_scripts/mvp/run_mvp_pipeline.py \
   --output-root /data/hbp/analyzed_data \
   --duckdb-path /data/hbp/datamart/canonical.duckdb \
   --parquet-path /data/hbp/datamart/canonical.parquet \
-  --rollup-tree-json /data/hbp/config/phenotype_tree.json
+  --rollup-tree-json /data/hbp/config/phenotype_tree.json \
+  --progress-every-rows 200000 \
+  --log-level INFO
 ```
 
 This uses:
@@ -19,6 +21,13 @@ This uses:
 - `MVPAssociationAdapter` for long-form ancestry rows,
 - `LegacyAssociationPublisher` for backward-compatible HBP payloads,
 - `PhenotypeRollupPublisher` for parent-level rollups with rsid dedup.
+
+The script emits:
+
+- startup/config logs,
+- per-file start/completion logs,
+- periodic row progress logs during ingestion,
+- final runtime and record-count summary.
 
 ## 2) Export prepared raw CSV (for audit/merge workflows)
 
