@@ -237,9 +237,8 @@ def _create_mapping_table(connection: Any, mapper: PhenotypeMapper) -> None:
         )
 
 
-def _build_sql(
+def _build_stage_sql(
     *,
-    table_name: str,
     file_path: Path,
     dataset_id: str,
     source: str,
@@ -255,9 +254,6 @@ def _build_sql(
         include_params = sorted(include_dataset_types)
 
     sql = f"""
-CREATE OR REPLACE TEMP MACRO _slug(v) AS
-    lower(regexp_replace(replace(trim(coalesce(v, '')), '/', '_'), '\\\\s+', '_', 'g'));
-
 CREATE OR REPLACE TEMP TABLE __mvp_file_rows AS
 WITH raw AS (
     SELECT
@@ -336,9 +332,6 @@ SELECT
 FROM ranked
 WHERE rn = 1
 {include_filter};
-
-INSERT INTO {table_name}
-SELECT * FROM __mvp_file_rows;
 """
     params = [
         str(file_path),
@@ -375,6 +368,13 @@ CREATE TABLE IF NOT EXISTS {table_name} (
     ingested_at TIMESTAMP
 );
 """
+    )
+
+
+def _ensure_slug_macro(connection: Any) -> None:
+    connection.execute(
+        "CREATE OR REPLACE TEMP MACRO _slug(v) AS "
+        "lower(regexp_replace(replace(trim(coalesce(v, '')), '/', '_'), '\\\\s+', '_', 'g'))"
     )
 
 
@@ -443,6 +443,7 @@ def main() -> int:
         connection.execute(f"PRAGMA threads={int(args.threads)}")
 
     _ensure_target_table(connection, table_name)
+    _ensure_slug_macro(connection)
     _create_mapping_table(connection, mapper)
 
     total_inserted = 0
@@ -461,15 +462,15 @@ def main() -> int:
                 token,
             )
 
-            sql, params = _build_sql(
-                table_name=table_name,
+            stage_sql, stage_params = _build_stage_sql(
                 file_path=file_path,
                 dataset_id=args.dataset_id,
                 source=args.source,
                 fallback_dataset_type=args.fallback_dataset_type,
                 include_dataset_types=include_dataset_types,
             )
-            connection.execute(sql, params)
+            connection.execute(stage_sql, stage_params)
+            connection.execute(f"INSERT INTO {table_name} SELECT * FROM __mvp_file_rows")
             rows_inserted = int(
                 connection.execute("SELECT COUNT(*) FROM __mvp_file_rows").fetchone()[0]
             )
