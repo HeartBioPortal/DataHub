@@ -16,6 +16,17 @@ scripts/dataset_specific_scripts/mvp/run_mvp_pipeline.py \
   --chunksize 100000 \
   --publish-batch-size 50000 \
   --progress-every-rows 200000 \
+  --reset-checkpoint \
+  --log-level INFO
+```
+
+To resume after interruption:
+
+```bash
+scripts/dataset_specific_scripts/mvp/run_mvp_pipeline.py \
+  --input-path "/data/aggregated_phenotypes/*.csv.gz" \
+  --output-root /data/hbp/analyzed_data \
+  --progress-every-rows 200000 \
   --log-level INFO
 ```
 
@@ -35,6 +46,14 @@ The script emits:
 
 For large datasets, keep `--merge-mode chunk` so memory stays bounded while
 publishing incrementally.
+
+Resume behavior:
+
+- Checkpoint defaults to `<output-root>/_datahub_state/mvp/checkpoint.json`.
+- Completed files are skipped automatically on rerun (unless `--no-resume`).
+- Each file is written to staged output first, then merged into final output, which prevents
+  partial-file double counting on interruption.
+- Use `--reset-checkpoint` to force a clean restart.
 
 ## 2) Export prepared raw CSV (for audit/merge workflows)
 
