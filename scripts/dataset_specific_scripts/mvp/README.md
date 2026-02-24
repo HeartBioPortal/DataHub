@@ -3,7 +3,26 @@
 This folder contains scripts specific to Million Veteran Program (MVP)
 integration workflows.
 
-## 1) Run full MVP pipeline
+## 1) Fast ingest (recommended for very large MVP drops)
+
+```bash
+scripts/dataset_specific_scripts/mvp/ingest_mvp_duckdb_fast.py \
+  --input-path "/data/aggregated_phenotypes/*.csv.gz" \
+  --db-path /data/hbp/datamart/mvp_fast.duckdb \
+  --threads 16 \
+  --log-level INFO
+```
+
+This mode is much faster because parsing, normalization, dataset-type mapping,
+and per-file dedup happen in DuckDB SQL (vectorized), not Python row loops.
+
+Resume behavior:
+
+- Checkpoint defaults to `<db-path>.mvp_fast_checkpoint.json`.
+- Reruns skip completed files automatically.
+- Use `--reset-checkpoint` to force full re-ingest.
+
+## 2) Run full MVP legacy-compatible JSON pipeline
 
 ```bash
 scripts/dataset_specific_scripts/mvp/run_mvp_pipeline.py \
@@ -55,7 +74,7 @@ Resume behavior:
   partial-file double counting on interruption.
 - Use `--reset-checkpoint` to force a clean restart.
 
-## 2) Export prepared raw CSV (for audit/merge workflows)
+## 3) Export prepared raw CSV (for audit/merge workflows)
 
 ```bash
 scripts/dataset_specific_scripts/mvp/export_mvp_prepared_raw.py \
