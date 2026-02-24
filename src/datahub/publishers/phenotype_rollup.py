@@ -31,6 +31,7 @@ class PhenotypeRollupPublisher(Publisher):
         ancestry_value_precision: int | None = None,
         association_subdir: str = "association_rollup",
         overall_subdir: str = "overall_rollup",
+        incremental_merge: bool = False,
     ) -> None:
         self.output_root = Path(output_root)
         self.skip_unknown_axis_values = skip_unknown_axis_values
@@ -38,6 +39,7 @@ class PhenotypeRollupPublisher(Publisher):
         self.ancestry_value_precision = ancestry_value_precision
         self.association_subdir = association_subdir
         self.overall_subdir = overall_subdir
+        self.incremental_merge = incremental_merge
         self.rollup_map = self._load_rollup_map(tree_json_path)
 
     def publish(self, records: list[CanonicalRecord]) -> None:
@@ -99,24 +101,27 @@ class PhenotypeRollupPublisher(Publisher):
                     self._update_overall(overall_data, selected)
 
                 association_path = association_dir / f"{self._safe_gene(gene_id)}.json"
+                if self.incremental_merge and association_path.exists():
+                    existing_payload = json.loads(association_path.read_text())
+                    payload = self._merge_association_payload(existing_payload, payload)
                 with association_path.open("w") as stream:
                     json.dump(payload, stream, indent=4)
 
                 overall_path = overall_dir / f"{self._safe_gene(gene_id)}.json"
+                overall_payload = {
+                    "data": {
+                        "vc": dict(overall_data["vc"]),
+                        "msc": dict(overall_data["msc"]),
+                        "cs": dict(overall_data["cs"]),
+                        "ancestry": dict(overall_data["ancestry"]),
+                    },
+                    "pvals": {},
+                }
+                if self.incremental_merge and overall_path.exists():
+                    existing_overall = json.loads(overall_path.read_text())
+                    overall_payload = self._merge_overall_payload(existing_overall, overall_payload)
                 with overall_path.open("w") as stream:
-                    json.dump(
-                        {
-                            "data": {
-                                "vc": dict(overall_data["vc"]),
-                                "msc": dict(overall_data["msc"]),
-                                "cs": dict(overall_data["cs"]),
-                                "ancestry": dict(overall_data["ancestry"]),
-                            },
-                            "pvals": {},
-                        },
-                        stream,
-                        indent=4,
-                    )
+                    json.dump(overall_payload, stream, indent=4)
 
     def _build_entry(
         self,
@@ -286,3 +291,157 @@ class PhenotypeRollupPublisher(Publisher):
                         mapping[(dtype, phenotype_slug)] = category_slug
 
         return mapping
+
+    def _merge_association_payload(
+        self,
+        existing_payload: list[dict[str, Any]],
+        new_payload: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        merged: dict[tuple[str, str, str], dict[str, Any]] = {}
+
+        for entry in existing_payload:
+            key = self._entry_key(entry)
+            if key is not None:
+                merged[key] = entry
+
+        for entry in new_payload:
+            key = self._entry_key(entry)
+            if key is None:
+                continue
+            if key not in merged:
+                merged[key] = entry
+                continue
+            merged[key] = self._merge_association_entry(merged[key], entry)
+
+        return [merged[key] for key in sorted(merged.keys(), key=lambda item: item[2])]
+
+    def _merge_association_entry(
+        self,
+        existing: dict[str, Any],
+        new: dict[str, Any],
+    ) -> dict[str, Any]:
+        result = dict(existing)
+        result["vc"] = self._merge_counter_items(existing.get("vc", []), new.get("vc", []))
+        result["msc"] = self._merge_counter_items(existing.get("msc", []), new.get("msc", []))
+        result["cs"] = self._merge_counter_items(existing.get("cs", []), new.get("cs", []))
+        result["ancestry"] = self._merge_ancestry_items(
+            existing.get("ancestry", []),
+            new.get("ancestry", []),
+        )
+        return result
+
+    def _merge_overall_payload(
+        self,
+        existing: dict[str, Any],
+        new: dict[str, Any],
+    ) -> dict[str, Any]:
+        existing_data = existing.get("data", {})
+        new_data = new.get("data", {})
+        return {
+            "data": {
+                "vc": self._merge_counter_dict(
+                    existing_data.get("vc", {}),
+                    new_data.get("vc", {}),
+                ),
+                "msc": self._merge_counter_dict(
+                    existing_data.get("msc", {}),
+                    new_data.get("msc", {}),
+                ),
+                "cs": self._merge_counter_dict(
+                    existing_data.get("cs", {}),
+                    new_data.get("cs", {}),
+                ),
+                "ancestry": self._merge_ancestry_map(
+                    existing_data.get("ancestry", {}),
+                    new_data.get("ancestry", {}),
+                ),
+            },
+            "pvals": {},
+        }
+
+    @staticmethod
+    def _entry_key(entry: dict[str, Any]) -> tuple[str, str, str] | None:
+        if "disease" in entry and isinstance(entry["disease"], list) and len(entry["disease"]) == 2:
+            return ("disease", str(entry["disease"][0]), str(entry["disease"][1]))
+        if "trait" in entry and isinstance(entry["trait"], list) and len(entry["trait"]) == 2:
+            return ("trait", str(entry["trait"][0]), str(entry["trait"][1]))
+        return None
+
+    @staticmethod
+    def _merge_counter_items(
+        existing_items: list[dict[str, Any]],
+        new_items: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        counter = Counter(
+            {
+                str(item.get("name")): int(item.get("value", 0))
+                for item in existing_items
+            }
+        )
+        counter.update(
+            {
+                str(item.get("name")): int(item.get("value", 0))
+                for item in new_items
+            }
+        )
+        return [
+            {"name": name, "value": value}
+            for name, value in sorted(counter.items(), key=lambda item: item[0])
+        ]
+
+    @staticmethod
+    def _merge_counter_dict(existing: dict[str, Any], new: dict[str, Any]) -> dict[str, int]:
+        counter = Counter({str(key): int(value) for key, value in existing.items()})
+        counter.update({str(key): int(value) for key, value in new.items()})
+        return dict(counter)
+
+    @staticmethod
+    def _merge_ancestry_items(
+        existing_items: list[dict[str, Any]],
+        new_items: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        merged: dict[str, dict[str, Any]] = defaultdict(dict)
+        for item in existing_items:
+            population = str(item.get("name", ""))
+            data = item.get("data", [])
+            if not population or not isinstance(data, list):
+                continue
+            for point in data:
+                rsid = str(point.get("rsid", ""))
+                if rsid:
+                    merged[population][rsid] = point.get("value")
+        for item in new_items:
+            population = str(item.get("name", ""))
+            data = item.get("data", [])
+            if not population or not isinstance(data, list):
+                continue
+            for point in data:
+                rsid = str(point.get("rsid", ""))
+                if rsid:
+                    merged[population][rsid] = point.get("value")
+
+        return [
+            {
+                "name": population,
+                "data": [
+                    {"rsid": rsid, "value": value}
+                    for rsid, value in sorted(points.items(), key=lambda item: item[0])
+                ],
+            }
+            for population, points in sorted(merged.items(), key=lambda item: item[0])
+            if points
+        ]
+
+    @staticmethod
+    def _merge_ancestry_map(
+        existing: dict[str, Any],
+        new: dict[str, Any],
+    ) -> dict[str, dict[str, Any]]:
+        merged: dict[str, dict[str, Any]] = defaultdict(dict)
+        for population, mapping in existing.items():
+            if isinstance(mapping, dict):
+                merged[str(population)].update(mapping)
+        for population, mapping in new.items():
+            if isinstance(mapping, dict):
+                merged[str(population)].update(mapping)
+        return dict(merged)

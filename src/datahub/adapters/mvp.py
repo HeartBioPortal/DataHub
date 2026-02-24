@@ -60,6 +60,7 @@ class MVPAssociationAdapter(DataAdapter, TabularAdapterMixin):
         log_progress: bool = False,
         progress_every_rows: int = 200_000,
         logger_name: str = "datahub.adapters.mvp",
+        merge_mode: str = "file",
     ) -> None:
         self.input_paths = expand_input_paths(input_paths)
         self.dataset_id = dataset_id
@@ -79,6 +80,9 @@ class MVPAssociationAdapter(DataAdapter, TabularAdapterMixin):
         self.log_progress = log_progress
         self.progress_every_rows = max(int(progress_every_rows), 1)
         self.logger = logging.getLogger(logger_name)
+        self.merge_mode = merge_mode.strip().lower()
+        if self.merge_mode not in {"file", "chunk"}:
+            raise ValueError("merge_mode must be one of: file, chunk")
 
     def read(self) -> Iterable[CanonicalRecord]:
         usecols = {
@@ -117,7 +121,6 @@ class MVPAssociationAdapter(DataAdapter, TabularAdapterMixin):
             )
 
         for input_path in self.input_paths:
-            accumulators: dict[tuple[str, str, str, str], _MVPAccumulator] = {}
             total_rows = 0
             progress_marker = 0
             if self.log_progress:
@@ -130,30 +133,87 @@ class MVPAssociationAdapter(DataAdapter, TabularAdapterMixin):
                 compression="infer",
             )
 
-            for frame in frame_iter:
-                total_rows += len(frame)
-                for row in frame.to_dict(orient="records"):
-                    self._consume_row(row, source_path=input_path, accumulators=accumulators)
+            if self.merge_mode == "file":
+                accumulators: dict[tuple[str, str, str, str], _MVPAccumulator] = {}
+                for frame in frame_iter:
+                    total_rows += len(frame)
+                    for row in self._iter_frame_rows(frame):
+                        self._consume_row(
+                            row,
+                            source_path=input_path,
+                            accumulators=accumulators,
+                        )
 
-                if self.log_progress and (total_rows - progress_marker) >= self.progress_every_rows:
-                    progress_marker = total_rows
+                    if self.log_progress and (total_rows - progress_marker) >= self.progress_every_rows:
+                        progress_marker = total_rows
+                        self.logger.info(
+                            "MVP adapter progress: file=%s rows=%d canonical_groups=%d",
+                            input_path.name,
+                            total_rows,
+                            len(accumulators),
+                        )
+
+                if self.log_progress:
                     self.logger.info(
-                        "MVP adapter progress: file=%s rows=%d canonical_groups=%d",
-                        input_path.name,
+                        "MVP adapter file complete: %s rows=%d canonical_groups=%d merge_mode=file",
+                        input_path,
                         total_rows,
                         len(accumulators),
                     )
 
+                for key in sorted(accumulators.keys()):
+                    yield accumulators[key].record
+                continue
+
+            # merge_mode=chunk: keep memory bounded by chunk size.
+            # Carry over the last key in each chunk so contiguous ancestry rows
+            # split on a chunk boundary are still merged correctly.
+            yielded = 0
+            carryover: dict[tuple[str, str, str, str], _MVPAccumulator] = {}
+            for frame in frame_iter:
+                total_rows += len(frame)
+                chunk_accumulators = carryover
+                carryover = {}
+                last_key: tuple[str, str, str, str] | None = None
+
+                for row in self._iter_frame_rows(frame):
+                    consumed_key = self._consume_row(
+                        row,
+                        source_path=input_path,
+                        accumulators=chunk_accumulators,
+                    )
+                    if consumed_key is not None:
+                        last_key = consumed_key
+
+                if last_key is not None and last_key in chunk_accumulators:
+                    carryover[last_key] = chunk_accumulators.pop(last_key)
+
+                for key in sorted(chunk_accumulators.keys()):
+                    yielded += 1
+                    yield chunk_accumulators[key].record
+
+                if self.log_progress and (total_rows - progress_marker) >= self.progress_every_rows:
+                    progress_marker = total_rows
+                    self.logger.info(
+                        "MVP adapter progress: file=%s rows=%d chunk_groups=%d yielded=%d",
+                        input_path.name,
+                        total_rows,
+                        len(chunk_accumulators),
+                        yielded,
+                    )
+
+            if carryover:
+                for key in sorted(carryover.keys()):
+                    yielded += 1
+                    yield carryover[key].record
+
             if self.log_progress:
                 self.logger.info(
-                    "MVP adapter file complete: %s rows=%d canonical_groups=%d",
+                    "MVP adapter file complete: %s rows=%d yielded=%d merge_mode=chunk",
                     input_path,
                     total_rows,
-                    len(accumulators),
+                    yielded,
                 )
-
-            for key in sorted(accumulators.keys()):
-                yield accumulators[key].record
 
     def _consume_row(
         self,
@@ -161,14 +221,14 @@ class MVPAssociationAdapter(DataAdapter, TabularAdapterMixin):
         *,
         source_path: Path,
         accumulators: dict[tuple[str, str, str, str], _MVPAccumulator],
-    ) -> None:
+    ) -> tuple[str, str, str, str] | None:
         gene_id = self._to_string(row.get("gene_symbol"))
         variant_id = self._to_string(row.get("SNP_ID"))
         phenotype = self._normalize_phenotype(row.get("phenotype_description"))
         phenotype_key = self._to_string(row.get("phenotype_key"))
 
         if not gene_id or not variant_id or not phenotype:
-            return
+            return None
 
         dataset_type, category = self.phenotype_mapper.resolve(phenotype)
         dataset_type = dataset_type.upper() if dataset_type else "CVD"
@@ -176,7 +236,7 @@ class MVPAssociationAdapter(DataAdapter, TabularAdapterMixin):
             dataset_type = "CVD"
 
         if not self._should_include_dataset_type(dataset_type, self.include_dataset_types):
-            return
+            return None
 
         parent_phenotype = self._to_string(row.get("parent_phenotype"))
         if self.prefer_parent_phenotype_as_category and not category and parent_phenotype:
@@ -233,6 +293,13 @@ class MVPAssociationAdapter(DataAdapter, TabularAdapterMixin):
 
         self._update_ancestry(accumulator.record, row)
         self._update_best_statistics(accumulator, row)
+        return key
+
+    @staticmethod
+    def _iter_frame_rows(frame: pd.DataFrame) -> Iterable[dict[str, Any]]:
+        columns = list(frame.columns)
+        for row in frame.itertuples(index=False, name=None):
+            yield dict(zip(columns, row))
 
     def _update_ancestry(self, record: CanonicalRecord, row: dict[str, Any]) -> None:
         ancestry_code = self._to_string(row.get("ancestry"))

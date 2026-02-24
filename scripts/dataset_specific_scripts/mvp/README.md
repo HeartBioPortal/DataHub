@@ -12,6 +12,9 @@ scripts/dataset_specific_scripts/mvp/run_mvp_pipeline.py \
   --duckdb-path /data/hbp/datamart/canonical.duckdb \
   --parquet-path /data/hbp/datamart/canonical.parquet \
   --rollup-tree-json /data/hbp/config/phenotype_tree.json \
+  --merge-mode chunk \
+  --chunksize 100000 \
+  --publish-batch-size 50000 \
   --progress-every-rows 200000 \
   --log-level INFO
 ```
@@ -27,7 +30,11 @@ The script emits:
 - startup/config logs,
 - per-file start/completion logs,
 - periodic row progress logs during ingestion,
+- per-batch publish/storage totals,
 - final runtime and record-count summary.
+
+For large datasets, keep `--merge-mode chunk` so memory stays bounded while
+publishing incrementally.
 
 ## 2) Export prepared raw CSV (for audit/merge workflows)
 

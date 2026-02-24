@@ -199,3 +199,64 @@ def test_publisher_deduplicates_ancestry_points_by_rsid(tmp_path: Path) -> None:
     assert len(ancestry_items["African"]) == 1
     assert ancestry_items["African"][0]["rsid"] == "rs1"
     assert ancestry_items["African"][0]["value"] == 0.1235
+
+
+def test_incremental_merge_publisher_appends_new_variants_across_batches(tmp_path: Path) -> None:
+    publisher = LegacyAssociationPublisher(
+        output_root=tmp_path / "out",
+        incremental_merge=True,
+        deduplicate_ancestry_points=True,
+    )
+
+    batch_one = [
+        CanonicalRecord(
+            dataset_id="d1",
+            dataset_type="CVD",
+            source="s1",
+            gene_id="GENE1",
+            variant_id="rs1",
+            phenotype="cardiomyopathy",
+            disease_category="cardiomyopathies",
+            variation_type="SNP",
+            ancestry={"African": 0.1},
+        )
+    ]
+    batch_two = [
+        CanonicalRecord(
+            dataset_id="d1",
+            dataset_type="CVD",
+            source="s1",
+            gene_id="GENE1",
+            variant_id="rs2",
+            phenotype="cardiomyopathy",
+            disease_category="cardiomyopathies",
+            variation_type="SNP",
+            ancestry={"African": 0.2},
+        )
+    ]
+
+    publisher.publish(batch_one)
+    publisher.publish(batch_two)
+
+    association_path = (
+        tmp_path / "out" / "association" / "final" / "association" / "CVD" / "GENE1.json"
+    )
+    overall_path = (
+        tmp_path / "out" / "association" / "final" / "overall" / "CVD" / "GENE1.json"
+    )
+
+    association_payload = json.loads(association_path.read_text())
+    overall_payload = json.loads(overall_path.read_text())
+    assert len(association_payload) == 1
+    assert association_payload[0]["disease"] == ["cardiomyopathies", "cardiomyopathy"]
+
+    vc = {item["name"]: item["value"] for item in association_payload[0]["vc"]}
+    assert vc["SNP"] == 2
+
+    ancestry = {
+        item["name"]: {point["rsid"]: point["value"] for point in item["data"]}
+        for item in association_payload[0]["ancestry"]
+    }
+    assert ancestry["African"]["rs1"] == 0.1
+    assert ancestry["African"]["rs2"] == 0.2
+    assert overall_payload["data"]["vc"]["SNP"] == 2
