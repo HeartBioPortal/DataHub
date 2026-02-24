@@ -10,6 +10,7 @@ scripts/dataset_specific_scripts/mvp/ingest_mvp_duckdb_fast.py \
   --input-path "/data/aggregated_phenotypes/*.csv.gz" \
   --db-path /data/hbp/datamart/mvp_fast.duckdb \
   --threads 16 \
+  --duckdb-progress-bar \
   --log-level INFO
 ```
 
@@ -21,6 +22,7 @@ Resume behavior:
 - Checkpoint defaults to `<db-path>.mvp_fast_checkpoint.json`.
 - Reruns skip completed files automatically.
 - Use `--reset-checkpoint` to force full re-ingest.
+- Per-file phase progress bars are logged (stage query, insert, checkpoint).
 
 ## 2) Run full MVP legacy-compatible JSON pipeline
 

@@ -179,6 +179,19 @@ def parse_args() -> argparse.Namespace:
         help="DuckDB thread count (0 keeps DuckDB default).",
     )
     parser.add_argument(
+        "--duckdb-progress-bar",
+        dest="duckdb_progress_bar",
+        action="store_true",
+        help="Enable DuckDB internal progress bar output.",
+    )
+    parser.add_argument(
+        "--no-duckdb-progress-bar",
+        dest="duckdb_progress_bar",
+        action="store_false",
+        help="Disable DuckDB internal progress bar output.",
+    )
+    parser.set_defaults(duckdb_progress_bar=True)
+    parser.add_argument(
         "--log-level",
         default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
@@ -208,6 +221,34 @@ def _safe_table_name(table_name: str) -> str:
     if table_name[0].isdigit() or any(char not in allowed for char in table_name):
         raise ValueError(f"Unsafe table name: {table_name}")
     return table_name
+
+
+def _progress_bar(progress: float, width: int = 24) -> str:
+    clamped = max(0.0, min(1.0, progress))
+    filled = int(round(clamped * width))
+    return "[" + ("#" * filled) + ("-" * (width - filled)) + f"] {int(clamped * 100):3d}%"
+
+
+def _log_file_progress(
+    logger: logging.Logger,
+    *,
+    file_index: int,
+    total_files: int,
+    file_name: str,
+    progress: float,
+    phase: str,
+    extra: str = "",
+) -> None:
+    suffix = f" | {extra}" if extra else ""
+    logger.info(
+        "File %d/%d %s %s %s%s",
+        file_index,
+        total_files,
+        file_name,
+        _progress_bar(progress),
+        phase,
+        suffix,
+    )
 
 
 def _prepare_mapping_rows(mapper: PhenotypeMapper) -> list[tuple[str, str, str]]:
@@ -441,6 +482,17 @@ def main() -> int:
     connection = duckdb.connect(str(db_path))
     if args.threads > 0:
         connection.execute(f"PRAGMA threads={int(args.threads)}")
+    if args.duckdb_progress_bar:
+        try:
+            connection.execute("SET enable_progress_bar = true")
+            try:
+                connection.execute("SET enable_progress_bar_print = true")
+            except Exception:
+                # Older DuckDB versions may not expose this setting.
+                pass
+            logger.info("DuckDB internal progress bar enabled.")
+        except Exception as exc:
+            logger.warning("Could not enable DuckDB progress bar: %s", exc)
 
     _ensure_target_table(connection, table_name)
     _ensure_slug_macro(connection)
@@ -461,6 +513,14 @@ def main() -> int:
                 file_path,
                 token,
             )
+            _log_file_progress(
+                logger,
+                file_index=index,
+                total_files=len(pending_files),
+                file_name=file_path.name,
+                progress=0.0,
+                phase="stage query start",
+            )
 
             stage_sql, stage_params = _build_stage_sql(
                 file_path=file_path,
@@ -469,8 +529,32 @@ def main() -> int:
                 fallback_dataset_type=args.fallback_dataset_type,
                 include_dataset_types=include_dataset_types,
             )
+            stage_started = time.perf_counter()
             connection.execute(stage_sql, stage_params)
+            stage_elapsed = time.perf_counter() - stage_started
+            _log_file_progress(
+                logger,
+                file_index=index,
+                total_files=len(pending_files),
+                file_name=file_path.name,
+                progress=0.75,
+                phase="stage query complete",
+                extra=f"elapsed={stage_elapsed:.2f}s",
+            )
+
+            insert_started = time.perf_counter()
             connection.execute(f"INSERT INTO {table_name} SELECT * FROM __mvp_file_rows")
+            insert_elapsed = time.perf_counter() - insert_started
+            _log_file_progress(
+                logger,
+                file_index=index,
+                total_files=len(pending_files),
+                file_name=file_path.name,
+                progress=0.90,
+                phase="insert complete",
+                extra=f"elapsed={insert_elapsed:.2f}s",
+            )
+
             rows_inserted = int(
                 connection.execute("SELECT COUNT(*) FROM __mvp_file_rows").fetchone()[0]
             )
@@ -482,6 +566,14 @@ def main() -> int:
 
             if not args.no_resume:
                 checkpoint.mark_completed(file_path, rows_inserted)
+                _log_file_progress(
+                    logger,
+                    file_index=index,
+                    total_files=len(pending_files),
+                    file_name=file_path.name,
+                    progress=0.98,
+                    phase="checkpoint updated",
+                )
 
             logger.info(
                 "Fast ingest file %d/%d complete: %s rows_inserted=%d",
@@ -489,6 +581,15 @@ def main() -> int:
                 len(pending_files),
                 file_path,
                 rows_inserted,
+            )
+            _log_file_progress(
+                logger,
+                file_index=index,
+                total_files=len(pending_files),
+                file_name=file_path.name,
+                progress=1.0,
+                phase="done",
+                extra=f"rows_inserted={rows_inserted}",
             )
     finally:
         connection.close()
