@@ -117,6 +117,7 @@ Built-in adapter IDs:
 - `gwas_association`
 - `ensembl_association`
 - `clinvar_association`
+- `mvp_association`
 
 DataHub also includes a source-management layer under `src/datahub/sources/`
 that maps source manifests in `config/sources/` to adapter instances.
@@ -155,6 +156,12 @@ The JSON config can define profile, adapter list, source list, optional plugin
 adapters and source connectors, storage, enrichment source priority, and
 publishers.
 
+Built-in publisher IDs:
+
+- `legacy_association`
+- `legacy_redis`
+- `phenotype_rollup`
+
 Example source-driven config:
 
 ```json
@@ -179,6 +186,18 @@ Example source-driven config:
   ]
 }
 ```
+
+## Dataset-Specific Scripts
+
+Dataset-specific entrypoints are organized under:
+
+- `scripts/dataset_specific_scripts/`
+
+MVP integration scripts are available in:
+
+- `scripts/dataset_specific_scripts/mvp/run_mvp_pipeline.py`
+- `scripts/dataset_specific_scripts/mvp/export_mvp_prepared_raw.py`
+- `scripts/dataset_specific_scripts/mvp/README.md`
 
 ## Contributing
 
