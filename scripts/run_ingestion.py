@@ -23,7 +23,11 @@ from datahub import (  # noqa: E402
     build_default_source_registry,
 )
 from datahub.enrichment import SourcePriorityEnricher  # noqa: E402
-from datahub.publishers import LegacyAssociationPublisher, LegacyRedisPublisher  # noqa: E402
+from datahub.publishers import (  # noqa: E402
+    LegacyAssociationPublisher,
+    LegacyRedisPublisher,
+    PhenotypeRollupPublisher,
+)
 from datahub.storage import DuckDBParquetStorage  # noqa: E402
 
 
@@ -47,6 +51,8 @@ def build_publishers(config: dict[str, Any]) -> list[Any]:
             publishers.append(LegacyAssociationPublisher(**params))
         elif name == "legacy_redis":
             publishers.append(LegacyRedisPublisher(**params))
+        elif name == "phenotype_rollup":
+            publishers.append(PhenotypeRollupPublisher(**params))
         else:
             raise ValueError(f"Unknown publisher: {name}")
 
