@@ -31,6 +31,7 @@ def test_default_registry_contains_builtin_adapters() -> None:
     assert "gwas_association" in names
     assert "ensembl_association" in names
     assert "clinvar_association" in names
+    assert "mvp_association" in names
 
 
 def test_registry_create_builds_adapter_instance(tmp_path: Path) -> None:

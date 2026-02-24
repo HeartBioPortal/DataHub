@@ -13,6 +13,7 @@ from datahub.adapters import (
     EnsemblAssociationAdapter,
     GWASAssociationAdapter,
     LegacyAssociationCsvAdapter,
+    MVPAssociationAdapter,
 )
 
 AdapterFactory = Callable[..., DataAdapter]
@@ -74,4 +75,5 @@ def build_default_adapter_registry() -> AdapterRegistry:
     registry.register(GWASAssociationAdapter.name, GWASAssociationAdapter)
     registry.register(EnsemblAssociationAdapter.name, EnsemblAssociationAdapter)
     registry.register(ClinVarAssociationAdapter.name, ClinVarAssociationAdapter)
+    registry.register(MVPAssociationAdapter.name, MVPAssociationAdapter)
     return registry

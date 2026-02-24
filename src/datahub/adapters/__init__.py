@@ -5,6 +5,7 @@ from .clinvar import ClinVarAssociationAdapter
 from .ensembl import EnsemblAssociationAdapter
 from .gwas import GWASAssociationAdapter
 from .legacy_csv import LegacyAssociationCsvAdapter
+from .mvp import MVPAssociationAdapter
 from .phenotypes import PhenotypeMapper
 
 __all__ = [
@@ -13,5 +14,6 @@ __all__ = [
     "GWASAssociationAdapter",
     "EnsemblAssociationAdapter",
     "ClinVarAssociationAdapter",
+    "MVPAssociationAdapter",
     "PhenotypeMapper",
 ]

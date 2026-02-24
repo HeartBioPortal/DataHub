@@ -27,6 +27,13 @@ POPULATION_COLUMNS: tuple[str, ...] = (
 )
 
 
+def _is_csv_like(path: Path) -> bool:
+    """Return True if the file looks like a CSV or compressed CSV."""
+
+    name = path.name.lower()
+    return name.endswith(".csv") or name.endswith(".csv.gz")
+
+
 def expand_input_paths(input_paths: str | Path | Iterable[str | Path]) -> list[Path]:
     """Expand file, directory, or glob inputs into concrete CSV paths."""
 
@@ -40,7 +47,13 @@ def expand_input_paths(input_paths: str | Path | Iterable[str | Path]) -> list[P
         item_path = Path(item)
 
         if item_path.is_dir():
-            resolved.extend(sorted(item_path.glob("*.csv")))
+            resolved.extend(
+                sorted(
+                    path
+                    for path in item_path.iterdir()
+                    if path.is_file() and _is_csv_like(path)
+                )
+            )
             continue
 
         if item_path.exists():
@@ -48,7 +61,7 @@ def expand_input_paths(input_paths: str | Path | Iterable[str | Path]) -> list[P
             continue
 
         matches = [Path(path) for path in glob.glob(str(item))]
-        resolved.extend(sorted(match for match in matches if match.suffix.lower() == ".csv"))
+        resolved.extend(sorted(match for match in matches if _is_csv_like(match)))
 
     return resolved
 
