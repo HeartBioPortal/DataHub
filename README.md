@@ -199,6 +199,12 @@ MVP integration scripts are available in:
 - `scripts/dataset_specific_scripts/mvp/export_mvp_prepared_raw.py`
 - `scripts/dataset_specific_scripts/mvp/README.md`
 
+Unified DuckDB-first scripts (legacy raw + MVP) are available in:
+
+- `scripts/dataset_specific_scripts/unified/ingest_legacy_raw_duckdb.py`
+- `scripts/dataset_specific_scripts/unified/publish_unified_from_duckdb.py`
+- `scripts/dataset_specific_scripts/unified/README.md`
+
 ## Contributing
 
 We welcome new datasets and improvements. See [CONTRIBUTING.md](CONTRIBUTING.md) for a walkthrough of the submission process and consult the files in the `docs/` directory for more details.
