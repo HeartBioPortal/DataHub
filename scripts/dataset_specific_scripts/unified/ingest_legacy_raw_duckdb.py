@@ -8,6 +8,7 @@ association-point schema used by the MVP fast ingest table.
 from __future__ import annotations
 
 import argparse
+import glob
 import hashlib
 import json
 import logging
@@ -22,7 +23,6 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from datahub.adapters import PhenotypeMapper  # noqa: E402
-from datahub.adapters.common import expand_input_paths  # noqa: E402
 
 
 ANCESTRY_COLUMNS: tuple[tuple[str, str, str], ...] = (
@@ -563,10 +563,25 @@ def _ensure_slug_macro(connection: Any) -> None:
     )
 
 
+def _expand_input_paths_any(input_paths: list[str]) -> list[Path]:
+    resolved: list[Path] = []
+    for raw in input_paths:
+        candidate = Path(raw)
+        if candidate.is_dir():
+            resolved.extend(sorted(path for path in candidate.iterdir() if path.is_file()))
+            continue
+        if candidate.exists():
+            resolved.append(candidate)
+            continue
+        matches = [Path(path) for path in glob.glob(raw)]
+        resolved.extend(sorted(path for path in matches if path.is_file()))
+    return resolved
+
+
 def _build_jobs(args: argparse.Namespace) -> list[LegacyRawIngestJob]:
     jobs: list[LegacyRawIngestJob] = []
 
-    for path in sorted(expand_input_paths(args.cvd_input_paths), key=lambda item: str(item)):
+    for path in sorted(_expand_input_paths_any(args.cvd_input_paths), key=lambda item: str(item)):
         jobs.append(
             LegacyRawIngestJob(
                 file_path=path,
@@ -576,7 +591,7 @@ def _build_jobs(args: argparse.Namespace) -> list[LegacyRawIngestJob]:
             )
         )
 
-    for path in sorted(expand_input_paths(args.trait_input_paths), key=lambda item: str(item)):
+    for path in sorted(_expand_input_paths_any(args.trait_input_paths), key=lambda item: str(item)):
         jobs.append(
             LegacyRawIngestJob(
                 file_path=path,
