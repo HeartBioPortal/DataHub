@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gzip
 import json
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -32,6 +33,9 @@ class PhenotypeRollupPublisher(Publisher):
         association_subdir: str = "association_rollup",
         overall_subdir: str = "overall_rollup",
         incremental_merge: bool = False,
+        json_indent: int | None = 4,
+        json_compression: str = "none",
+        json_gzip_level: int = 6,
     ) -> None:
         self.output_root = Path(output_root)
         self.skip_unknown_axis_values = skip_unknown_axis_values
@@ -40,6 +44,11 @@ class PhenotypeRollupPublisher(Publisher):
         self.association_subdir = association_subdir
         self.overall_subdir = overall_subdir
         self.incremental_merge = incremental_merge
+        self.json_indent = json_indent
+        self.json_compression = str(json_compression).strip().lower()
+        self.json_gzip_level = int(json_gzip_level)
+        if self.json_compression not in {"none", "gzip"}:
+            raise ValueError("json_compression must be one of: none, gzip")
         self.rollup_map = self._load_rollup_map(tree_json_path)
 
     def publish(self, records: list[CanonicalRecord]) -> None:
@@ -101,11 +110,10 @@ class PhenotypeRollupPublisher(Publisher):
                     self._update_overall(overall_data, selected)
 
                 association_path = association_dir / f"{self._safe_gene(gene_id)}.json"
-                if self.incremental_merge and association_path.exists():
-                    existing_payload = json.loads(association_path.read_text())
+                if self.incremental_merge and self._payload_exists(association_path):
+                    existing_payload = self._read_payload(association_path)
                     payload = self._merge_association_payload(existing_payload, payload)
-                with association_path.open("w") as stream:
-                    json.dump(payload, stream, indent=4)
+                self._write_payload(association_path, payload)
 
                 overall_path = overall_dir / f"{self._safe_gene(gene_id)}.json"
                 overall_payload = {
@@ -117,11 +125,50 @@ class PhenotypeRollupPublisher(Publisher):
                     },
                     "pvals": {},
                 }
-                if self.incremental_merge and overall_path.exists():
-                    existing_overall = json.loads(overall_path.read_text())
+                if self.incremental_merge and self._payload_exists(overall_path):
+                    existing_overall = self._read_payload(overall_path)
                     overall_payload = self._merge_overall_payload(existing_overall, overall_payload)
-                with overall_path.open("w") as stream:
-                    json.dump(overall_payload, stream, indent=4)
+                self._write_payload(overall_path, overall_payload)
+
+    def _payload_exists(self, base_path: Path) -> bool:
+        return base_path.exists() or base_path.with_suffix(base_path.suffix + ".gz").exists()
+
+    def _read_payload(self, base_path: Path) -> Any:
+        if base_path.exists():
+            return json.loads(base_path.read_text())
+
+        gz_path = base_path.with_suffix(base_path.suffix + ".gz")
+        if gz_path.exists():
+            with gzip.open(gz_path, "rt", encoding="utf-8") as stream:
+                return json.load(stream)
+
+        raise FileNotFoundError(f"Payload not found: {base_path}")
+
+    def _write_payload(self, base_path: Path, payload: Any) -> None:
+        base_path.parent.mkdir(parents=True, exist_ok=True)
+        gz_path = base_path.with_suffix(base_path.suffix + ".gz")
+
+        if self.json_compression == "gzip":
+            with gzip.open(gz_path, "wt", encoding="utf-8", compresslevel=self.json_gzip_level) as stream:
+                json.dump(
+                    payload,
+                    stream,
+                    indent=self.json_indent,
+                    separators=(",", ":") if self.json_indent is None else None,
+                )
+            if base_path.exists():
+                base_path.unlink()
+            return
+
+        with base_path.open("w") as stream:
+            json.dump(
+                payload,
+                stream,
+                indent=self.json_indent,
+                separators=(",", ":") if self.json_indent is None else None,
+            )
+        if gz_path.exists():
+            gz_path.unlink()
 
     def _build_entry(
         self,

@@ -161,6 +161,24 @@ def parse_args() -> argparse.Namespace:
         help="Skip rollup output generation.",
     )
     parser.add_argument(
+        "--json-compression",
+        default="gzip",
+        choices=["none", "gzip"],
+        help="Final JSON file compression mode.",
+    )
+    parser.add_argument(
+        "--json-gzip-level",
+        type=int,
+        default=6,
+        help="Gzip level for compressed JSON output.",
+    )
+    parser.add_argument(
+        "--json-indent",
+        type=int,
+        default=None,
+        help="Pretty-print indent; use 0 or negative for compact JSON.",
+    )
+    parser.add_argument(
         "--ancestry-precision",
         type=int,
         default=6,
@@ -586,6 +604,9 @@ def _build_stage_publishers(
     disable_rollup: bool,
     rollup_tree_json: str | None,
     ancestry_precision: int,
+    json_compression: str,
+    json_gzip_level: int,
+    json_indent: int | None,
 ) -> list[Any]:
     publishers: list[Any] = [
         LegacyAssociationPublisher(
@@ -594,6 +615,9 @@ def _build_stage_publishers(
             ancestry_value_precision=ancestry_precision,
             deduplicate_ancestry_points=True,
             incremental_merge=True,
+            json_indent=json_indent,
+            json_compression=json_compression,
+            json_gzip_level=json_gzip_level,
         )
     ]
 
@@ -606,6 +630,9 @@ def _build_stage_publishers(
                 deduplicate_variants=True,
                 ancestry_value_precision=ancestry_precision,
                 incremental_merge=True,
+                json_indent=json_indent,
+                json_compression=json_compression,
+                json_gzip_level=json_gzip_level,
             )
         )
 
@@ -614,7 +641,11 @@ def _build_stage_publishers(
 
 def _apply_stage_output(*, stage_root: Path, output_root: Path) -> int:
     copied = 0
-    for source_file in sorted(stage_root.rglob("*.json")):
+    for source_file in sorted(stage_root.rglob("*")):
+        if not source_file.is_file():
+            continue
+        if not (source_file.name.endswith(".json") or source_file.name.endswith(".json.gz")):
+            continue
         relative = source_file.relative_to(stage_root)
         target_file = output_root / relative
         target_file.parent.mkdir(parents=True, exist_ok=True)
@@ -717,6 +748,7 @@ def main() -> int:
         raise ValueError("publish batch size must be >= 1")
     if args.query_chunk_rows < 1:
         raise ValueError("query chunk rows must be >= 1")
+    json_indent = args.json_indent if args.json_indent is not None and args.json_indent > 0 else None
 
     source_table = _safe_table_name(args.source_table)
     working_table = _safe_table_name(args.working_table)
@@ -774,6 +806,12 @@ def main() -> int:
     logger.info(
         "Dataset filter: %s",
         sorted(dataset_types) if dataset_types else "ALL",
+    )
+    logger.info(
+        "JSON output settings: compression=%s gzip_level=%d indent=%s",
+        args.json_compression,
+        args.json_gzip_level,
+        str(json_indent),
     )
 
     _create_source_priority_table(connection, source_priority=source_priority)
@@ -851,6 +889,9 @@ def main() -> int:
                 disable_rollup=args.disable_rollup,
                 rollup_tree_json=args.rollup_tree_json,
                 ancestry_precision=args.ancestry_precision,
+                json_compression=args.json_compression,
+                json_gzip_level=args.json_gzip_level,
+                json_indent=json_indent,
             )
 
             if args.dedup_mode == "global_table":
@@ -994,6 +1035,9 @@ ORDER BY phenotype, variant_id, coalesce(ancestry, '')
                 "working_table": working_table,
                 "dedup_mode": args.dedup_mode,
                 "output_root": str(output_root),
+                "json_compression": args.json_compression,
+                "json_gzip_level": args.json_gzip_level,
+                "json_indent": json_indent,
                 "source_priority": [source for source, _rank in source_priority],
                 "dataset_filter": sorted(dataset_types) if dataset_types else [],
                 "working_table_rows": row_count,

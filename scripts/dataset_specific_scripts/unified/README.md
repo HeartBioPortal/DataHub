@@ -48,6 +48,8 @@ python3 scripts/dataset_specific_scripts/unified/publish_unified_from_duckdb.py 
   --rollup-tree-json /data/hbp/config/phenotype_tree.json \
   --source-priority "legacy_cvd_raw,legacy_trait_raw,million_veteran_program" \
   --dataset-types "CVD,TRAIT" \
+  --json-compression gzip \
+  --json-indent 0 \
   --publish-batch-size 50000 \
   --query-chunk-rows 200000 \
   --checkpoint-path /data/hbp/state/unified_publish_checkpoint.json \
@@ -65,6 +67,8 @@ Notes:
 - `--dedup-mode per_gene` is the default and recommended for very large datasets.
 - This mode avoids creating a full materialized unified table (lower disk pressure).
 - `global_table` mode is still available for smaller runs.
+- With `--json-compression gzip`, outputs are written as `.json.gz` files.
+- `--json-indent 0` writes compact JSON for better compression and less disk usage.
 
 After validating outputs, push into Redis (same output snapshot):
 

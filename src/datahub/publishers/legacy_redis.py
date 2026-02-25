@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import gzip
 import importlib.util
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 from datahub.models import CanonicalRecord
@@ -32,11 +35,69 @@ class LegacyRedisPublisher(Publisher):
 
     async def _publish(self) -> None:
         exporter_cls = self._load_exporter_class()
+        aggregate_path = self.output_root / "association" / "final" / "association"
+        overall_path = self.output_root / "association" / "final" / "overall"
+
+        temp_dir: tempfile.TemporaryDirectory[str] | None = None
+        if self._should_materialize_json_view(aggregate_path, overall_path):
+            temp_dir = tempfile.TemporaryDirectory(prefix="datahub_redis_json_view_")
+            temp_root = Path(temp_dir.name)
+            aggregate_path = temp_root / "association"
+            overall_path = temp_root / "overall"
+            self._materialize_json_view(
+                source_aggregate=self.output_root / "association" / "final" / "association",
+                source_overall=self.output_root / "association" / "final" / "overall",
+                target_aggregate=aggregate_path,
+                target_overall=overall_path,
+            )
+
         exporter = exporter_cls(
-            aggregate_path=str(self.output_root / "association" / "final" / "association"),
-            overall_path=str(self.output_root / "association" / "final" / "overall"),
+            aggregate_path=str(aggregate_path),
+            overall_path=str(overall_path),
         )
-        await exporter.run()
+        try:
+            await exporter.run()
+        finally:
+            if temp_dir is not None:
+                temp_dir.cleanup()
+
+    @staticmethod
+    def _should_materialize_json_view(aggregate_path: Path, overall_path: Path) -> bool:
+        has_plain_json = any(aggregate_path.rglob("*.json")) or any(overall_path.rglob("*.json"))
+        has_gzip_json = any(aggregate_path.rglob("*.json.gz")) or any(overall_path.rglob("*.json.gz"))
+        return has_gzip_json and not has_plain_json
+
+    @staticmethod
+    def _materialize_json_view(
+        *,
+        source_aggregate: Path,
+        source_overall: Path,
+        target_aggregate: Path,
+        target_overall: Path,
+    ) -> None:
+        LegacyRedisPublisher._copy_json_tree(source_aggregate, target_aggregate)
+        LegacyRedisPublisher._copy_json_tree(source_overall, target_overall)
+
+    @staticmethod
+    def _copy_json_tree(source_root: Path, target_root: Path) -> None:
+        for source_file in source_root.rglob("*"):
+            if not source_file.is_file():
+                continue
+            if source_file.name.endswith(".json.gz"):
+                relative = source_file.relative_to(source_root)
+                relative_json = Path(str(relative)[:-3])  # drop trailing ".gz"
+                target_file = target_root / relative_json
+                target_file.parent.mkdir(parents=True, exist_ok=True)
+                with gzip.open(source_file, "rb") as source_stream:
+                    with target_file.open("wb") as target_stream:
+                        shutil.copyfileobj(source_stream, target_stream)
+                continue
+
+            if source_file.name.endswith(".json"):
+                relative = source_file.relative_to(source_root)
+                target_file = target_root / relative
+                target_file.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source_file, target_file)
 
     @staticmethod
     def _load_exporter_class():
