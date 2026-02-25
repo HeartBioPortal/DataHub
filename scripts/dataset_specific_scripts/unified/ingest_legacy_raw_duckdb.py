@@ -45,6 +45,7 @@ class LegacyRawIngestJob:
     dataset_type: str
     dataset_id: str
     source: str
+    csv_delimiter: str
 
 
 class LegacyRawCheckpoint:
@@ -162,6 +163,18 @@ def parse_args() -> argparse.Namespace:
         "--source-trait",
         default="legacy_trait_raw",
         help="Source label for trait raw files.",
+    )
+    parser.add_argument(
+        "--cvd-delimiter",
+        default="comma",
+        choices=["auto", "comma", "tab"],
+        help="CVD file delimiter policy.",
+    )
+    parser.add_argument(
+        "--trait-delimiter",
+        default="tab",
+        choices=["auto", "comma", "tab"],
+        help="Trait file delimiter policy.",
     )
     parser.add_argument(
         "--phenotype-map-json",
@@ -358,6 +371,7 @@ def _build_stage_sql(
     dataset_id: str,
     source: str,
     dataset_type: str,
+    csv_delimiter: str,
     csv_strict_mode: bool,
     csv_ignore_errors: bool,
     csv_null_padding: bool,
@@ -365,6 +379,7 @@ def _build_stage_sql(
     strict_mode = "true" if csv_strict_mode else "false"
     ignore_errors = "true" if csv_ignore_errors else "false"
     null_padding = "true" if csv_null_padding else "false"
+    delimiter_clause = _csv_delimiter_clause(csv_delimiter)
 
     ancestry_selects: list[str] = []
     missing_checks: list[str] = []
@@ -440,6 +455,7 @@ WITH raw AS (
         header=true,
         compression='auto',
         all_varchar=true,
+{delimiter_clause}
         strict_mode={strict_mode},
         ignore_errors={ignore_errors},
         null_padding={null_padding}
@@ -578,6 +594,15 @@ def _expand_input_paths_any(input_paths: list[str]) -> list[Path]:
     return resolved
 
 
+def _csv_delimiter_clause(csv_delimiter: str) -> str:
+    normalized = csv_delimiter.strip().lower()
+    if normalized == "comma":
+        return "        delim=',',"
+    if normalized == "tab":
+        return "        delim='\\t',"
+    return ""
+
+
 def _build_jobs(args: argparse.Namespace) -> list[LegacyRawIngestJob]:
     jobs: list[LegacyRawIngestJob] = []
 
@@ -588,6 +613,7 @@ def _build_jobs(args: argparse.Namespace) -> list[LegacyRawIngestJob]:
                 dataset_type="CVD",
                 dataset_id=args.dataset_id_cvd,
                 source=args.source_cvd,
+                csv_delimiter=args.cvd_delimiter,
             )
         )
 
@@ -598,6 +624,7 @@ def _build_jobs(args: argparse.Namespace) -> list[LegacyRawIngestJob]:
                 dataset_type="TRAIT",
                 dataset_id=args.dataset_id_trait,
                 source=args.source_trait,
+                csv_delimiter=args.trait_delimiter,
             )
         )
 
@@ -736,6 +763,7 @@ def main() -> int:
                 dataset_id=job.dataset_id,
                 source=job.source,
                 dataset_type=job.dataset_type,
+                csv_delimiter=job.csv_delimiter,
                 csv_strict_mode=args.csv_strict_mode,
                 csv_ignore_errors=args.csv_ignore_errors,
                 csv_null_padding=args.csv_null_padding,
