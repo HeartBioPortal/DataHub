@@ -42,6 +42,7 @@ Notes:
 python3 scripts/dataset_specific_scripts/unified/publish_unified_from_duckdb.py \
   --db-path /data/hbp/datamart/mvp_fast.duckdb \
   --source-table mvp_association_points \
+  --dedup-mode per_gene \
   --working-table association_points_unified \
   --output-root /data/hbp/analyzed_data_unified \
   --rollup-tree-json /data/hbp/config/phenotype_tree.json \
@@ -54,9 +55,16 @@ python3 scripts/dataset_specific_scripts/unified/publish_unified_from_duckdb.py 
   --threads 8 \
   --memory-limit 8GB \
   --temp-directory /data/hbp/datamart/duckdb_tmp \
+  --max-temp-directory-size 100GiB \
   --reset-output \
   --log-level INFO
 ```
+
+Notes:
+
+- `--dedup-mode per_gene` is the default and recommended for very large datasets.
+- This mode avoids creating a full materialized unified table (lower disk pressure).
+- `global_table` mode is still available for smaller runs.
 
 After validating outputs, push into Redis (same output snapshot):
 

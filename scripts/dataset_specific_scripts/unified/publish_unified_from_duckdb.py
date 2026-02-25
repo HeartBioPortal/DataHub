@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 """Publish unified legacy-compatible association JSON directly from DuckDB points.
 
-This script avoids re-reading raw CSV files by:
-1) building a source-priority-deduplicated working table from a points table,
-2) streaming records gene-by-gene,
-3) publishing legacy JSON payloads with staged, resumable writes.
+This script avoids re-reading raw CSV files by streaming rows from DuckDB and
+publishing staged JSON outputs with resume support.
 """
 
 from __future__ import annotations
@@ -123,7 +121,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--working-table",
         default="association_points_unified",
-        help="Materialized deduplicated working table name.",
+        help="Materialized deduplicated working table name (used by global_table mode).",
+    )
+    parser.add_argument(
+        "--dedup-mode",
+        default="per_gene",
+        choices=["per_gene", "global_table"],
+        help=(
+            "Dedup strategy: per_gene avoids full-table materialization and uses much less disk. "
+            "global_table materializes a full working table first."
+        ),
     )
     parser.add_argument(
         "--output-root",
@@ -234,6 +241,11 @@ def parse_args() -> argparse.Namespace:
         help="DuckDB temp spill directory.",
     )
     parser.add_argument(
+        "--max-temp-directory-size",
+        default=None,
+        help="Optional DuckDB PRAGMA max_temp_directory_size (for example: 100GiB).",
+    )
+    parser.add_argument(
         "--preserve-insertion-order",
         action="store_true",
         help="Keep DuckDB insertion-order preservation enabled (uses more memory).",
@@ -310,6 +322,10 @@ def _ensure_db_runtime(connection: Any, args: argparse.Namespace, logger: loggin
         temp_dir.mkdir(parents=True, exist_ok=True)
         safe_temp = str(temp_dir).replace("'", "")
         connection.execute(f"SET temp_directory='{safe_temp}'")
+    if args.max_temp_directory_size:
+        size_value = str(args.max_temp_directory_size).strip().replace("'", "")
+        if size_value:
+            connection.execute(f"PRAGMA max_temp_directory_size='{size_value}'")
     if args.duckdb_progress_bar:
         try:
             connection.execute("SET enable_progress_bar = true")
@@ -322,21 +338,19 @@ def _ensure_db_runtime(connection: Any, args: argparse.Namespace, logger: loggin
             logger.warning("Could not enable DuckDB progress bar: %s", exc)
 
 
-def _build_working_table(
+def _create_source_priority_table(
     connection: Any,
     *,
-    source_table: str,
-    working_table: str,
     source_priority: list[tuple[str, int]],
-    dataset_types: set[str] | None,
-    logger: logging.Logger,
-) -> tuple[int, int]:
+) -> None:
     connection.execute(
         "CREATE OR REPLACE TEMP TABLE __source_priority(source VARCHAR, source_rank INTEGER)"
     )
     if source_priority:
         connection.executemany("INSERT INTO __source_priority VALUES (?, ?)", source_priority)
 
+
+def _base_source_where_clause(*, dataset_types: set[str] | None) -> tuple[str, list[str]]:
     where_filters: list[str] = [
         "coalesce(trim(p.dataset_type), '') <> ''",
         "coalesce(trim(p.gene_id), '') <> ''",
@@ -350,7 +364,18 @@ def _build_working_table(
         where_filters.append(f"upper(trim(p.dataset_type)) IN ({placeholders})")
         filter_params.extend(sorted(dataset_types))
 
-    where_sql = " AND ".join(where_filters)
+    return " AND ".join(where_filters), filter_params
+
+
+def _build_working_table(
+    connection: Any,
+    *,
+    source_table: str,
+    working_table: str,
+    dataset_types: set[str] | None,
+    logger: logging.Logger,
+) -> tuple[int, int]:
+    where_sql, filter_params = _base_source_where_clause(dataset_types=dataset_types)
 
     sql = f"""
 CREATE OR REPLACE TABLE {working_table} AS
@@ -449,6 +474,110 @@ ORDER BY dataset_type, gene_id
         )
         for item in rows
     ]
+
+
+def _load_work_units_from_source(
+    connection: Any,
+    *,
+    source_table: str,
+    dataset_types: set[str] | None,
+) -> list[GeneWorkUnit]:
+    where_sql, params = _base_source_where_clause(dataset_types=dataset_types)
+    rows = connection.execute(
+        f"""
+SELECT
+    upper(trim(p.dataset_type)) AS dataset_type,
+    trim(p.gene_id) AS gene_id,
+    COUNT(*) AS point_rows
+FROM {source_table} p
+WHERE {where_sql}
+GROUP BY dataset_type, gene_id
+ORDER BY dataset_type, gene_id
+""",
+        params,
+    ).fetchall()
+
+    return [
+        GeneWorkUnit(
+            dataset_type=str(item[0]),
+            gene_id=str(item[1]),
+            point_rows=int(item[2]),
+        )
+        for item in rows
+    ]
+
+
+def _open_unit_cursor_per_gene(
+    connection: Any,
+    *,
+    source_table: str,
+    dataset_types: set[str] | None,
+    unit: GeneWorkUnit,
+) -> Any:
+    where_sql, params = _base_source_where_clause(dataset_types=dataset_types)
+    query = f"""
+WITH ranked AS (
+    SELECT
+        p.dataset_id,
+        upper(trim(p.dataset_type)) AS dataset_type,
+        p.source,
+        trim(p.gene_id) AS gene_id,
+        trim(p.variant_id) AS variant_id,
+        lower(regexp_replace(replace(trim(p.phenotype), '/', '_'), '\\s+', '_', 'g')) AS phenotype,
+        coalesce(trim(p.disease_category), '') AS disease_category,
+        nullif(trim(p.variation_type), '') AS variation_type,
+        nullif(trim(p.clinical_significance), '') AS clinical_significance,
+        nullif(trim(p.most_severe_consequence), '') AS most_severe_consequence,
+        p.p_value,
+        nullif(trim(coalesce(p.ancestry, '')), '') AS ancestry,
+        p.ancestry_af,
+        nullif(trim(coalesce(p.phenotype_key, '')), '') AS phenotype_key,
+        p.source_file,
+        p.ingested_at,
+        coalesce(sp.source_rank, 999999) AS source_rank,
+        row_number() OVER (
+            PARTITION BY
+                upper(trim(p.dataset_type)),
+                trim(p.gene_id),
+                trim(p.variant_id),
+                lower(regexp_replace(replace(trim(p.phenotype), '/', '_'), '\\s+', '_', 'g')),
+                nullif(trim(coalesce(p.ancestry, '')), '')
+            ORDER BY
+                coalesce(sp.source_rank, 999999),
+                CASE WHEN p.p_value IS NULL THEN 1 ELSE 0 END,
+                p.p_value,
+                p.ingested_at DESC,
+                p.source ASC
+        ) AS rn
+    FROM {source_table} p
+    LEFT JOIN __source_priority sp
+      ON lower(trim(p.source)) = sp.source
+    WHERE {where_sql}
+      AND upper(trim(p.dataset_type)) = ?
+      AND trim(p.gene_id) = ?
+)
+SELECT
+    dataset_id,
+    dataset_type,
+    source,
+    gene_id,
+    variant_id,
+    phenotype,
+    disease_category,
+    variation_type,
+    clinical_significance,
+    most_severe_consequence,
+    p_value,
+    ancestry,
+    ancestry_af,
+    phenotype_key,
+    source_file
+FROM ranked
+WHERE rn = 1
+ORDER BY phenotype, variant_id, coalesce(ancestry, '');
+"""
+
+    return connection.execute(query, [*params, unit.dataset_type, unit.gene_id])
 
 
 def _build_stage_publishers(
@@ -631,9 +760,10 @@ def main() -> int:
     _ensure_db_runtime(connection, args, logger)
 
     logger.info(
-        "Unified publish start: db=%s source_table=%s working_table=%s output_root=%s",
+        "Unified publish start: db=%s source_table=%s dedup_mode=%s working_table=%s output_root=%s",
         db_path,
         source_table,
+        args.dedup_mode,
         working_table,
         output_root,
     )
@@ -646,20 +776,39 @@ def main() -> int:
         sorted(dataset_types) if dataset_types else "ALL",
     )
 
-    row_count, gene_count = _build_working_table(
-        connection,
-        source_table=source_table,
-        working_table=working_table,
-        source_priority=source_priority,
-        dataset_types=dataset_types,
-        logger=logger,
-    )
-    if row_count == 0 or gene_count == 0:
-        logger.warning("No rows found in working table after filters. Nothing to publish.")
-        connection.close()
-        return 0
+    _create_source_priority_table(connection, source_priority=source_priority)
 
-    all_units = _load_work_units(connection, working_table=working_table)
+    row_count: int | None = None
+    if args.dedup_mode == "global_table":
+        row_count, gene_count = _build_working_table(
+            connection,
+            source_table=source_table,
+            working_table=working_table,
+            dataset_types=dataset_types,
+            logger=logger,
+        )
+        if row_count == 0 or gene_count == 0:
+            logger.warning("No rows found in working table after filters. Nothing to publish.")
+            connection.close()
+            return 0
+        all_units = _load_work_units(connection, working_table=working_table)
+    else:
+        all_units = _load_work_units_from_source(
+            connection,
+            source_table=source_table,
+            dataset_types=dataset_types,
+        )
+        if not all_units:
+            logger.warning("No rows found in source table after filters. Nothing to publish.")
+            connection.close()
+            return 0
+        logger.info(
+            (
+                "Per-gene dedup mode enabled: skipping materialized working table build. "
+                "units=%d"
+            ),
+            len(all_units),
+        )
     completed = checkpoint.completed() if not args.no_resume else set()
     pending_units = [unit for unit in all_units if _unit_key(unit) not in completed]
     skipped_units = len(all_units) - len(pending_units)
@@ -704,8 +853,9 @@ def main() -> int:
                 ancestry_precision=args.ancestry_precision,
             )
 
-            cursor = connection.execute(
-                f"""
+            if args.dedup_mode == "global_table":
+                cursor = connection.execute(
+                    f"""
 SELECT
     dataset_id,
     dataset_type,
@@ -726,8 +876,15 @@ FROM {working_table}
 WHERE dataset_type = ? AND gene_id = ?
 ORDER BY phenotype, variant_id, coalesce(ancestry, '')
 """,
-                [unit.dataset_type, unit.gene_id],
-            )
+                    [unit.dataset_type, unit.gene_id],
+                )
+            else:
+                cursor = _open_unit_cursor_per_gene(
+                    connection,
+                    source_table=source_table,
+                    dataset_types=dataset_types,
+                    unit=unit,
+                )
 
             current_record: CanonicalRecord | None = None
             current_key: tuple[str, str, str, str] | None = None
@@ -835,9 +992,11 @@ ORDER BY phenotype, variant_id, coalesce(ancestry, '')
                 "db_path": str(db_path),
                 "source_table": source_table,
                 "working_table": working_table,
+                "dedup_mode": args.dedup_mode,
                 "output_root": str(output_root),
                 "source_priority": [source for source, _rank in source_priority],
                 "dataset_filter": sorted(dataset_types) if dataset_types else [],
+                "working_table_rows": row_count,
                 "gene_count": len(all_units),
                 "processed_genes": processed_units,
                 "skipped_genes": skipped_units,
