@@ -3,6 +3,63 @@
 This workflow keeps aggregation at the raw/point layer and generates legacy JSON
 once from a unified table.
 
+## Profile-driven runner (recommended)
+
+Use the profile runner to keep one code path across laptop/AWS/HPC and only
+change execution profile:
+
+```bash
+python3 scripts/dataset_specific_scripts/unified/run_unified_pipeline.py \
+  --profile local_laptop \
+  --step all \
+  --reset-publish-output \
+  --log-level INFO
+```
+
+Runtime profiles live in:
+
+- `config/runtime_profiles/unified_pipeline_profiles.json`
+
+Built-in profiles:
+
+- `local_laptop`
+- `aws_server`
+- `bigred200_hpc`
+
+BigRed200 dry-run (inspect resolved commands + paths):
+
+```bash
+python3 scripts/dataset_specific_scripts/unified/run_unified_pipeline.py \
+  --profile bigred200_hpc \
+  --dry-run
+```
+
+BigRed200 submit with Slurm dependency chain (`mvp_ingest -> legacy_ingest -> publish`):
+
+```bash
+python3 scripts/dataset_specific_scripts/unified/run_unified_pipeline.py \
+  --profile bigred200_hpc \
+  --mode slurm \
+  --submit-slurm \
+  --reset-publish-checkpoint \
+  --reset-publish-output \
+  --log-level INFO
+```
+
+Override any profile value at runtime:
+
+```bash
+python3 scripts/dataset_specific_scripts/unified/run_unified_pipeline.py \
+  --profile bigred200_hpc \
+  --dry-run \
+  --set publish.per_gene_shards=2048 \
+  --set slurm.partition=cpu \
+  --set publish.memory_limit=96GB
+```
+
+If your profile uses environment variables (for example `$SCR`), export them
+before non-dry runs. The runner fails fast when unresolved variables remain.
+
 ## 1) Ingest MVP points (already done in your case)
 
 ```bash

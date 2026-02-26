@@ -1,0 +1,162 @@
+{
+  "version": 1,
+  "profiles": {
+    "local_laptop": {
+      "description": "Single-node profile for laptop/home workstation execution.",
+      "scheduler": "local",
+      "paths": {
+        "mvp_input_path": "/data/aggregated_phenotypes/*.csv.gz",
+        "legacy_cvd_input_path": "/home/ubuntu/v3/back/hbpback-2.5/analyzer/DataManager/raw_data/cvd/*.txt",
+        "legacy_trait_input_path": "/home/ubuntu/v3/back/hbpback-2.5/analyzer/DataManager/raw_data/trait/*.txt",
+        "db_path": "/data/hbp/datamart/mvp_fast.duckdb",
+        "table_name": "mvp_association_points",
+        "output_root": "/data/hbp/analyzed_data_unified",
+        "temp_directory": "/data/hbp/datamart/duckdb_tmp",
+        "rollup_tree_json": "/data/hbp/config/phenotype_tree.json",
+        "state_root": "/data/hbp/state"
+      },
+      "defaults": {
+        "source_priority": "legacy_cvd_raw,legacy_trait_raw,million_veteran_program",
+        "dataset_types": "CVD,TRAIT"
+      },
+      "mvp_ingest": {
+        "threads": 6,
+        "memory_limit": "6GB",
+        "duckdb_progress_bar": true,
+        "csv_ignore_errors": true,
+        "csv_null_padding": true
+      },
+      "legacy_ingest": {
+        "threads": 6,
+        "memory_limit": "6GB",
+        "cvd_delimiter": "auto",
+        "trait_delimiter": "auto",
+        "duckdb_progress_bar": true,
+        "csv_ignore_errors": true,
+        "csv_null_padding": true
+      },
+      "publish": {
+        "dedup_mode": "per_gene",
+        "per_gene_shards": 256,
+        "threads": 6,
+        "memory_limit": "6GB",
+        "max_temp_directory_size": "40GiB",
+        "publish_batch_size": 50000,
+        "query_chunk_rows": 200000,
+        "json_compression": "gzip",
+        "json_indent": 0,
+        "ancestry_precision": 6,
+        "duckdb_progress_bar": true,
+        "disable_rollup": false
+      }
+    },
+    "aws_server": {
+      "description": "Single-node profile for medium AWS VM.",
+      "scheduler": "local",
+      "paths": {
+        "mvp_input_path": "/data/aggregated_phenotypes/*.csv.gz",
+        "legacy_cvd_input_path": "/home/ubuntu/v3/back/hbpback-2.5/analyzer/DataManager/raw_data/cvd/*.txt",
+        "legacy_trait_input_path": "/home/ubuntu/v3/back/hbpback-2.5/analyzer/DataManager/raw_data/trait/*.txt",
+        "db_path": "/data/hbp/datamart/mvp_fast.duckdb",
+        "table_name": "mvp_association_points",
+        "output_root": "/data/hbp/analyzed_data_unified",
+        "temp_directory": "/data/hbp/datamart/duckdb_tmp",
+        "rollup_tree_json": "/data/hbp/config/phenotype_tree.json",
+        "state_root": "/data/hbp/state"
+      },
+      "defaults": {
+        "source_priority": "legacy_cvd_raw,legacy_trait_raw,million_veteran_program",
+        "dataset_types": "CVD,TRAIT"
+      },
+      "mvp_ingest": {
+        "threads": 16,
+        "memory_limit": "16GB",
+        "duckdb_progress_bar": true,
+        "csv_ignore_errors": true,
+        "csv_null_padding": true
+      },
+      "legacy_ingest": {
+        "threads": 12,
+        "memory_limit": "12GB",
+        "cvd_delimiter": "auto",
+        "trait_delimiter": "auto",
+        "duckdb_progress_bar": true,
+        "csv_ignore_errors": true,
+        "csv_null_padding": true
+      },
+      "publish": {
+        "dedup_mode": "per_gene",
+        "per_gene_shards": 512,
+        "threads": 12,
+        "memory_limit": "12GB",
+        "max_temp_directory_size": "120GiB",
+        "publish_batch_size": 50000,
+        "query_chunk_rows": 200000,
+        "json_compression": "gzip",
+        "json_indent": 0,
+        "ancestry_precision": 6,
+        "duckdb_progress_bar": true,
+        "disable_rollup": false
+      }
+    },
+    "bigred200_hpc": {
+      "description": "BigRed200 Slurm profile with checkpointed three-stage pipeline.",
+      "scheduler": "slurm",
+      "paths": {
+        "mvp_input_path": "$SCR/aws_import/aggregated_phenotypes/*.csv.gz",
+        "legacy_cvd_input_path": "$SCR/aws_import/legacy_raw/cvd/*.txt",
+        "legacy_trait_input_path": "$SCR/aws_import/legacy_raw/trait/*.txt",
+        "db_path": "$SCR/hbp/datamart/mvp_fast.duckdb",
+        "table_name": "mvp_association_points",
+        "output_root": "$SCR/hbp/analyzed_data_unified",
+        "temp_directory": "$SCR/hbp/datamart/duckdb_tmp",
+        "rollup_tree_json": "$SCR/hbp/config/phenotype_tree.json",
+        "state_root": "$SCR/hbp/state"
+      },
+      "defaults": {
+        "source_priority": "legacy_cvd_raw,legacy_trait_raw,million_veteran_program",
+        "dataset_types": "CVD,TRAIT"
+      },
+      "mvp_ingest": {
+        "threads": 32,
+        "memory_limit": "64GB",
+        "duckdb_progress_bar": true,
+        "csv_ignore_errors": true,
+        "csv_null_padding": true
+      },
+      "legacy_ingest": {
+        "threads": 24,
+        "memory_limit": "48GB",
+        "cvd_delimiter": "auto",
+        "trait_delimiter": "auto",
+        "duckdb_progress_bar": true,
+        "csv_ignore_errors": true,
+        "csv_null_padding": true
+      },
+      "publish": {
+        "dedup_mode": "per_gene",
+        "per_gene_shards": 1024,
+        "threads": 32,
+        "memory_limit": "64GB",
+        "max_temp_directory_size": "500GiB",
+        "publish_batch_size": 100000,
+        "query_chunk_rows": 500000,
+        "json_compression": "gzip",
+        "json_indent": 0,
+        "ancestry_precision": 6,
+        "duckdb_progress_bar": true,
+        "disable_rollup": false
+      },
+      "slurm": {
+        "account": "r01806",
+        "partition": "",
+        "qos": "",
+        "time": "24:00:00",
+        "cpus_per_task": 32,
+        "mem": "128G",
+        "log_dir": "$SCR/hbp/logs/datahub",
+        "mail_type": "FAIL"
+      }
+    }
+  }
+}

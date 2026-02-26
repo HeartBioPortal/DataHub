@@ -203,7 +203,12 @@ Unified DuckDB-first scripts (legacy raw + MVP) are available in:
 
 - `scripts/dataset_specific_scripts/unified/ingest_legacy_raw_duckdb.py`
 - `scripts/dataset_specific_scripts/unified/publish_unified_from_duckdb.py`
+- `scripts/dataset_specific_scripts/unified/run_unified_pipeline.py`
 - `scripts/dataset_specific_scripts/unified/README.md`
+
+Runtime execution profiles for local/AWS/HPC orchestration:
+
+- `config/runtime_profiles/unified_pipeline_profiles.json`
 
 ## Contributing
 

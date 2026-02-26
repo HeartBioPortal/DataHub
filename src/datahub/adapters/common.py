@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import glob
+import os
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
@@ -44,7 +45,8 @@ def expand_input_paths(input_paths: str | Path | Iterable[str | Path]) -> list[P
 
     resolved: list[Path] = []
     for item in items:
-        item_path = Path(item)
+        expanded_item = os.path.expandvars(os.path.expanduser(str(item)))
+        item_path = Path(expanded_item)
 
         if item_path.is_dir():
             resolved.extend(
@@ -60,7 +62,7 @@ def expand_input_paths(input_paths: str | Path | Iterable[str | Path]) -> list[P
             resolved.append(item_path)
             continue
 
-        matches = [Path(path) for path in glob.glob(str(item))]
+        matches = [Path(path) for path in glob.glob(expanded_item)]
         resolved.extend(sorted(match for match in matches if _is_csv_like(match)))
 
     return resolved
