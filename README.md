@@ -7,9 +7,32 @@ HeartBioPortal DataHub is a version-controlled collection of cardiovascular omic
 ```bash
 git clone <repo-url>
 cd DataHub
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
 make validate
 # or using docker
 docker compose up validation
+```
+
+## Server Install (Recommended)
+
+Use this flow on servers (AWS, HPC login node, on-prem VM):
+
+```bash
+git clone https://github.com/HeartBioPortal/DataHub.git
+cd /DataHub
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+If you run `pip` from the parent directory instead of inside `/DataHub`, use:
+
+```bash
+pip install -r DataHub/requirements.txt
 ```
 
 ## Git Large File Storage
@@ -209,6 +232,42 @@ Unified DuckDB-first scripts (legacy raw + MVP) are available in:
 Runtime execution profiles for local/AWS/HPC orchestration:
 
 - `config/runtime_profiles/unified_pipeline_profiles.json`
+
+## Unified Pipeline Orchestration
+
+The unified runner supports the same pipeline on local servers, AWS, and HPC
+with profile-based configuration:
+
+```bash
+python3 scripts/dataset_specific_scripts/unified/run_unified_pipeline.py \
+  --profile local_laptop \
+  --step all \
+  --reset-publish-output \
+  --log-level INFO
+```
+
+BigRed200 profile is available as `bigred200_hpc` and supports Slurm
+dependency chaining:
+
+```bash
+python3 scripts/dataset_specific_scripts/unified/run_unified_pipeline.py \
+  --profile bigred200_hpc \
+  --mode slurm \
+  --submit-slurm \
+  --reset-publish-checkpoint \
+  --reset-publish-output \
+  --log-level INFO
+```
+
+Use `--set key=value` for machine-specific overrides without changing source:
+
+```bash
+python3 scripts/dataset_specific_scripts/unified/run_unified_pipeline.py \
+  --profile bigred200_hpc \
+  --dry-run \
+  --set publish.per_gene_shards=2048 \
+  --set slurm.partition=cpu
+```
 
 ## Contributing
 
