@@ -60,6 +60,11 @@ python3 scripts/dataset_specific_scripts/unified/run_unified_pipeline.py \
 If your profile uses environment variables (for example `$SCR`), export them
 before non-dry runs. The runner fails fast when unresolved variables remain.
 
+Python runtime note:
+
+- The runner uses the same interpreter that launched it (for example `.venv/bin/python3`).
+- You can override it explicitly with `--python-executable /path/to/python3`.
+
 ## 1) Ingest MVP points (already done in your case)
 
 ```bash

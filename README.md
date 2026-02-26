@@ -269,6 +269,10 @@ python3 scripts/dataset_specific_scripts/unified/run_unified_pipeline.py \
   --set slurm.partition=cpu
 ```
 
+The runner uses the same Python interpreter that launches it (so running from
+an activated `.venv` carries into Slurm jobs). Override with
+`--python-executable` when needed.
+
 ## Contributing
 
 We welcome new datasets and improvements. See [CONTRIBUTING.md](CONTRIBUTING.md) for a walkthrough of the submission process and consult the files in the `docs/` directory for more details.

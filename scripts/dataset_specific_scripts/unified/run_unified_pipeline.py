@@ -61,6 +61,14 @@ def parse_args() -> argparse.Namespace:
         help="Execution mode. auto uses profile scheduler.",
     )
     parser.add_argument(
+        "--python-executable",
+        default=None,
+        help=(
+            "Python executable used inside generated step commands. "
+            "Defaults to profile value or current interpreter."
+        ),
+    )
+    parser.add_argument(
         "--set",
         action="append",
         default=[],
@@ -244,9 +252,15 @@ def _build_mvp_ingest_command(profile: dict[str, Any], args: argparse.Namespace)
     paths = profile.get("paths", {})
     defaults = profile.get("defaults", {})
     cfg = profile.get("mvp_ingest", {})
+    python_executable = str(
+        args.python_executable
+        or profile.get("python_executable")
+        or sys.executable
+        or "python3"
+    )
 
     command = [
-        "python3",
+        python_executable,
         str(REPO_ROOT / "scripts" / "dataset_specific_scripts" / "mvp" / "ingest_mvp_duckdb_fast.py"),
         "--input-path",
         _require_path(paths, "mvp_input_path"),
@@ -315,9 +329,15 @@ def _build_mvp_ingest_command(profile: dict[str, Any], args: argparse.Namespace)
 def _build_legacy_ingest_command(profile: dict[str, Any], args: argparse.Namespace) -> list[str]:
     paths = profile.get("paths", {})
     cfg = profile.get("legacy_ingest", {})
+    python_executable = str(
+        args.python_executable
+        or profile.get("python_executable")
+        or sys.executable
+        or "python3"
+    )
 
     command = [
-        "python3",
+        python_executable,
         str(
             REPO_ROOT
             / "scripts"
@@ -396,9 +416,15 @@ def _build_publish_command(profile: dict[str, Any], args: argparse.Namespace) ->
     paths = profile.get("paths", {})
     defaults = profile.get("defaults", {})
     cfg = profile.get("publish", {})
+    python_executable = str(
+        args.python_executable
+        or profile.get("python_executable")
+        or sys.executable
+        or "python3"
+    )
 
     command = [
-        "python3",
+        python_executable,
         str(
             REPO_ROOT
             / "scripts"
