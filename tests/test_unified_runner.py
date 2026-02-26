@@ -66,6 +66,8 @@ def _write_profiles_json(path: Path) -> None:
                     "time": "02:00:00",
                     "cpus_per_task": 8,
                     "mem": "32G",
+                    "export": "ALL",
+                    "setup_commands": ["module load python/3.11"],
                     "log_dir": "/tmp/hbp/logs",
                 },
             },
@@ -146,4 +148,6 @@ def test_unified_runner_slurm_plan_without_submission(tmp_path: Path) -> None:
     assert payload["mode"] == "slurm"
     assert len(planned) == 2
     assert "--account r01806" in planned[0]["sbatch"]
+    assert "--export ALL" in planned[0]["sbatch"]
+    assert "module load python/3.11" in planned[0]["sbatch"]
     assert "--wrap" in planned[1]["sbatch"]

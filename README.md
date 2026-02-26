@@ -272,6 +272,8 @@ python3 scripts/dataset_specific_scripts/unified/run_unified_pipeline.py \
 The runner uses the same Python interpreter that launches it (so running from
 an activated `.venv` carries into Slurm jobs). Override with
 `--python-executable` when needed.
+For HPC module environments, add setup commands per job with
+`--slurm-setup-command "module load python/3.11"`.
 
 ## Contributing
 

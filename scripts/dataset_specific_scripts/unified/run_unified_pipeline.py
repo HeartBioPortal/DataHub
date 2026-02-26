@@ -94,6 +94,16 @@ def parse_args() -> argparse.Namespace:
         help="Enable Redis publish in publish step.",
     )
     parser.add_argument(
+        "--slurm-setup-command",
+        action="append",
+        default=[],
+        dest="slurm_setup_commands",
+        help=(
+            "Command to run before each Slurm step command (for example: "
+            "'module load python/3.11'). Repeat for multiple commands."
+        ),
+    )
+    parser.add_argument(
         "--reset-mvp-checkpoint",
         action="store_true",
         help="Pass --reset-checkpoint to MVP ingest step.",
@@ -562,6 +572,7 @@ def _build_sbatch_command(
     _apply_slurm_option(sbatch_cmd, "--time", slurm_cfg.get("time"))
     _apply_slurm_option(sbatch_cmd, "--cpus-per-task", slurm_cfg.get("cpus_per_task"))
     _apply_slurm_option(sbatch_cmd, "--mem", slurm_cfg.get("mem"))
+    _apply_slurm_option(sbatch_cmd, "--export", slurm_cfg.get("export"))
     _apply_slurm_option(sbatch_cmd, "--mail-type", slurm_cfg.get("mail_type"))
     _apply_slurm_option(sbatch_cmd, "--mail-user", slurm_cfg.get("mail_user"))
 
@@ -580,7 +591,19 @@ def _build_sbatch_command(
     if dependency_job_id:
         sbatch_cmd.extend(["--dependency", f"afterok:{dependency_job_id}"])
 
-    wrapped = f"cd {shlex.quote(str(REPO_ROOT))} && {shlex.join(step.command)}"
+    setup_raw = slurm_cfg.get("setup_commands", [])
+    if isinstance(setup_raw, str):
+        setup_commands = [setup_raw] if setup_raw.strip() else []
+    elif isinstance(setup_raw, list):
+        setup_commands = [str(item).strip() for item in setup_raw if str(item).strip()]
+    else:
+        raise ValueError("slurm.setup_commands must be a string or list of strings.")
+
+    wrapped_segments: list[str] = []
+    wrapped_segments.extend(setup_commands)
+    wrapped_segments.append(f"cd {shlex.quote(str(REPO_ROOT))}")
+    wrapped_segments.append(shlex.join(step.command))
+    wrapped = " && ".join(wrapped_segments)
     sbatch_cmd.extend(["--wrap", wrapped])
     return sbatch_cmd
 
@@ -651,6 +674,19 @@ def main() -> int:
     profile, profiles_path = _load_profile(args)
     profile_name = args.profile
     resolved_scheduler = str(profile.get("scheduler", "local")).strip().lower()
+    if args.slurm_setup_commands:
+        slurm_cfg = profile.setdefault("slurm", {})
+        if not isinstance(slurm_cfg, dict):
+            raise ValueError("Profile slurm config must be an object when using --slurm-setup-command.")
+        existing = slurm_cfg.get("setup_commands", [])
+        if isinstance(existing, str):
+            base_commands = [existing] if existing.strip() else []
+        elif isinstance(existing, list):
+            base_commands = [str(item).strip() for item in existing if str(item).strip()]
+        else:
+            raise ValueError("Profile slurm.setup_commands must be a string or list.")
+        base_commands.extend(args.slurm_setup_commands)
+        slurm_cfg["setup_commands"] = base_commands
     mode = args.mode
     if mode == "auto":
         mode = "slurm" if resolved_scheduler == "slurm" else "local"

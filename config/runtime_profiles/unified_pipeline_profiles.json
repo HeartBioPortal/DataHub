@@ -154,6 +154,10 @@
         "time": "24:00:00",
         "cpus_per_task": 32,
         "mem": "128G",
+        "export": "ALL",
+        "setup_commands": [
+          "module load python/3.11"
+        ],
         "log_dir": "$SCR/hbp/logs/datahub",
         "mail_type": "FAIL"
       }

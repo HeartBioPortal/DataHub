@@ -64,6 +64,8 @@ Python runtime note:
 
 - The runner uses the same interpreter that launched it (for example `.venv/bin/python3`).
 - You can override it explicitly with `--python-executable /path/to/python3`.
+- For HPC modules, add pre-step commands with `--slurm-setup-command` (repeatable),
+  for example `--slurm-setup-command "module load python/3.11"`.
 
 ## 1) Ingest MVP points (already done in your case)
 
