@@ -32,15 +32,16 @@ from datahub.publishers import (  # noqa: E402
 
 @dataclass(frozen=True)
 class GeneWorkUnit:
-    """A gene-level publish unit for resumable staging."""
+    """A publish unit for resumable staging."""
 
     dataset_type: str
     gene_id: str
     point_rows: int
+    shard_id: int | None = None
 
 
 class UnifiedPublishCheckpoint:
-    """Checkpoint tracking completed gene-level publish units."""
+    """Checkpoint tracking completed publish units."""
 
     VERSION = 1
 
@@ -99,6 +100,7 @@ class UnifiedPublishCheckpoint:
         completed[key] = {
             "dataset_type": unit.dataset_type,
             "gene_id": unit.gene_id,
+            "shard_id": int(unit.shard_id) if unit.shard_id is not None else None,
             "point_rows": int(unit.point_rows),
             "completed_at": datetime.now(tz=timezone.utc).isoformat(),
         }
@@ -195,6 +197,15 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=200_000,
         help="DuckDB fetchmany chunk size while streaming point rows.",
+    )
+    parser.add_argument(
+        "--per-gene-shards",
+        type=int,
+        default=256,
+        help=(
+            "Shard count for per_gene dedup mode. Higher values reduce per-query payload "
+            "size and increase unit count."
+        ),
     )
     parser.add_argument(
         "--checkpoint-path",
@@ -300,7 +311,9 @@ def _safe_table_name(table_name: str) -> str:
 
 
 def _unit_key(unit: GeneWorkUnit) -> str:
-    return f"{unit.dataset_type}::{unit.gene_id}"
+    if unit.shard_id is not None:
+        return f"{unit.dataset_type}::shard::{int(unit.shard_id)}"
+    return f"{unit.dataset_type}::gene::{unit.gene_id}"
 
 
 def _unit_token(unit: GeneWorkUnit) -> str:
@@ -324,6 +337,20 @@ def _dataset_type_filter(dataset_types: str | None) -> set[str] | None:
         return None
     parsed = {item.strip().upper() for item in dataset_types.split(",") if item.strip()}
     return parsed if parsed else None
+
+
+def _unit_label(unit: GeneWorkUnit) -> str:
+    if unit.shard_id is not None:
+        return f"shard={int(unit.shard_id)}"
+    return f"gene={unit.gene_id}"
+
+
+def _gene_shard_expression(*, total_shards: int, dataset_alias: str = "p") -> str:
+    if int(total_shards) < 1:
+        raise ValueError("total_shards must be >= 1")
+    return (
+        f"CAST(mod(hash(trim(coalesce({dataset_alias}.gene_id, ''))), {int(total_shards)}) AS INTEGER)"
+    )
 
 
 def _ensure_db_runtime(connection: Any, args: argparse.Namespace, logger: logging.Logger) -> None:
@@ -499,18 +526,21 @@ def _load_work_units_from_source(
     *,
     source_table: str,
     dataset_types: set[str] | None,
+    per_gene_shards: int,
 ) -> list[GeneWorkUnit]:
     where_sql, params = _base_source_where_clause(dataset_types=dataset_types)
+    shard_expression = _gene_shard_expression(total_shards=per_gene_shards, dataset_alias="p")
+    shard_padding = max(2, len(str(max(per_gene_shards - 1, 0))))
     rows = connection.execute(
         f"""
 SELECT
     upper(trim(p.dataset_type)) AS dataset_type,
-    trim(p.gene_id) AS gene_id,
+    {shard_expression} AS shard_id,
     COUNT(*) AS point_rows
 FROM {source_table} p
 WHERE {where_sql}
-GROUP BY dataset_type, gene_id
-ORDER BY dataset_type, gene_id
+GROUP BY upper(trim(p.dataset_type)), {shard_expression}
+ORDER BY upper(trim(p.dataset_type)), shard_id
 """,
         params,
     ).fetchall()
@@ -518,21 +548,36 @@ ORDER BY dataset_type, gene_id
     return [
         GeneWorkUnit(
             dataset_type=str(item[0]),
-            gene_id=str(item[1]),
+            gene_id=f"shard_{int(item[1]):0{shard_padding}d}",
             point_rows=int(item[2]),
+            shard_id=int(item[1]),
         )
         for item in rows
     ]
 
 
-def _open_unit_cursor_per_gene(
+def _open_unit_cursor_from_source(
     connection: Any,
     *,
     source_table: str,
     dataset_types: set[str] | None,
     unit: GeneWorkUnit,
+    per_gene_shards: int,
 ) -> Any:
     where_sql, params = _base_source_where_clause(dataset_types=dataset_types)
+    unit_filters = ["upper(trim(p.dataset_type)) = ?"]
+    unit_params: list[Any] = [unit.dataset_type]
+
+    if unit.shard_id is not None:
+        shard_expression = _gene_shard_expression(total_shards=per_gene_shards, dataset_alias="p")
+        unit_filters.append(f"{shard_expression} = ?")
+        unit_params.append(int(unit.shard_id))
+    else:
+        unit_filters.append("trim(p.gene_id) = ?")
+        unit_params.append(unit.gene_id)
+
+    unit_where_sql = " AND ".join(unit_filters)
+
     query = f"""
 WITH ranked AS (
     SELECT
@@ -571,8 +616,7 @@ WITH ranked AS (
     LEFT JOIN __source_priority sp
       ON lower(trim(p.source)) = sp.source
     WHERE {where_sql}
-      AND upper(trim(p.dataset_type)) = ?
-      AND trim(p.gene_id) = ?
+      AND {unit_where_sql}
 )
 SELECT
     dataset_id,
@@ -592,10 +636,10 @@ SELECT
     source_file
 FROM ranked
 WHERE rn = 1
-ORDER BY phenotype, variant_id, coalesce(ancestry, '');
+ORDER BY gene_id, phenotype, variant_id, coalesce(ancestry, '');
 """
 
-    return connection.execute(query, [*params, unit.dataset_type, unit.gene_id])
+    return connection.execute(query, [*params, *unit_params])
 
 
 def _build_stage_publishers(
@@ -755,6 +799,9 @@ def main() -> int:
     source_priority = _source_priority_rows(args.source_priority)
     dataset_types = _dataset_type_filter(args.dataset_types)
 
+    if args.per_gene_shards < 1:
+        raise ValueError("--per-gene-shards must be >= 1")
+
     output_root = Path(args.output_root)
     output_root.mkdir(parents=True, exist_ok=True)
 
@@ -835,6 +882,7 @@ def main() -> int:
             connection,
             source_table=source_table,
             dataset_types=dataset_types,
+            per_gene_shards=args.per_gene_shards,
         )
         if not all_units:
             logger.warning("No rows found in source table after filters. Nothing to publish.")
@@ -842,10 +890,11 @@ def main() -> int:
             return 0
         logger.info(
             (
-                "Per-gene dedup mode enabled: skipping materialized working table build. "
-                "units=%d"
+                "Per-gene dedup mode enabled (sharded): skipping materialized working "
+                "table build. units=%d shards=%d"
             ),
             len(all_units),
+            args.per_gene_shards,
         )
     completed = checkpoint.completed() if not args.no_resume else set()
     pending_units = [unit for unit in all_units if _unit_key(unit) not in completed]
@@ -874,12 +923,12 @@ def main() -> int:
 
             logger.info(
                 (
-                    "Unit %d/%d start: dataset_type=%s gene=%s point_rows=%d token=%s"
+                    "Unit %d/%d start: dataset_type=%s %s point_rows=%d token=%s"
                 ),
                 index,
                 len(pending_units),
                 unit.dataset_type,
-                unit.gene_id,
+                _unit_label(unit),
                 unit.point_rows,
                 token,
             )
@@ -920,11 +969,12 @@ ORDER BY phenotype, variant_id, coalesce(ancestry, '')
                     [unit.dataset_type, unit.gene_id],
                 )
             else:
-                cursor = _open_unit_cursor_per_gene(
+                cursor = _open_unit_cursor_from_source(
                     connection,
                     source_table=source_table,
                     dataset_types=dataset_types,
                     unit=unit,
+                    per_gene_shards=args.per_gene_shards,
                 )
 
             current_record: CanonicalRecord | None = None
@@ -962,10 +1012,10 @@ ORDER BY phenotype, variant_id, coalesce(ancestry, '')
 
                 if scanned_rows % max(args.query_chunk_rows, 1) == 0:
                     logger.info(
-                        "Unit %d/%d progress: gene=%s scanned_rows=%d published=%d",
+                        "Unit %d/%d progress: %s scanned_rows=%d published=%d",
                         index,
                         len(pending_units),
-                        unit.gene_id,
+                        _unit_label(unit),
                         scanned_rows,
                         published_for_unit,
                     )
@@ -989,13 +1039,13 @@ ORDER BY phenotype, variant_id, coalesce(ancestry, '')
 
             logger.info(
                 (
-                    "Unit %d/%d complete: dataset_type=%s gene=%s scanned_rows=%d "
+                    "Unit %d/%d complete: dataset_type=%s %s scanned_rows=%d "
                     "canonical_records=%d stage_files=%d"
                 ),
                 index,
                 len(pending_units),
                 unit.dataset_type,
-                unit.gene_id,
+                _unit_label(unit),
                 scanned_rows,
                 published_for_unit,
                 stage_files,
@@ -1014,7 +1064,7 @@ ORDER BY phenotype, variant_id, coalesce(ancestry, '')
     elapsed = time.perf_counter() - started
     logger.info(
         (
-            "Unified publish complete in %.2fs | genes=%d processed=%d skipped=%d "
+            "Unified publish complete in %.2fs | units=%d processed=%d skipped=%d "
             "point_rows=%d canonical_records=%d stage_files=%d"
         ),
         elapsed,
@@ -1041,9 +1091,13 @@ ORDER BY phenotype, variant_id, coalesce(ancestry, '')
                 "source_priority": [source for source, _rank in source_priority],
                 "dataset_filter": sorted(dataset_types) if dataset_types else [],
                 "working_table_rows": row_count,
+                "unit_count": len(all_units),
+                "processed_units": processed_units,
+                "skipped_units": skipped_units,
                 "gene_count": len(all_units),
                 "processed_genes": processed_units,
                 "skipped_genes": skipped_units,
+                "per_gene_shards": args.per_gene_shards if args.dedup_mode == "per_gene" else None,
                 "point_rows_scanned": total_point_rows,
                 "canonical_records_published": total_canonical_records,
                 "stage_files_applied": total_stage_files,

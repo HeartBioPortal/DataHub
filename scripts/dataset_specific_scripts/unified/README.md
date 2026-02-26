@@ -43,6 +43,7 @@ python3 scripts/dataset_specific_scripts/unified/publish_unified_from_duckdb.py 
   --db-path /data/hbp/datamart/mvp_fast.duckdb \
   --source-table mvp_association_points \
   --dedup-mode per_gene \
+  --per-gene-shards 512 \
   --working-table association_points_unified \
   --output-root /data/hbp/analyzed_data_unified \
   --rollup-tree-json /data/hbp/config/phenotype_tree.json \
@@ -66,6 +67,8 @@ Notes:
 
 - `--dedup-mode per_gene` is the default and recommended for very large datasets.
 - This mode avoids creating a full materialized unified table (lower disk pressure).
+- In `per_gene` mode, work is processed in deterministic hash shards, not one query per gene.
+- Start with `--per-gene-shards 512` (increase to `1024` if units still run too long).
 - `global_table` mode is still available for smaller runs.
 - With `--json-compression gzip`, outputs are written as `.json.gz` files.
 - `--json-indent 0` writes compact JSON for better compression and less disk usage.
@@ -87,5 +90,5 @@ python3 scripts/dataset_specific_scripts/unified/publish_unified_from_duckdb.py 
 ## 4) Resume behavior
 
 - Legacy raw ingest: rerun without `--reset-checkpoint` to continue.
-- Unified publish: rerun without `--reset-checkpoint` to continue from pending genes.
+- Unified publish: rerun without `--reset-checkpoint` to continue from pending units.
 - If source table contents change (new ingest), run publish with `--reset-checkpoint`.
