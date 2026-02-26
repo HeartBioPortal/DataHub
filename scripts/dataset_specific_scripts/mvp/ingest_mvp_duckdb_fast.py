@@ -340,7 +340,7 @@ def _build_stage_sql(
     include_params: list[str] = []
     if include_dataset_types:
         placeholders = ",".join("?" for _ in sorted(include_dataset_types))
-        include_filter = f"AND dataset_type IN ({placeholders})"
+        include_filter = f"WHERE dataset_type IN ({placeholders})"
         include_params = sorted(include_dataset_types)
 
     strict_mode = "true" if csv_strict_mode else "false"

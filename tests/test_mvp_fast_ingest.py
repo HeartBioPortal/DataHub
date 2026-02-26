@@ -84,6 +84,8 @@ def test_fast_ingest_duckdb_supports_resume(tmp_path: Path) -> None:
         str(map_path),
         "--table-name",
         "mvp_points_test",
+        "--dataset-types",
+        "CVD,TRAIT",
         "--log-level",
         "WARNING",
     ]
