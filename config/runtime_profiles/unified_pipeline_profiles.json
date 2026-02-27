@@ -127,8 +127,8 @@
       "legacy_ingest": {
         "threads": 24,
         "memory_limit": "48GB",
-        "cvd_delimiter": "auto",
-        "trait_delimiter": "auto",
+        "cvd_delimiter": "comma",
+        "trait_delimiter": "tab",
         "duckdb_progress_bar": true,
         "csv_ignore_errors": true,
         "csv_null_padding": true

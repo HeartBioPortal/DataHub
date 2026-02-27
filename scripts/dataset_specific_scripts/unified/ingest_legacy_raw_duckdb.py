@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import glob
+import gzip
 import hashlib
 import json
 import logging
@@ -594,6 +595,27 @@ def _expand_input_paths_any(input_paths: list[str]) -> list[Path]:
     return resolved
 
 
+def _read_header_line(file_path: Path) -> str:
+    opener = gzip.open if file_path.name.lower().endswith(".gz") else open
+    with opener(file_path, "rt", encoding="utf-8", errors="ignore") as stream:
+        return stream.readline().strip("\r\n")
+
+
+def _resolve_csv_delimiter(csv_delimiter: str, file_path: Path) -> str:
+    normalized = csv_delimiter.strip().lower()
+    if normalized in {"comma", "tab"}:
+        return normalized
+    if normalized != "auto":
+        raise ValueError(f"Unsupported csv delimiter: {csv_delimiter}")
+
+    header = _read_header_line(file_path)
+    tab_count = header.count("\t")
+    comma_count = header.count(",")
+    if tab_count > comma_count:
+        return "tab"
+    return "comma"
+
+
 def _csv_delimiter_clause(csv_delimiter: str) -> str:
     normalized = csv_delimiter.strip().lower()
     if normalized == "comma":
@@ -607,24 +629,26 @@ def _build_jobs(args: argparse.Namespace) -> list[LegacyRawIngestJob]:
     jobs: list[LegacyRawIngestJob] = []
 
     for path in sorted(_expand_input_paths_any(args.cvd_input_paths), key=lambda item: str(item)):
+        resolved_delimiter = _resolve_csv_delimiter(args.cvd_delimiter, path)
         jobs.append(
             LegacyRawIngestJob(
                 file_path=path,
                 dataset_type="CVD",
                 dataset_id=args.dataset_id_cvd,
                 source=args.source_cvd,
-                csv_delimiter=args.cvd_delimiter,
+                csv_delimiter=resolved_delimiter,
             )
         )
 
     for path in sorted(_expand_input_paths_any(args.trait_input_paths), key=lambda item: str(item)):
+        resolved_delimiter = _resolve_csv_delimiter(args.trait_delimiter, path)
         jobs.append(
             LegacyRawIngestJob(
                 file_path=path,
                 dataset_type="TRAIT",
                 dataset_id=args.dataset_id_trait,
                 source=args.source_trait,
-                csv_delimiter=args.trait_delimiter,
+                csv_delimiter=resolved_delimiter,
             )
         )
 
