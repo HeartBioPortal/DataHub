@@ -324,6 +324,11 @@ def parse_args() -> argparse.Namespace:
         help="Keep DuckDB insertion-order preservation enabled (uses more memory).",
     )
     parser.add_argument(
+        "--db-read-only",
+        action="store_true",
+        help="Open DuckDB in read-only mode.",
+    )
+    parser.add_argument(
         "--duckdb-progress-bar",
         dest="duckdb_progress_bar",
         action="store_true",
@@ -409,6 +414,19 @@ def _load_seed_checkpoint_keys(path: str | Path) -> set[str]:
     return set(completed.keys())
 
 
+def _source_rank_sql(*, dataset_alias: str, source_priority: list[tuple[str, int]]) -> str:
+    if not source_priority:
+        return "999999"
+    branches = []
+    for source, rank in source_priority:
+        safe_source = source.replace("'", "''")
+        branches.append(
+            f"WHEN lower(trim({dataset_alias}.source)) = '{safe_source}' THEN {int(rank)}"
+        )
+    joined = " ".join(branches)
+    return f"(CASE {joined} ELSE 999999 END)"
+
+
 def _dataset_type_filter(dataset_types: str | None) -> set[str] | None:
     if not dataset_types:
         return None
@@ -460,18 +478,6 @@ def _ensure_db_runtime(connection: Any, args: argparse.Namespace, logger: loggin
             logger.warning("Could not enable DuckDB progress bar: %s", exc)
 
 
-def _create_source_priority_table(
-    connection: Any,
-    *,
-    source_priority: list[tuple[str, int]],
-) -> None:
-    connection.execute(
-        "CREATE OR REPLACE TEMP TABLE __source_priority(source VARCHAR, source_rank INTEGER)"
-    )
-    if source_priority:
-        connection.executemany("INSERT INTO __source_priority VALUES (?, ?)", source_priority)
-
-
 def _base_source_where_clause(*, dataset_types: set[str] | None) -> tuple[str, list[str]]:
     where_filters: list[str] = [
         "coalesce(trim(p.dataset_type), '') <> ''",
@@ -495,9 +501,11 @@ def _build_working_table(
     source_table: str,
     working_table: str,
     dataset_types: set[str] | None,
+    source_priority: list[tuple[str, int]],
     logger: logging.Logger,
 ) -> tuple[int, int]:
     where_sql, filter_params = _base_source_where_clause(dataset_types=dataset_types)
+    source_rank_sql = _source_rank_sql(dataset_alias="p", source_priority=source_priority)
 
     sql = f"""
 CREATE OR REPLACE TABLE {working_table} AS
@@ -519,7 +527,7 @@ WITH ranked AS (
         nullif(trim(coalesce(p.phenotype_key, '')), '') AS phenotype_key,
         p.source_file,
         p.ingested_at,
-        coalesce(sp.source_rank, 999999) AS source_rank,
+        {source_rank_sql} AS source_rank,
         row_number() OVER (
             PARTITION BY
                 upper(trim(p.dataset_type)),
@@ -528,15 +536,13 @@ WITH ranked AS (
                 lower(regexp_replace(replace(trim(p.phenotype), '/', '_'), '\\s+', '_', 'g')),
                 nullif(trim(coalesce(p.ancestry, '')), '')
             ORDER BY
-                coalesce(sp.source_rank, 999999),
+                {source_rank_sql},
                 CASE WHEN p.p_value IS NULL THEN 1 ELSE 0 END,
                 p.p_value,
                 p.ingested_at DESC,
                 p.source ASC
         ) AS rn
     FROM {source_table} p
-    LEFT JOIN __source_priority sp
-      ON lower(trim(p.source)) = sp.source
     WHERE {where_sql}
 )
 SELECT
@@ -640,8 +646,10 @@ def _open_unit_cursor_from_source(
     dataset_types: set[str] | None,
     unit: GeneWorkUnit,
     per_gene_shards: int,
+    source_priority: list[tuple[str, int]],
 ) -> Any:
     where_sql, params = _base_source_where_clause(dataset_types=dataset_types)
+    source_rank_sql = _source_rank_sql(dataset_alias="p", source_priority=source_priority)
     unit_filters = ["upper(trim(p.dataset_type)) = ?"]
     unit_params: list[Any] = [unit.dataset_type]
 
@@ -674,7 +682,7 @@ WITH ranked AS (
         nullif(trim(coalesce(p.phenotype_key, '')), '') AS phenotype_key,
         p.source_file,
         p.ingested_at,
-        coalesce(sp.source_rank, 999999) AS source_rank,
+        {source_rank_sql} AS source_rank,
         row_number() OVER (
             PARTITION BY
                 upper(trim(p.dataset_type)),
@@ -683,15 +691,13 @@ WITH ranked AS (
                 lower(regexp_replace(replace(trim(p.phenotype), '/', '_'), '\\s+', '_', 'g')),
                 nullif(trim(coalesce(p.ancestry, '')), '')
             ORDER BY
-                coalesce(sp.source_rank, 999999),
+                {source_rank_sql},
                 CASE WHEN p.p_value IS NULL THEN 1 ELSE 0 END,
                 p.p_value,
                 p.ingested_at DESC,
                 p.source ASC
         ) AS rn
     FROM {source_table} p
-    LEFT JOIN __source_priority sp
-      ON lower(trim(p.source)) = sp.source
     WHERE {where_sql}
       AND {unit_where_sql}
 )
@@ -936,7 +942,8 @@ def main() -> int:
         raise FileNotFoundError(f"DuckDB database not found: {db_path}")
 
     started = time.perf_counter()
-    connection = duckdb.connect(str(db_path))
+    use_read_only = bool(args.db_read_only or (args.unit_partitions > 1 and args.dedup_mode == "per_gene"))
+    connection = duckdb.connect(str(db_path), read_only=use_read_only)
     _ensure_db_runtime(connection, args, logger)
 
     logger.info(
@@ -947,6 +954,7 @@ def main() -> int:
         working_table,
         output_root,
     )
+    logger.info("DuckDB open mode: read_only=%s", str(use_read_only))
     logger.info(
         "Unit partitioning: partitions=%d index=%d",
         args.unit_partitions,
@@ -967,8 +975,6 @@ def main() -> int:
         str(json_indent),
     )
 
-    _create_source_priority_table(connection, source_priority=source_priority)
-
     row_count: int | None = None
     if args.dedup_mode == "global_table":
         row_count, gene_count = _build_working_table(
@@ -976,6 +982,7 @@ def main() -> int:
             source_table=source_table,
             working_table=working_table,
             dataset_types=dataset_types,
+            source_priority=source_priority,
             logger=logger,
         )
         if row_count == 0 or gene_count == 0:
@@ -1111,6 +1118,7 @@ ORDER BY phenotype, variant_id, coalesce(ancestry, '')
                     dataset_types=dataset_types,
                     unit=unit,
                     per_gene_shards=args.per_gene_shards,
+                    source_priority=source_priority,
                 )
 
             current_record: CanonicalRecord | None = None
@@ -1221,6 +1229,7 @@ ORDER BY phenotype, variant_id, coalesce(ancestry, '')
                 "working_table": working_table,
                 "dedup_mode": args.dedup_mode,
                 "output_root": str(output_root),
+                "db_read_only": use_read_only,
                 "json_compression": args.json_compression,
                 "json_gzip_level": args.json_gzip_level,
                 "json_indent": json_indent,
