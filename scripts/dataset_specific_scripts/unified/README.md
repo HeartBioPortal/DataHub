@@ -69,6 +69,7 @@ for i in $(seq 0 $((N-1))); do
       --per-gene-shards 512 \
       --unit-partitions ${N} \
       --unit-partition-index ${i} \
+      --resume-seed-checkpoint /N/scratch/kvand/hbp/state/unified_publish_checkpoint.json \
       --publish-batch-size 100000 \
       --query-chunk-rows 500000 \
       --json-compression gzip --json-indent 0 \
@@ -83,6 +84,8 @@ Important:
 
 - Do not use `--reset-output` with `--unit-partitions > 1` in parallel jobs.
 - Partitioned jobs use partition-specific checkpoint/state files automatically.
+- If migrating from a prior single-run checkpoint, use `--resume-seed-checkpoint`
+  so partition jobs skip already completed units instead of reprocessing them.
 
 Override any profile value at runtime:
 

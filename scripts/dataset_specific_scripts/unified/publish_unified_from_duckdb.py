@@ -106,6 +106,27 @@ class UnifiedPublishCheckpoint:
         }
         self.save()
 
+    def seed_completed(self, units: Iterable[GeneWorkUnit]) -> int:
+        completed = self.payload.setdefault("completed_units", {})
+        inserted = 0
+        now = datetime.now(tz=timezone.utc).isoformat()
+        for unit in units:
+            key = _unit_key(unit)
+            if key in completed:
+                continue
+            completed[key] = {
+                "dataset_type": unit.dataset_type,
+                "gene_id": unit.gene_id,
+                "shard_id": int(unit.shard_id) if unit.shard_id is not None else None,
+                "point_rows": int(unit.point_rows),
+                "completed_at": now,
+                "seeded": True,
+            }
+            inserted += 1
+        if inserted:
+            self.save()
+        return inserted
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -228,6 +249,14 @@ def parse_args() -> argparse.Namespace:
         help=(
             "Optional checkpoint path. "
             "Defaults to <output-root>/_datahub_state/unified_publish/checkpoint.json"
+        ),
+    )
+    parser.add_argument(
+        "--resume-seed-checkpoint",
+        default=None,
+        help=(
+            "Optional path to an existing checkpoint to seed completed units from. "
+            "Useful when switching to partitioned publish after a single-run publish."
         ),
     )
     parser.add_argument(
@@ -365,6 +394,19 @@ def _source_priority_rows(source_priority: str) -> list[tuple[str, int]]:
         rows.append((normalized, rank))
         rank += 1
     return rows
+
+
+def _load_seed_checkpoint_keys(path: str | Path) -> set[str]:
+    checkpoint_path = Path(path)
+    if not checkpoint_path.exists():
+        return set()
+    payload = json.loads(checkpoint_path.read_text())
+    if not isinstance(payload, dict):
+        return set()
+    completed = payload.get("completed_units", {})
+    if not isinstance(completed, dict):
+        return set()
+    return set(completed.keys())
 
 
 def _dataset_type_filter(dataset_types: str | None) -> set[str] | None:
@@ -966,6 +1008,30 @@ def main() -> int:
         partition_index=args.unit_partition_index,
     )
     completed = checkpoint.completed() if not args.no_resume else set()
+    seeded_units = 0
+    if (
+        not args.no_resume
+        and args.resume_seed_checkpoint
+        and args.unit_partitions > 1
+    ):
+        seed_keys = _load_seed_checkpoint_keys(args.resume_seed_checkpoint)
+        selected_key_set = {_unit_key(unit) for unit in selected_units}
+        if seed_keys:
+            selected_by_key = {_unit_key(unit): unit for unit in selected_units}
+            units_to_seed = [
+                selected_by_key[key]
+                for key in sorted(seed_keys.intersection(selected_by_key.keys()))
+                if key not in completed
+            ]
+            seeded_units = checkpoint.seed_completed(units_to_seed)
+            if seeded_units:
+                completed = checkpoint.completed()
+        logger.info(
+            "Resume seed checkpoint: path=%s matching_units=%d seeded=%d",
+            args.resume_seed_checkpoint,
+            len(seed_keys.intersection(selected_key_set)),
+            seeded_units,
+        )
     pending_units = [unit for unit in selected_units if _unit_key(unit) not in completed]
     skipped_units = len(selected_units) - len(pending_units)
 

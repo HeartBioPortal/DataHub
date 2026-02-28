@@ -491,6 +491,9 @@ def _build_publish_command(profile: dict[str, Any], args: argparse.Namespace) ->
     max_temp_directory_size = cfg.get("max_temp_directory_size")
     if max_temp_directory_size:
         command.extend(["--max-temp-directory-size", str(max_temp_directory_size)])
+    resume_seed_checkpoint = cfg.get("resume_seed_checkpoint")
+    if resume_seed_checkpoint:
+        command.extend(["--resume-seed-checkpoint", str(resume_seed_checkpoint)])
 
     rollup_tree_json = cfg.get("rollup_tree_json", paths.get("rollup_tree_json"))
     if rollup_tree_json:

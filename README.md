@@ -277,7 +277,8 @@ For HPC module environments, add setup commands per job with
 For high-throughput publish on HPC, the unified publish script supports
 deterministic unit partitioning via `--unit-partitions` and
 `--unit-partition-index` so multiple jobs can process disjoint shard subsets
-in parallel.
+in parallel. Use `--resume-seed-checkpoint` when moving from a previous
+single-run checkpoint to partitioned publish so completed units are not redone.
 
 ## Contributing
 
