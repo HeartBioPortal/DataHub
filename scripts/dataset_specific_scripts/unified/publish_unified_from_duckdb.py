@@ -208,6 +208,21 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--unit-partitions",
+        type=int,
+        default=1,
+        help=(
+            "Split publish units into this many deterministic partitions for parallel runs. "
+            "Use >1 with multiple jobs."
+        ),
+    )
+    parser.add_argument(
+        "--unit-partition-index",
+        type=int,
+        default=0,
+        help="0-based partition index to process when --unit-partitions > 1.",
+    )
+    parser.add_argument(
         "--checkpoint-path",
         default=None,
         help=(
@@ -318,6 +333,26 @@ def _unit_key(unit: GeneWorkUnit) -> str:
 
 def _unit_token(unit: GeneWorkUnit) -> str:
     return hashlib.sha1(_unit_key(unit).encode("utf-8")).hexdigest()[:16]
+
+
+def _unit_bucket(unit: GeneWorkUnit, *, partitions: int) -> int:
+    digest = hashlib.sha1(_unit_key(unit).encode("utf-8")).digest()
+    return int.from_bytes(digest[:8], byteorder="big", signed=False) % int(partitions)
+
+
+def _select_partition_units(
+    units: list[GeneWorkUnit],
+    *,
+    partitions: int,
+    partition_index: int,
+) -> list[GeneWorkUnit]:
+    if int(partitions) <= 1:
+        return units
+    return [
+        unit
+        for unit in units
+        if _unit_bucket(unit, partitions=partitions) == int(partition_index)
+    ]
 
 
 def _source_priority_rows(source_priority: str) -> list[tuple[str, int]]:
@@ -801,20 +836,44 @@ def main() -> int:
 
     if args.per_gene_shards < 1:
         raise ValueError("--per-gene-shards must be >= 1")
+    if args.unit_partitions < 1:
+        raise ValueError("--unit-partitions must be >= 1")
+    if args.unit_partition_index < 0 or args.unit_partition_index >= args.unit_partitions:
+        raise ValueError(
+            "--unit-partition-index must be in [0, --unit-partitions)."
+        )
+    if args.unit_partitions > 1 and args.reset_output:
+        raise ValueError(
+            "--reset-output cannot be used with --unit-partitions > 1. "
+            "Clear output once before launching parallel partition jobs."
+        )
 
     output_root = Path(args.output_root)
     output_root.mkdir(parents=True, exist_ok=True)
 
-    state_root = (
+    state_root_base = (
         Path(args.state_dir)
         if args.state_dir
         else output_root / "_datahub_state" / "unified_publish"
     )
-    checkpoint_path = (
-        Path(args.checkpoint_path)
-        if args.checkpoint_path
-        else state_root / "checkpoint.json"
+    partition_suffix = (
+        f"part{int(args.unit_partition_index):03d}of{int(args.unit_partitions):03d}"
     )
+    state_root = (
+        state_root_base / partition_suffix
+        if args.unit_partitions > 1
+        else state_root_base
+    )
+    if args.checkpoint_path:
+        checkpoint_base = Path(args.checkpoint_path)
+        if args.unit_partitions > 1:
+            checkpoint_path = checkpoint_base.with_name(
+                f"{checkpoint_base.stem}.{partition_suffix}{checkpoint_base.suffix}"
+            )
+        else:
+            checkpoint_path = checkpoint_base
+    else:
+        checkpoint_path = state_root / "checkpoint.json"
     staging_root = state_root / "staging"
 
     checkpoint = UnifiedPublishCheckpoint(checkpoint_path)
@@ -845,6 +904,11 @@ def main() -> int:
         args.dedup_mode,
         working_table,
         output_root,
+    )
+    logger.info(
+        "Unit partitioning: partitions=%d index=%d",
+        args.unit_partitions,
+        args.unit_partition_index,
     )
     logger.info(
         "Source priority: %s",
@@ -896,15 +960,21 @@ def main() -> int:
             len(all_units),
             args.per_gene_shards,
         )
+    selected_units = _select_partition_units(
+        all_units,
+        partitions=args.unit_partitions,
+        partition_index=args.unit_partition_index,
+    )
     completed = checkpoint.completed() if not args.no_resume else set()
-    pending_units = [unit for unit in all_units if _unit_key(unit) not in completed]
-    skipped_units = len(all_units) - len(pending_units)
+    pending_units = [unit for unit in selected_units if _unit_key(unit) not in completed]
+    skipped_units = len(selected_units) - len(pending_units)
 
     logger.info(
-        "Publish units: total=%d pending=%d skipped=%d",
-        len(all_units),
+        "Publish units: selected_total=%d pending=%d skipped=%d (all_units=%d)",
+        len(selected_units),
         len(pending_units),
         skipped_units,
+        len(all_units),
     )
 
     processed_units = 0
@@ -1068,7 +1138,7 @@ ORDER BY phenotype, variant_id, coalesce(ancestry, '')
             "point_rows=%d canonical_records=%d stage_files=%d"
         ),
         elapsed,
-        len(all_units),
+        len(selected_units),
         processed_units,
         skipped_units,
         total_point_rows,
@@ -1091,18 +1161,22 @@ ORDER BY phenotype, variant_id, coalesce(ancestry, '')
                 "source_priority": [source for source, _rank in source_priority],
                 "dataset_filter": sorted(dataset_types) if dataset_types else [],
                 "working_table_rows": row_count,
-                "unit_count": len(all_units),
+                "unit_count": len(selected_units),
                 "processed_units": processed_units,
                 "skipped_units": skipped_units,
-                "gene_count": len(all_units),
+                "gene_count": len(selected_units),
                 "processed_genes": processed_units,
                 "skipped_genes": skipped_units,
                 "per_gene_shards": args.per_gene_shards if args.dedup_mode == "per_gene" else None,
+                "unit_partitions": args.unit_partitions,
+                "unit_partition_index": args.unit_partition_index,
+                "all_unit_count": len(all_units),
                 "point_rows_scanned": total_point_rows,
                 "canonical_records_published": total_canonical_records,
                 "stage_files_applied": total_stage_files,
                 "resume_enabled": not args.no_resume,
                 "checkpoint_path": str(checkpoint_path),
+                "state_dir": str(state_root),
                 "elapsed_seconds": round(elapsed, 2),
             },
             indent=2,

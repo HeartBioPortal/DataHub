@@ -274,6 +274,10 @@ an activated `.venv` carries into Slurm jobs). Override with
 `--python-executable` when needed.
 For HPC module environments, add setup commands per job with
 `--slurm-setup-command "module load python/3.11"`.
+For high-throughput publish on HPC, the unified publish script supports
+deterministic unit partitioning via `--unit-partitions` and
+`--unit-partition-index` so multiple jobs can process disjoint shard subsets
+in parallel.
 
 ## Contributing
 

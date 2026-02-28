@@ -46,6 +46,44 @@ python3 scripts/dataset_specific_scripts/unified/run_unified_pipeline.py \
   --log-level INFO
 ```
 
+Parallel publish on HPC (run multiple partition jobs in parallel):
+
+```bash
+# Clear output once, then launch N partition jobs without --reset-output.
+N=8
+for i in $(seq 0 $((N-1))); do
+  sbatch --account r01806 --time 24:00:00 --cpus-per-task 32 --mem 128G \
+    --job-name "datahub_publish_p${i}" \
+    --output "/N/scratch/kvand/hbp/logs/datahub/publish_p${i}_%j.out" \
+    --error "/N/scratch/kvand/hbp/logs/datahub/publish_p${i}_%j.err" \
+    --wrap "module load python/3.11 && cd /geode2/home/u050/kvand/BigRed200/DataHub && \
+      /geode2/home/u050/kvand/BigRed200/DataHub/.venv/bin/python3 \
+      scripts/dataset_specific_scripts/unified/publish_unified_from_duckdb.py \
+      --db-path /N/scratch/kvand/hbp/datamart/mvp_fast.duckdb \
+      --source-table mvp_association_points \
+      --output-root /N/scratch/kvand/hbp/analyzed_data_unified \
+      --rollup-tree-json /N/scratch/kvand/hbp/config/phenotype_tree.json \
+      --source-priority legacy_cvd_raw,legacy_trait_raw,million_veteran_program \
+      --dataset-types CVD,TRAIT \
+      --dedup-mode per_gene \
+      --per-gene-shards 512 \
+      --unit-partitions ${N} \
+      --unit-partition-index ${i} \
+      --publish-batch-size 100000 \
+      --query-chunk-rows 500000 \
+      --json-compression gzip --json-indent 0 \
+      --threads 32 --memory-limit 64GB \
+      --temp-directory /N/scratch/kvand/hbp/datamart/duckdb_tmp \
+      --max-temp-directory-size 500GiB \
+      --log-level INFO"
+done
+```
+
+Important:
+
+- Do not use `--reset-output` with `--unit-partitions > 1` in parallel jobs.
+- Partitioned jobs use partition-specific checkpoint/state files automatically.
+
 Override any profile value at runtime:
 
 ```bash
