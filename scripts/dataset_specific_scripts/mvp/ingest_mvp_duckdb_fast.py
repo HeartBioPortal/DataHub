@@ -22,23 +22,14 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from datahub.adapters import PhenotypeMapper  # noqa: E402
 from datahub.adapters.common import expand_input_paths  # noqa: E402
+from datahub.ancestry import (  # noqa: E402
+    mvp_sql_case_for_canonical_group,
+    mvp_sql_case_for_source_label,
+)
 
 
-ANCESTRY_SQL = """
-CASE ancestry_code
-    WHEN 'ALL' THEN 'Total'
-    WHEN 'AFR' THEN 'African'
-    WHEN 'AMR' THEN 'Admixed American'
-    WHEN 'ASJ' THEN 'Ashkenazi Jewish'
-    WHEN 'EAS' THEN 'East Asian'
-    WHEN 'EUR' THEN 'European'
-    WHEN 'FIN' THEN 'Finnish'
-    WHEN 'SAS' THEN 'South Asian'
-    WHEN 'OTH' THEN 'Other'
-    WHEN '' THEN NULL
-    ELSE ancestry_code
-END
-"""
+ANCESTRY_SQL = mvp_sql_case_for_canonical_group("ancestry_code")
+ANCESTRY_SOURCE_LABEL_SQL = mvp_sql_case_for_source_label("ancestry_code")
 
 
 class MVPFastCheckpoint:
@@ -398,6 +389,8 @@ resolved AS (
         END AS variation_type,
         r.p_value,
         {ANCESTRY_SQL} AS ancestry,
+        nullif(r.ancestry_code, '') AS ancestry_source_code,
+        {ANCESTRY_SOURCE_LABEL_SQL} AS ancestry_source_label,
         r.af,
         r.phenotype_key
     FROM raw AS r
@@ -416,6 +409,8 @@ aggregated AS (
         disease_category,
         variation_type,
         ancestry,
+        ancestry_source_code,
+        ancestry_source_label,
         min(p_value) AS p_value,
         min(af) AS ancestry_af,
         min(phenotype_key) AS phenotype_key
@@ -429,7 +424,9 @@ aggregated AS (
         phenotype,
         disease_category,
         variation_type,
-        ancestry
+        ancestry,
+        ancestry_source_code,
+        ancestry_source_label
 )
 SELECT
     dataset_id,
@@ -445,6 +442,8 @@ SELECT
     p_value,
     ancestry,
     ancestry_af,
+    ancestry_source_code,
+    ancestry_source_label,
     phenotype_key,
     ? AS source_file,
     now() AS ingested_at
@@ -481,11 +480,19 @@ CREATE TABLE IF NOT EXISTS {table_name} (
     p_value DOUBLE,
     ancestry VARCHAR,
     ancestry_af DOUBLE,
+    ancestry_source_code VARCHAR,
+    ancestry_source_label VARCHAR,
     phenotype_key VARCHAR,
     source_file VARCHAR,
     ingested_at TIMESTAMP
 );
 """
+    )
+    connection.execute(
+        f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS ancestry_source_code VARCHAR"
+    )
+    connection.execute(
+        f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS ancestry_source_label VARCHAR"
     )
 
 

@@ -128,6 +128,15 @@ def test_mvp_adapter_merges_ancestry_rows_into_single_record(tmp_path: Path) -> 
     assert record.metadata["best_or"] == 0.7
     assert record.metadata["best_num_cases"] == 2664
     assert record.metadata["mvp_by_ancestry"]["African"]["case_af"] == 0.7777
+    assert (
+        record.metadata["mvp_by_ancestry"]["African"]["canonical_ancestry_group"]
+        == "African"
+    )
+    assert record.metadata["mvp_source_ancestry"]["AFR"]["source_ancestry_code"] == "AFR"
+    assert (
+        record.metadata["mvp_source_ancestry"]["AFR"]["source_ancestry_label"]
+        == "African"
+    )
 
 
 def test_mvp_adapter_chunk_mode_merges_records_split_on_chunk_boundary(tmp_path: Path) -> None:
