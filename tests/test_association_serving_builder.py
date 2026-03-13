@@ -49,6 +49,8 @@ def test_builder_creates_compact_serving_db_from_published_outputs(tmp_path: Pat
 
     output_root = tmp_path / "analyzed_data_unified"
     final_root = output_root / "association" / "final"
+    expression_path = tmp_path / "expression.json"
+    sga_root = tmp_path / "SGA"
     tree_path = tmp_path / "phenotype_tree.json"
     tree_path.write_text(
         json.dumps({"CVD": {"cardiac_dysrhythmias": ["atrial_fibrillation"]}})
@@ -85,6 +87,26 @@ def test_builder_creates_compact_serving_db_from_published_outputs(tmp_path: Pat
     _write_json(final_root / "association" / "TRAIT" / "ANK2.json", assoc_trait)
     _write_json_gz(final_root / "overall" / "CVD" / "ANK2.json.gz", overall_cvd)
     _write_json(final_root / "overall" / "TRAIT" / "ANK2.json", overall_trait)
+    expression_path.write_text(
+        json.dumps(
+            {
+                "ANK2": {
+                    "cardiomyopathy": {
+                        "upregulated": 2,
+                        "downregulated": 1,
+                    }
+                }
+            }
+        )
+    )
+    _write_json(
+        sga_root / "cvd" / "angina.json",
+        {"ANK2": {"rs1": [1.0, 2.0]}},
+    )
+    _write_json(
+        sga_root / "trait" / "QT_interval.json",
+        {"ANK2": {"rs2": [3.0, 4.0]}},
+    )
 
     db_path = tmp_path / "association_serving.duckdb"
 
@@ -100,6 +122,10 @@ def test_builder_creates_compact_serving_db_from_published_outputs(tmp_path: Pat
             "ANK2",
             "--phenotype-tree-json",
             str(tree_path),
+            "--expression-json-path",
+            str(expression_path),
+            "--sga-root",
+            str(sga_root),
             "--log-level",
             "ERROR",
         ]
@@ -114,6 +140,8 @@ def test_builder_creates_compact_serving_db_from_published_outputs(tmp_path: Pat
     try:
         assert con.execute("SELECT COUNT(*) FROM association_gene_payloads").fetchone()[0] == 2
         assert con.execute("SELECT COUNT(*) FROM overall_gene_payloads").fetchone()[0] == 2
+        assert con.execute("SELECT COUNT(*) FROM expression_gene_payloads").fetchone()[0] == 1
+        assert con.execute("SELECT COUNT(*) FROM sga_gene_payloads").fetchone()[0] == 1
         assert con.execute("SELECT COUNT(*) FROM gene_catalog").fetchone()[0] == 1
 
         row = con.execute(
@@ -146,11 +174,34 @@ WHERE dataset_type = 'CVD' AND gene_id_normalized = 'ANK2'
 
         catalog = con.execute(
             """
-SELECT has_cvd, has_trait, has_cvd_association, has_trait_association, has_cvd_overall, has_trait_overall
+SELECT has_cvd, has_trait, has_cvd_association, has_trait_association, has_cvd_overall, has_trait_overall, has_expression, has_sga
 FROM gene_catalog
 WHERE gene_id_normalized = 'ANK2'
 """
         ).fetchone()
-        assert catalog == (True, True, True, True, True, True)
+        assert catalog == (True, True, True, True, True, True, True, True)
+
+        expression_row = con.execute(
+            """
+SELECT payload_json
+FROM expression_gene_payloads
+WHERE gene_id_normalized = 'ANK2'
+"""
+        ).fetchone()
+        assert json.loads(expression_row[0]) == {
+            "cardiomyopathy": {"up": 2, "down": 1}
+        }
+
+        sga_row = con.execute(
+            """
+SELECT payload_json
+FROM sga_gene_payloads
+WHERE gene_id_normalized = 'ANK2'
+"""
+        ).fetchone()
+        assert json.loads(sga_row[0]) == [
+            {"gene": "ANK2", "data": {"rs1": [1.0, 2.0]}, "type": "cvd", "name": "angina"},
+            {"gene": "ANK2", "data": {"rs2": [3.0, 4.0]}, "type": "trait", "name": "QT_interval"},
+        ]
     finally:
         con.close()

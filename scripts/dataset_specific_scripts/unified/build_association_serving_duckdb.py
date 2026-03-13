@@ -7,6 +7,7 @@ import argparse
 import gzip
 import json
 import logging
+import math
 import sys
 from pathlib import Path
 from typing import Any
@@ -81,6 +82,23 @@ def parse_args() -> argparse.Namespace:
         help="Optional phenotype hierarchy JSON used to canonicalize disease/trait paths.",
     )
     parser.add_argument(
+        "--expression-json-path",
+        default=None,
+        help=(
+            "Optional expression.json path. If omitted, the builder will try the "
+            "legacy sibling DataManager analyzed_data path when available."
+        ),
+    )
+    parser.add_argument(
+        "--sga-root",
+        default=None,
+        help=(
+            "Optional SGA root containing cvd/ and trait/ phenotype JSON files. "
+            "If omitted, the builder will try the legacy sibling DataManager "
+            "analyzed_data/SGA path when available."
+        ),
+    )
+    parser.add_argument(
         "--batch-size",
         type=int,
         default=500,
@@ -143,6 +161,22 @@ def _resolve_final_root(input_root: str | Path) -> Path:
         "Could not resolve published final output root from input-root: "
         f"{root}"
     )
+
+
+def _default_expression_json_path() -> Path | None:
+    candidate = REPO_ROOT.parent / "DataManager" / "analyzed_data" / "expression.json"
+    return candidate if candidate.exists() else None
+
+
+def _default_sga_root() -> Path | None:
+    candidate = REPO_ROOT.parent / "DataManager" / "analyzed_data" / "SGA"
+    return candidate if candidate.exists() else None
+
+
+def _resolve_optional_path(value: str | None, fallback: Path | None) -> Path | None:
+    if value is not None and str(value).strip():
+        return Path(value)
+    return fallback
 
 
 def _strip_payload_suffix(path: Path) -> str:
@@ -306,7 +340,29 @@ CREATE TABLE gene_catalog (
     has_cvd_association BOOLEAN,
     has_trait_association BOOLEAN,
     has_cvd_overall BOOLEAN,
-    has_trait_overall BOOLEAN
+    has_trait_overall BOOLEAN,
+    has_expression BOOLEAN,
+    has_sga BOOLEAN
+)
+"""
+    )
+    connection.execute(
+        """
+CREATE TABLE expression_gene_payloads (
+    gene_id VARCHAR,
+    gene_id_normalized VARCHAR,
+    payload_json VARCHAR,
+    source_path VARCHAR
+)
+"""
+    )
+    connection.execute(
+        """
+CREATE TABLE sga_gene_payloads (
+    gene_id VARCHAR,
+    gene_id_normalized VARCHAR,
+    payload_json VARCHAR,
+    source_path VARCHAR
 )
 """
     )
@@ -320,7 +376,11 @@ CREATE TABLE build_metadata (
     dataset_types VARCHAR,
     filtered_gene_count BIGINT,
     association_row_count BIGINT,
-    overall_row_count BIGINT
+    overall_row_count BIGINT,
+    expression_row_count BIGINT,
+    sga_row_count BIGINT,
+    expression_source_path VARCHAR,
+    sga_source_root VARCHAR
 )
 """
     )
@@ -330,12 +390,131 @@ def _insert_rows(
     connection: Any,
     *,
     table_name: str,
-    rows: list[tuple[str, str, str, str, str]],
+    rows: list[tuple[Any, ...]],
     batch_size: int,
 ) -> None:
-    sql = f"INSERT INTO {table_name} VALUES (?, ?, ?, ?, ?)"
+    if not rows:
+        return
+    placeholders = ", ".join("?" for _ in range(len(rows[0])))
+    sql = f"INSERT INTO {table_name} VALUES ({placeholders})"
     for start in range(0, len(rows), max(batch_size, 1)):
         connection.executemany(sql, rows[start:start + max(batch_size, 1)])
+
+
+def _is_nan(value: Any) -> bool:
+    return isinstance(value, float) and math.isnan(value)
+
+
+def _normalize_expression_entry(value: Any) -> Any:
+    if not isinstance(value, dict):
+        return value
+
+    if "regulation" in value and isinstance(value.get("regulation"), dict):
+        regulation = value["regulation"]
+        return {
+            "up": 0 if _is_nan(regulation.get("upregulated", 0)) else regulation.get("upregulated", 0),
+            "down": 0 if _is_nan(regulation.get("downregulated", 0)) else regulation.get("downregulated", 0),
+        }
+
+    normalized: dict[str, Any] = {}
+    for disease, regulation in value.items():
+        if not isinstance(regulation, dict):
+            normalized[disease] = regulation
+            continue
+        up = regulation.get("upregulated", 0)
+        down = regulation.get("downregulated", 0)
+        normalized[disease] = {
+            "up": 0 if _is_nan(up) else up,
+            "down": 0 if _is_nan(down) else down,
+        }
+    return normalized
+
+
+def _load_expression_rows(
+    expression_json_path: Path | None,
+    *,
+    include_genes: set[str] | None,
+) -> list[tuple[str, str, str, str]]:
+    if expression_json_path is None or not expression_json_path.exists():
+        return []
+
+    payload = json.loads(expression_json_path.read_text())
+    rows: list[tuple[str, str, str, str]] = []
+    for gene_id, value in payload.items():
+        normalized_gene = str(gene_id).upper()
+        if "," in str(gene_id):
+            continue
+        if include_genes is not None and normalized_gene not in include_genes:
+            continue
+        rows.append(
+            (
+                str(gene_id),
+                normalized_gene,
+                json.dumps(_normalize_expression_entry(value), separators=(",", ":")),
+                str(expression_json_path),
+            )
+        )
+
+    return rows
+
+
+def _load_sga_rows(
+    sga_root: Path | None,
+    *,
+    include_genes: set[str] | None,
+    logger: logging.Logger,
+) -> list[tuple[str, str, str, str]]:
+    if sga_root is None or not sga_root.exists():
+        return []
+
+    by_gene: dict[str, list[dict[str, Any]]] = {}
+    source_paths: dict[str, set[str]] = {}
+
+    for dtype in ("cvd", "trait"):
+        dtype_root = sga_root / dtype
+        if not dtype_root.exists():
+            continue
+        for payload_path in sorted(dtype_root.glob("*.json")):
+            phenotype_name = payload_path.stem
+            try:
+                payload = json.loads(payload_path.read_text())
+            except Exception as exc:
+                logger.warning("Skipping unreadable SGA payload %s: %s", payload_path, exc)
+                continue
+            if not isinstance(payload, dict):
+                continue
+            for gene_id, data in payload.items():
+                normalized_gene = str(gene_id).upper()
+                if "," in str(gene_id):
+                    continue
+                if include_genes is not None and normalized_gene not in include_genes:
+                    continue
+                by_gene.setdefault(normalized_gene, []).append(
+                    {
+                        "gene": str(gene_id),
+                        "data": data,
+                        "type": dtype,
+                        "name": phenotype_name,
+                    }
+                )
+                source_paths.setdefault(normalized_gene, set()).add(str(payload_path))
+
+    rows: list[tuple[str, str, str, str]] = []
+    for normalized_gene in sorted(by_gene.keys()):
+        payload_items = sorted(
+            by_gene[normalized_gene],
+            key=lambda item: (str(item.get("type", "")), str(item.get("name", ""))),
+        )
+        gene_id = str(payload_items[0].get("gene", normalized_gene))
+        rows.append(
+            (
+                gene_id,
+                normalized_gene,
+                json.dumps(payload_items, separators=(",", ":")),
+                ";".join(sorted(source_paths.get(normalized_gene, set()))),
+            )
+        )
+    return rows
 
 
 def main() -> int:
@@ -357,6 +536,14 @@ def main() -> int:
         else None
     )
     db_path = Path(args.db_path)
+    expression_json_path = _resolve_optional_path(
+        args.expression_json_path,
+        _default_expression_json_path(),
+    )
+    sga_root = _resolve_optional_path(
+        args.sga_root,
+        _default_sga_root(),
+    )
 
     if args.replace and db_path.exists():
         db_path.unlink()
@@ -376,6 +563,15 @@ def main() -> int:
 
         association_rows: list[tuple[str, str, str, str, str]] = []
         overall_rows: list[tuple[str, str, str, str, str]] = []
+        expression_rows = _load_expression_rows(
+            expression_json_path,
+            include_genes=include_genes,
+        )
+        sga_rows = _load_sga_rows(
+            sga_root,
+            include_genes=include_genes,
+            logger=logger,
+        )
 
         for dataset_type in dataset_types:
             association_root = final_root / args.association_subdir / dataset_type
@@ -451,19 +647,38 @@ def main() -> int:
             rows=overall_rows,
             batch_size=args.batch_size,
         )
+        _insert_rows(
+            connection,
+            table_name="expression_gene_payloads",
+            rows=expression_rows,
+            batch_size=args.batch_size,
+        )
+        _insert_rows(
+            connection,
+            table_name="sga_gene_payloads",
+            rows=sga_rows,
+            batch_size=args.batch_size,
+        )
 
         connection.execute(
             """
 INSERT INTO gene_catalog
 SELECT
-    coalesce(a.gene_id, o.gene_id) AS gene_id,
-    coalesce(a.gene_id_normalized, o.gene_id_normalized) AS gene_id_normalized,
+    coalesce(a.gene_id, o.gene_id, e.gene_id, s.gene_id) AS gene_id,
+    coalesce(
+        a.gene_id_normalized,
+        o.gene_id_normalized,
+        e.gene_id_normalized,
+        s.gene_id_normalized
+    ) AS gene_id_normalized,
     coalesce(a.has_cvd_association, false) OR coalesce(o.has_cvd_overall, false) AS has_cvd,
     coalesce(a.has_trait_association, false) OR coalesce(o.has_trait_overall, false) AS has_trait,
     coalesce(a.has_cvd_association, false) AS has_cvd_association,
     coalesce(a.has_trait_association, false) AS has_trait_association,
     coalesce(o.has_cvd_overall, false) AS has_cvd_overall,
-    coalesce(o.has_trait_overall, false) AS has_trait_overall
+    coalesce(o.has_trait_overall, false) AS has_trait_overall,
+    coalesce(e.has_expression, false) AS has_expression,
+    coalesce(s.has_sga, false) AS has_sga
 FROM (
     SELECT
         gene_id,
@@ -483,11 +698,27 @@ FULL OUTER JOIN (
     GROUP BY gene_id, gene_id_normalized
 ) o
   ON a.gene_id_normalized = o.gene_id_normalized
+FULL OUTER JOIN (
+    SELECT
+        gene_id,
+        gene_id_normalized,
+        true AS has_expression
+    FROM expression_gene_payloads
+) e
+  ON coalesce(a.gene_id_normalized, o.gene_id_normalized) = e.gene_id_normalized
+FULL OUTER JOIN (
+    SELECT
+        gene_id,
+        gene_id_normalized,
+        true AS has_sga
+    FROM sga_gene_payloads
+) s
+  ON coalesce(a.gene_id_normalized, o.gene_id_normalized, e.gene_id_normalized) = s.gene_id_normalized
 """
         )
 
         connection.execute(
-            "INSERT INTO build_metadata VALUES (current_timestamp, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO build_metadata VALUES (current_timestamp, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [
                 str(final_root),
                 args.association_subdir,
@@ -496,6 +727,10 @@ FULL OUTER JOIN (
                 0 if include_genes is None else len(include_genes),
                 len(association_rows),
                 len(overall_rows),
+                len(expression_rows),
+                len(sga_rows),
+                str(expression_json_path) if expression_json_path else "",
+                str(sga_root) if sga_root else "",
             ],
         )
 
@@ -508,6 +743,12 @@ FULL OUTER JOIN (
         connection.execute(
             "CREATE INDEX idx_gene_catalog ON gene_catalog (gene_id_normalized)"
         )
+        connection.execute(
+            "CREATE INDEX idx_expression_gene ON expression_gene_payloads (gene_id_normalized)"
+        )
+        connection.execute(
+            "CREATE INDEX idx_sga_gene ON sga_gene_payloads (gene_id_normalized)"
+        )
 
         summary = {
             "db_path": str(db_path),
@@ -516,6 +757,8 @@ FULL OUTER JOIN (
             "filtered_gene_count": 0 if include_genes is None else len(include_genes),
             "association_rows": len(association_rows),
             "overall_rows": len(overall_rows),
+            "expression_rows": len(expression_rows),
+            "sga_rows": len(sga_rows),
             "catalog_rows": int(connection.execute("SELECT COUNT(*) FROM gene_catalog").fetchone()[0]),
         }
         logger.info("Association serving build complete: %s", summary)
