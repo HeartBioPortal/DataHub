@@ -16,6 +16,13 @@ try:
 except ImportError:  # pragma: no cover - runtime guard
     duckdb = None
 
+REPO_ROOT = Path(__file__).resolve().parents[3]
+SRC_ROOT = REPO_ROOT / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
+from datahub.axis_normalization import normalize_counter_items, normalize_counter_mapping
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -176,8 +183,40 @@ def _collect_gene_payload_files(
 def _load_payload(path: Path) -> Any:
     if path.name.endswith(".json.gz"):
         with gzip.open(path, "rt", encoding="utf-8") as stream:
-            return json.load(stream)
-    return json.loads(path.read_text())
+            return _normalize_payload(json.load(stream))
+    return _normalize_payload(json.loads(path.read_text()))
+
+
+def _normalize_payload(payload: Any) -> Any:
+    if isinstance(payload, list):
+        normalized_entries = []
+        for entry in payload:
+            if not isinstance(entry, dict):
+                normalized_entries.append(entry)
+                continue
+            cloned = dict(entry)
+            if isinstance(cloned.get("cs"), list):
+                cloned["cs"] = normalize_counter_items(
+                    cloned["cs"],
+                    axis="clinical_significance",
+                    skip_unknown=True,
+                )
+            normalized_entries.append(cloned)
+        return normalized_entries
+
+    if isinstance(payload, dict) and isinstance(payload.get("data"), dict):
+        cloned = dict(payload)
+        data = dict(cloned["data"])
+        if isinstance(data.get("cs"), dict):
+            data["cs"] = normalize_counter_mapping(
+                data["cs"],
+                axis="clinical_significance",
+                skip_unknown=True,
+            )
+        cloned["data"] = data
+        return cloned
+
+    return payload
 
 
 def _create_tables(connection: Any) -> None:

@@ -8,6 +8,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
+from datahub.axis_normalization import is_unknown_axis_value, normalize_axis_value
 from datahub.models import CanonicalRecord
 from datahub.publishers.base import Publisher
 
@@ -233,16 +234,12 @@ class LegacyAssociationPublisher(Publisher):
         *,
         normalize_case: str | None = None,
     ) -> None:
-        if self._is_unknown(value):
+        axis = "variation" if normalize_case == "variation" else normalize_case
+        normalized = normalize_axis_value(value, axis=axis or "generic")
+        if normalized is None:
             if not self.skip_unknown_axis_values:
                 counter["Unknown"] += 1
             return
-
-        normalized = str(value).strip()
-        if normalize_case == "variation" and normalized.lower() == "snp":
-            normalized = "SNP"
-        elif normalize_case == "clinical_significance":
-            normalized = normalized.lower()
 
         counter[normalized] += 1
 
@@ -258,11 +255,7 @@ class LegacyAssociationPublisher(Publisher):
         return gene_id.replace("/", "-")
 
     def _is_unknown(self, value: Any) -> bool:
-        if value is None:
-            return True
-
-        text = str(value).strip()
-        return not text or text.lower() in {"nan", "none", "null", "unknown"}
+        return is_unknown_axis_value(value)
 
     def _normalize_ancestry_value(self, value: Any) -> Any:
         if self.ancestry_value_precision is None:

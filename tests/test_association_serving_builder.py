@@ -50,9 +50,31 @@ def test_builder_creates_compact_serving_db_from_published_outputs(tmp_path: Pat
     output_root = tmp_path / "analyzed_data_unified"
     final_root = output_root / "association" / "final"
 
-    assoc_cvd = [{"disease": ["arrhythmia", "atrial_fibrillation"], "vc": [], "msc": [], "cs": [], "ancestry": []}]
+    assoc_cvd = [
+        {
+            "disease": ["arrhythmia", "atrial_fibrillation"],
+            "vc": [],
+            "msc": [],
+            "cs": [
+                {"name": "['benign', 'benign', 'likely benign']", "value": 2},
+                {"name": "likely benign", "value": 1},
+            ],
+            "ancestry": [],
+        }
+    ]
     assoc_trait = [{"trait": ["blood_pressure", "systolic_blood_pressure"], "vc": [], "msc": [], "cs": [], "ancestry": []}]
-    overall_cvd = {"data": {"vc": {"SNP": 1}, "msc": {}, "cs": {}, "ancestry": {}}, "pvals": {}}
+    overall_cvd = {
+        "data": {
+            "vc": {"SNP": 1},
+            "msc": {},
+            "cs": {
+                "['benign', 'benign', 'likely benign']": 2,
+                "likely benign": 1,
+            },
+            "ancestry": {},
+        },
+        "pvals": {},
+    }
     overall_trait = {"data": {"vc": {}, "msc": {}, "cs": {}, "ancestry": {}}, "pvals": {}}
 
     _write_json_gz(final_root / "association" / "CVD" / "ANK2.json.gz", assoc_cvd)
@@ -97,7 +119,24 @@ WHERE dataset_type = 'CVD' AND gene_id_normalized = 'ANK2'
         ).fetchone()
         assert row[0] == "CVD"
         assert row[1] == "ANK2"
-        assert json.loads(row[2]) == assoc_cvd
+        assert json.loads(row[2]) == [
+            {
+                "disease": ["arrhythmia", "atrial_fibrillation"],
+                "vc": [],
+                "msc": [],
+                "cs": [{"name": "likely benign", "value": 3}],
+                "ancestry": [],
+            }
+        ]
+
+        overall_row = con.execute(
+            """
+SELECT payload_json
+FROM overall_gene_payloads
+WHERE dataset_type = 'CVD' AND gene_id_normalized = 'ANK2'
+"""
+        ).fetchone()
+        assert json.loads(overall_row[0])["data"]["cs"] == {"likely benign": 3}
 
         catalog = con.execute(
             """

@@ -172,3 +172,50 @@ def test_rollup_publisher_incremental_merge_combines_batches(tmp_path: Path) -> 
     african_points = {item["rsid"]: item["value"] for item in ancestry_data["African"]}
     assert african_points["rs1"] == 0.1
     assert african_points["rs2"] == 0.2
+
+
+def test_rollup_publisher_normalizes_list_like_clinical_significance(tmp_path: Path) -> None:
+    tree_path = tmp_path / "phenotype_tree.json"
+    tree_path.write_text(json.dumps({"CVD": {"cardiomyopathies": ["cardiomyopathy"]}}))
+
+    publisher = PhenotypeRollupPublisher(
+        output_root=tmp_path / "out",
+        tree_json_path=tree_path,
+    )
+    publisher.publish(
+        [
+            CanonicalRecord(
+                dataset_id="legacy",
+                dataset_type="CVD",
+                source="legacy",
+                gene_id="GENE1",
+                variant_id="rs1",
+                phenotype="cardiomyopathy",
+                disease_category="cardiomyopathies",
+                clinical_significance="['pathogenic', 'likely benign']",
+            ),
+            CanonicalRecord(
+                dataset_id="legacy",
+                dataset_type="CVD",
+                source="legacy",
+                gene_id="GENE1",
+                variant_id="rs2",
+                phenotype="cardiomyopathy",
+                disease_category="cardiomyopathies",
+                clinical_significance="likely benign",
+            ),
+        ]
+    )
+
+    out_path = (
+        tmp_path
+        / "out"
+        / "association"
+        / "final"
+        / "association_rollup"
+        / "CVD"
+        / "GENE1.json"
+    )
+    payload = json.loads(out_path.read_text())
+    cs = {item["name"]: item["value"] for item in payload[0]["cs"]}
+    assert cs == {"likely benign": 1, "pathogenic": 1}

@@ -201,6 +201,44 @@ def test_publisher_deduplicates_ancestry_points_by_rsid(tmp_path: Path) -> None:
     assert ancestry_items["African"][0]["value"] == 0.1235
 
 
+def test_publisher_normalizes_list_like_clinical_significance(tmp_path: Path) -> None:
+    records = [
+        CanonicalRecord(
+            dataset_id="d1",
+            dataset_type="CVD",
+            source="legacy",
+            gene_id="GENE1",
+            variant_id="rs1",
+            phenotype="cardiomyopathy",
+            disease_category="cardiomyopathies",
+            clinical_significance="['benign', 'benign', 'likely benign']",
+        ),
+        CanonicalRecord(
+            dataset_id="d1",
+            dataset_type="CVD",
+            source="legacy",
+            gene_id="GENE1",
+            variant_id="rs2",
+            phenotype="cardiomyopathy",
+            disease_category="cardiomyopathies",
+            clinical_significance="benign",
+        ),
+    ]
+
+    publisher = LegacyAssociationPublisher(output_root=tmp_path / "out")
+    publisher.publish(records)
+
+    cvd_path = tmp_path / "out" / "association" / "final" / "association" / "CVD" / "GENE1.json"
+    overall_path = tmp_path / "out" / "association" / "final" / "overall" / "CVD" / "GENE1.json"
+
+    association_payload = json.loads(cvd_path.read_text())
+    overall_payload = json.loads(overall_path.read_text())
+
+    cs = {item["name"]: item["value"] for item in association_payload[0]["cs"]}
+    assert cs == {"benign": 1, "likely benign": 1}
+    assert overall_payload["data"]["cs"] == {"benign": 1, "likely benign": 1}
+
+
 def test_incremental_merge_publisher_appends_new_variants_across_batches(tmp_path: Path) -> None:
     publisher = LegacyAssociationPublisher(
         output_root=tmp_path / "out",
