@@ -441,6 +441,7 @@ def _build_incremental_publishers(
             ancestry_value_precision=ancestry_precision,
             deduplicate_ancestry_points=True,
             incremental_merge=True,
+            tree_json_path=rollup_tree_json,
         )
     ]
     if not disable_rollup:

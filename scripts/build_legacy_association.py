@@ -49,6 +49,11 @@ def parse_args() -> argparse.Namespace:
         help="Optional JSON mapping to override phenotype->(dataset_type, category).",
     )
     parser.add_argument(
+        "--tree-json-path",
+        default=None,
+        help="Optional phenotype hierarchy JSON used to emit canonical disease/trait paths.",
+    )
+    parser.add_argument(
         "--fallback-dataset-type",
         default="CVD",
         help="Dataset type to use when a phenotype is not mapped.",
@@ -149,6 +154,7 @@ def main() -> int:
             skip_unknown_axis_values=not args.keep_unknown_axis,
             ancestry_value_precision=args.ancestry_precision,
             deduplicate_ancestry_points=not args.disable_ancestry_dedup,
+            tree_json_path=args.tree_json_path,
         )
     ]
     if args.publish_redis:

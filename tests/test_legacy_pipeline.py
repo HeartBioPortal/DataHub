@@ -239,6 +239,39 @@ def test_publisher_normalizes_list_like_clinical_significance(tmp_path: Path) ->
     assert overall_payload["data"]["cs"] == {"benign": 1, "likely benign": 1}
 
 
+def test_publisher_restores_canonical_path_from_tree_when_category_missing(tmp_path: Path) -> None:
+    tree_path = tmp_path / "phenotype_tree.json"
+    tree_path.write_text(
+        json.dumps({"CVD": {"cardiac_dysrhythmias": ["atrial_fibrillation"]}})
+    )
+
+    publisher = LegacyAssociationPublisher(
+        output_root=tmp_path / "out",
+        tree_json_path=tree_path,
+    )
+    publisher.publish(
+        [
+            CanonicalRecord(
+                dataset_id="d1",
+                dataset_type="CVD",
+                source="legacy",
+                gene_id="GENE1",
+                variant_id="rs1",
+                phenotype="atrial_fibrillation",
+                disease_category="",
+            )
+        ]
+    )
+
+    cvd_path = tmp_path / "out" / "association" / "final" / "association" / "CVD" / "GENE1.json"
+    association_payload = json.loads(cvd_path.read_text())
+
+    assert association_payload[0]["disease"] == [
+        "cardiac_dysrhythmias",
+        "atrial_fibrillation",
+    ]
+
+
 def test_incremental_merge_publisher_appends_new_variants_across_batches(tmp_path: Path) -> None:
     publisher = LegacyAssociationPublisher(
         output_root=tmp_path / "out",

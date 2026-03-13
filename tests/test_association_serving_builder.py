@@ -49,10 +49,14 @@ def test_builder_creates_compact_serving_db_from_published_outputs(tmp_path: Pat
 
     output_root = tmp_path / "analyzed_data_unified"
     final_root = output_root / "association" / "final"
+    tree_path = tmp_path / "phenotype_tree.json"
+    tree_path.write_text(
+        json.dumps({"CVD": {"cardiac_dysrhythmias": ["atrial_fibrillation"]}})
+    )
 
     assoc_cvd = [
         {
-            "disease": ["arrhythmia", "atrial_fibrillation"],
+            "disease": ["", "atrial_fibrillation"],
             "vc": [],
             "msc": [],
             "cs": [
@@ -94,6 +98,8 @@ def test_builder_creates_compact_serving_db_from_published_outputs(tmp_path: Pat
             str(db_path),
             "--include-genes",
             "ANK2",
+            "--phenotype-tree-json",
+            str(tree_path),
             "--log-level",
             "ERROR",
         ]
@@ -121,7 +127,7 @@ WHERE dataset_type = 'CVD' AND gene_id_normalized = 'ANK2'
         assert row[1] == "ANK2"
         assert json.loads(row[2]) == [
             {
-                "disease": ["arrhythmia", "atrial_fibrillation"],
+                "disease": ["cardiac_dysrhythmias", "atrial_fibrillation"],
                 "vc": [],
                 "msc": [],
                 "cs": [{"name": "likely benign", "value": 3}],

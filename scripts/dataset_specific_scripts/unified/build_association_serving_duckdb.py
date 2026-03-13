@@ -22,6 +22,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from datahub.axis_normalization import normalize_counter_items, normalize_counter_mapping
+from datahub.phenotype_paths import PhenotypePathResolver
 
 
 def parse_args() -> argparse.Namespace:
@@ -73,6 +74,11 @@ def parse_args() -> argparse.Namespace:
         "--replace",
         action="store_true",
         help="Delete an existing destination DB before rebuilding.",
+    )
+    parser.add_argument(
+        "--phenotype-tree-json",
+        default=None,
+        help="Optional phenotype hierarchy JSON used to canonicalize disease/trait paths.",
     )
     parser.add_argument(
         "--batch-size",
@@ -180,21 +186,69 @@ def _collect_gene_payload_files(
     )
 
 
-def _load_payload(path: Path) -> Any:
+def _normalize_label_path(
+    entry: dict[str, Any],
+    *,
+    dataset_type: str,
+    path_resolver: PhenotypePathResolver | None,
+) -> dict[str, Any]:
+    if path_resolver is None:
+        return entry
+
+    cloned = dict(entry)
+    for key in ("disease", "trait"):
+        raw_path = cloned.get(key)
+        if not isinstance(raw_path, list) or not raw_path:
+            continue
+        phenotype = raw_path[-1]
+        category = raw_path[-2] if len(raw_path) > 1 else None
+        cloned[key] = list(
+            path_resolver.resolve_leaf_path(
+                dataset_type=dataset_type,
+                phenotype=phenotype,
+                fallback_category=category,
+                fallback_path=raw_path,
+            )
+        )
+    return cloned
+
+
+def _load_payload(
+    path: Path,
+    *,
+    dataset_type: str,
+    path_resolver: PhenotypePathResolver | None,
+) -> Any:
     if path.name.endswith(".json.gz"):
         with gzip.open(path, "rt", encoding="utf-8") as stream:
-            return _normalize_payload(json.load(stream))
-    return _normalize_payload(json.loads(path.read_text()))
+            return _normalize_payload(
+                json.load(stream),
+                dataset_type=dataset_type,
+                path_resolver=path_resolver,
+            )
+    return _normalize_payload(
+        json.loads(path.read_text()),
+        dataset_type=dataset_type,
+        path_resolver=path_resolver,
+    )
 
-
-def _normalize_payload(payload: Any) -> Any:
+def _normalize_payload(
+    payload: Any,
+    *,
+    dataset_type: str,
+    path_resolver: PhenotypePathResolver | None,
+) -> Any:
     if isinstance(payload, list):
         normalized_entries = []
         for entry in payload:
             if not isinstance(entry, dict):
                 normalized_entries.append(entry)
                 continue
-            cloned = dict(entry)
+            cloned = _normalize_label_path(
+                entry,
+                dataset_type=dataset_type,
+                path_resolver=path_resolver,
+            )
             if isinstance(cloned.get("cs"), list):
                 cloned["cs"] = normalize_counter_items(
                     cloned["cs"],
@@ -297,6 +351,11 @@ def main() -> int:
     final_root = _resolve_final_root(args.input_root)
     dataset_types = _parse_dataset_types(args.dataset_types)
     include_genes = _parse_gene_filter(args)
+    path_resolver = (
+        PhenotypePathResolver.from_tree_json(args.phenotype_tree_json)
+        if args.phenotype_tree_json
+        else None
+    )
     db_path = Path(args.db_path)
 
     if args.replace and db_path.exists():
@@ -339,7 +398,14 @@ def main() -> int:
                             dataset_type,
                             gene_id,
                             gene_id.upper(),
-                            json.dumps(_load_payload(payload_path), separators=(",", ":")),
+                            json.dumps(
+                                _load_payload(
+                                    payload_path,
+                                    dataset_type=dataset_type,
+                                    path_resolver=path_resolver,
+                                ),
+                                separators=(",", ":"),
+                            ),
                             str(payload_path),
                         )
                     )
@@ -361,7 +427,14 @@ def main() -> int:
                             dataset_type,
                             gene_id,
                             gene_id.upper(),
-                            json.dumps(_load_payload(payload_path), separators=(",", ":")),
+                            json.dumps(
+                                _load_payload(
+                                    payload_path,
+                                    dataset_type=dataset_type,
+                                    path_resolver=path_resolver,
+                                ),
+                                separators=(",", ":"),
+                            ),
                             str(payload_path),
                         )
                     )

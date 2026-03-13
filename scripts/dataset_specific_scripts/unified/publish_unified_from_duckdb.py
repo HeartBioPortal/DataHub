@@ -745,6 +745,7 @@ def _build_stage_publishers(
             json_indent=json_indent,
             json_compression=json_compression,
             json_gzip_level=json_gzip_level,
+            tree_json_path=rollup_tree_json,
         )
     ]
 
