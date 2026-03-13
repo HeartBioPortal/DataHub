@@ -85,17 +85,16 @@ def parse_args() -> argparse.Namespace:
         "--expression-json-path",
         default=None,
         help=(
-            "Optional expression.json path. If omitted, the builder will try the "
-            "legacy sibling DataManager analyzed_data path when available."
+            "Optional explicit expression.json path. If omitted, expression export "
+            "is skipped."
         ),
     )
     parser.add_argument(
         "--sga-root",
         default=None,
         help=(
-            "Optional SGA root containing cvd/ and trait/ phenotype JSON files. "
-            "If omitted, the builder will try the legacy sibling DataManager "
-            "analyzed_data/SGA path when available."
+            "Optional explicit SGA root containing cvd/ and trait/ phenotype JSON "
+            "files. If omitted, SGA export is skipped."
         ),
     )
     parser.add_argument(
@@ -163,20 +162,25 @@ def _resolve_final_root(input_root: str | Path) -> Path:
     )
 
 
-def _default_expression_json_path() -> Path | None:
-    candidate = REPO_ROOT.parent / "DataManager" / "analyzed_data" / "expression.json"
-    return candidate if candidate.exists() else None
+def _resolve_optional_path(
+    *,
+    value: str | None,
+    label: str,
+    logger: logging.Logger,
+) -> Path | None:
+    if value is None or not str(value).strip():
+        logger.warning(
+            "%s export disabled: no explicit path was provided.",
+            label,
+        )
+        return None
 
+    path = Path(value)
+    if not path.exists():
+        raise FileNotFoundError(f"{label} path does not exist: {path}")
 
-def _default_sga_root() -> Path | None:
-    candidate = REPO_ROOT.parent / "DataManager" / "analyzed_data" / "SGA"
-    return candidate if candidate.exists() else None
-
-
-def _resolve_optional_path(value: str | None, fallback: Path | None) -> Path | None:
-    if value is not None and str(value).strip():
-        return Path(value)
-    return fallback
+    logger.info("%s export enabled: path=%s", label, path)
+    return path
 
 
 def _strip_payload_suffix(path: Path) -> str:
@@ -537,12 +541,14 @@ def main() -> int:
     )
     db_path = Path(args.db_path)
     expression_json_path = _resolve_optional_path(
-        args.expression_json_path,
-        _default_expression_json_path(),
+        value=args.expression_json_path,
+        label="Expression",
+        logger=logger,
     )
     sga_root = _resolve_optional_path(
-        args.sga_root,
-        _default_sga_root(),
+        value=args.sga_root,
+        label="SGA",
+        logger=logger,
     )
 
     if args.replace and db_path.exists():
@@ -555,6 +561,13 @@ def main() -> int:
         db_path,
         dataset_types,
         len(include_genes) if include_genes is not None else "ALL",
+    )
+    logger.info(
+        "Serving builder configuration: phenotype_tree=%s expression=%s sga=%s replace=%s",
+        args.phenotype_tree_json or "disabled",
+        str(expression_json_path) if expression_json_path else "disabled",
+        str(sga_root) if sga_root else "disabled",
+        bool(args.replace),
     )
 
     connection = duckdb.connect(str(db_path))
