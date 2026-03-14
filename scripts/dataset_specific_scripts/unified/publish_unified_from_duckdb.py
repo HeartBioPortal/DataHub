@@ -8,6 +8,7 @@ publishing staged JSON outputs with resume support.
 from __future__ import annotations
 
 import argparse
+import gzip
 import hashlib
 import json
 import logging
@@ -23,6 +24,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from datahub.models import CanonicalRecord  # noqa: E402
+from datahub.axis_normalization import normalize_axis_value  # noqa: E402
 from datahub.export_manifest import AssociationExportManifestCatalog  # noqa: E402
 from datahub.phenotype_paths import PhenotypePathResolver  # noqa: E402
 from datahub.publishers import (  # noqa: E402
@@ -271,6 +273,15 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=200_000,
         help="DuckDB fetchmany chunk size while streaming point rows.",
+    )
+    parser.add_argument(
+        "--preflight-validate-units",
+        type=int,
+        default=0,
+        help=(
+            "Validate the first N staged publish units before continuing with the full run. "
+            "If validation fails, the run stops immediately."
+        ),
     )
     parser.add_argument(
         "--per-gene-shards",
@@ -894,6 +905,149 @@ def _apply_stage_output(*, stage_root: Path, output_root: Path) -> int:
     return copied
 
 
+def _read_json_payload(path: Path) -> Any:
+    if path.suffix == ".gz":
+        with gzip.open(path, "rt", encoding="utf-8") as stream:
+            return json.load(stream)
+    return json.loads(path.read_text())
+
+
+def _resolve_payload_path(base_path: Path) -> Path:
+    if base_path.exists():
+        return base_path
+    gz_path = base_path.with_suffix(base_path.suffix + ".gz")
+    if gz_path.exists():
+        return gz_path
+    raise FileNotFoundError(f"Expected staged payload not found: {base_path}")
+
+
+def _validate_axis_items(items: Any, *, axis: str, context: str) -> None:
+    if not isinstance(items, list):
+        raise ValueError(f"{context}: expected list payload for axis '{axis}'")
+    seen: set[str] = set()
+    for item in items:
+        if not isinstance(item, dict):
+            raise ValueError(f"{context}: axis '{axis}' contains a non-dict item")
+        name = item.get("name")
+        value = item.get("value")
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError(f"{context}: axis '{axis}' contains an empty category name")
+        if not isinstance(value, int) or value < 0:
+            raise ValueError(f"{context}: axis '{axis}' contains an invalid count for '{name}'")
+        normalized = normalize_axis_value(name, axis=axis)
+        if normalized is None:
+            raise ValueError(f"{context}: axis '{axis}' contains an unknown category '{name}'")
+        if normalized != name:
+            raise ValueError(
+                f"{context}: axis '{axis}' contains non-canonical category '{name}' "
+                f"(expected '{normalized}')"
+            )
+        if name in seen:
+            raise ValueError(f"{context}: axis '{axis}' contains duplicate category '{name}'")
+        seen.add(name)
+
+
+def _validate_axis_mapping(mapping: Any, *, axis: str, context: str) -> None:
+    if not isinstance(mapping, dict):
+        raise ValueError(f"{context}: expected mapping payload for axis '{axis}'")
+    seen: set[str] = set()
+    for name, value in mapping.items():
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError(f"{context}: axis '{axis}' contains an empty category name")
+        if not isinstance(value, int) or value < 0:
+            raise ValueError(f"{context}: axis '{axis}' contains an invalid count for '{name}'")
+        normalized = normalize_axis_value(name, axis=axis)
+        if normalized is None:
+            raise ValueError(f"{context}: axis '{axis}' contains an unknown category '{name}'")
+        if normalized != name:
+            raise ValueError(
+                f"{context}: axis '{axis}' contains non-canonical category '{name}' "
+                f"(expected '{normalized}')"
+            )
+        if name in seen:
+            raise ValueError(f"{context}: axis '{axis}' contains duplicate category '{name}'")
+        seen.add(name)
+
+
+def _validate_association_entry(entry: Any, *, dataset_type: str, context: str) -> None:
+    if not isinstance(entry, dict):
+        raise ValueError(f"{context}: expected association entry dict")
+    label_key = "trait" if dataset_type == "TRAIT" else "disease"
+    label = entry.get(label_key)
+    if not isinstance(label, list) or not label:
+        raise ValueError(f"{context}: missing '{label_key}' label path")
+    _validate_axis_items(entry.get("vc", []), axis="variation", context=context)
+    _validate_axis_items(entry.get("msc", []), axis="most_severe_consequence", context=context)
+    _validate_axis_items(entry.get("cs", []), axis="clinical_significance", context=context)
+
+
+def _validate_overall_payload(payload: Any, *, context: str) -> None:
+    if not isinstance(payload, dict):
+        raise ValueError(f"{context}: expected overall payload dict")
+    data = payload.get("data")
+    if not isinstance(data, dict):
+        raise ValueError(f"{context}: missing overall 'data' mapping")
+    _validate_axis_mapping(data.get("vc", {}), axis="variation", context=context)
+    _validate_axis_mapping(data.get("msc", {}), axis="most_severe_consequence", context=context)
+    _validate_axis_mapping(data.get("cs", {}), axis="clinical_significance", context=context)
+
+
+def _validate_stage_output(
+    *,
+    stage_root: Path,
+    unit: GeneWorkUnit,
+    disable_rollup: bool,
+    logger: logging.Logger,
+) -> None:
+    dataset_type = unit.dataset_type.upper()
+    safe_gene = unit.gene_id.replace("/", "-")
+
+    association_path = _resolve_payload_path(
+        stage_root / "association" / "final" / "association" / dataset_type / f"{safe_gene}.json"
+    )
+    overall_path = _resolve_payload_path(
+        stage_root / "association" / "final" / "overall" / dataset_type / f"{safe_gene}.json"
+    )
+
+    association_payload = _read_json_payload(association_path)
+    overall_payload = _read_json_payload(overall_path)
+
+    if not isinstance(association_payload, list) or not association_payload:
+        raise ValueError(f"Preflight validation failed for {unit.gene_id}: empty association payload")
+
+    for index, entry in enumerate(association_payload):
+        _validate_association_entry(
+            entry,
+            dataset_type=dataset_type,
+            context=f"{unit.dataset_type}:{unit.gene_id}:association[{index}]",
+        )
+
+    _validate_overall_payload(
+        overall_payload,
+        context=f"{unit.dataset_type}:{unit.gene_id}:overall",
+    )
+
+    if not disable_rollup:
+        rollup_association = stage_root / "association" / "final" / "association_rollup" / dataset_type / f"{safe_gene}.json"
+        rollup_overall = stage_root / "association" / "final" / "overall_rollup" / dataset_type / f"{safe_gene}.json"
+        if rollup_association.exists() or rollup_association.with_suffix(".json.gz").exists():
+            rollup_payload = _read_json_payload(_resolve_payload_path(rollup_association))
+            if not isinstance(rollup_payload, list) or not rollup_payload:
+                raise ValueError(f"Preflight validation failed for {unit.gene_id}: empty rollup payload")
+            for index, entry in enumerate(rollup_payload):
+                _validate_association_entry(
+                    entry,
+                    dataset_type=dataset_type,
+                    context=f"{unit.dataset_type}:{unit.gene_id}:association_rollup[{index}]",
+                )
+            _validate_overall_payload(
+                _read_json_payload(_resolve_payload_path(rollup_overall)),
+                context=f"{unit.dataset_type}:{unit.gene_id}:overall_rollup",
+            )
+
+    logger.info("Preflight validation passed: %s", _unit_label(unit))
+
+
 def _record_key(row: tuple[Any, ...]) -> tuple[str, str, str, str]:
     return (
         str(row[ROW_DATASET_TYPE]),
@@ -1162,6 +1316,10 @@ def main() -> int:
         args.json_gzip_level,
         str(json_indent),
     )
+    logger.info(
+        "Preflight validation: units=%d",
+        args.preflight_validate_units,
+    )
     path_resolver = (
         PhenotypePathResolver.from_tree_json(args.rollup_tree_json)
         if args.rollup_tree_json
@@ -1256,6 +1414,7 @@ def main() -> int:
     )
 
     processed_units = 0
+    validated_preflight_units = 0
     total_point_rows = 0
     total_canonical_records = 0
     total_stage_files = 0
@@ -1399,6 +1558,15 @@ ORDER BY phenotype, variant_id, coalesce(ancestry, '')
                 _batched_publish(records=current_gene_records, publishers=staged_publishers)
                 published_for_unit += len(current_gene_records)
                 total_canonical_records += len(current_gene_records)
+
+            if validated_preflight_units < args.preflight_validate_units:
+                _validate_stage_output(
+                    stage_root=stage_root,
+                    unit=unit,
+                    disable_rollup=args.disable_rollup,
+                    logger=logger,
+                )
+                validated_preflight_units += 1
 
             stage_files = _apply_stage_output(stage_root=stage_root, output_root=output_root)
             total_stage_files += stage_files

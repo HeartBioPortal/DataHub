@@ -53,6 +53,15 @@ Ingest legacy raw CVD/trait files into the shared DuckDB points table.
 
 Publish legacy-compatible analyzed outputs from unified DuckDB points, with checkpointing and partition support.
 
+Important operational flags:
+
+- `--preflight-validate-units N`
+  - validates the first `N` staged units before the rest of the run continues
+- `--unit-partitions` / `--unit-partition-index`
+  - deterministic parallel publish partitioning
+- `--reset-checkpoint`
+  - clear resume state before a fresh rerun
+
 ### `scripts/dataset_specific_scripts/unified/build_association_serving_duckdb.py`
 
 Build a compact serving DuckDB from published outputs.

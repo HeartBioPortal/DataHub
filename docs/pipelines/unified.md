@@ -56,6 +56,21 @@ When more than one canonical record competes for the same variant inside a publi
 
 This keeps category summaries tied to the strongest surviving evidence for that variant instead of to arbitrary row order.
 
+## Early-failure preflight validation
+
+The unified publish script supports early staged-output validation through `--preflight-validate-units`.
+
+Use it when you want the run to inspect the first `N` staged publish units before the full job continues.
+
+The validator checks that early outputs already satisfy key analyzed-contract rules, including:
+
+- canonical axis labels
+- no duplicate category names inside `vc`, `msc`, or `cs`
+- valid overall payload structure
+- valid phenotype-level payload structure
+
+If a preflight validation fails, the script raises immediately instead of letting a long HPC run continue to produce bad artifacts.
+
 ### Optional serving build
 
 A compact serving DuckDB can then be built from published outputs.
