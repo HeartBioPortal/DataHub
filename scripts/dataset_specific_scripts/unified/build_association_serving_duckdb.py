@@ -310,12 +310,19 @@ def _normalize_payload(
                     cloned,
                     dataset_type=dataset_type,
                 )
-            elif isinstance(cloned.get("cs"), list):
-                cloned["cs"] = normalize_counter_items(
-                    cloned["cs"],
-                    axis="clinical_significance",
-                    skip_unknown=True,
-                )
+            else:
+                for payload_key, axis in (
+                    ("vc", "variation"),
+                    ("msc", "most_severe_consequence"),
+                    ("cs", "clinical_significance"),
+                ):
+                    if not isinstance(cloned.get(payload_key), list):
+                        continue
+                    cloned[payload_key] = normalize_counter_items(
+                        cloned[payload_key],
+                        axis=axis,
+                        skip_unknown=True,
+                    )
             normalized_entries.append(cloned)
         return normalized_entries
 
@@ -325,10 +332,16 @@ def _normalize_payload(
 
         cloned = dict(payload)
         data = dict(cloned["data"])
-        if isinstance(data.get("cs"), dict):
-            data["cs"] = normalize_counter_mapping(
-                data["cs"],
-                axis="clinical_significance",
+        for payload_key, axis in (
+            ("vc", "variation"),
+            ("msc", "most_severe_consequence"),
+            ("cs", "clinical_significance"),
+        ):
+            if not isinstance(data.get(payload_key), dict):
+                continue
+            data[payload_key] = normalize_counter_mapping(
+                data[payload_key],
+                axis=axis,
                 skip_unknown=True,
             )
         cloned["data"] = data

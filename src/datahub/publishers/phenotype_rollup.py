@@ -185,7 +185,11 @@ class PhenotypeRollupPublisher(Publisher):
 
         for record in records:
             self._update_axis_counter(vc_counter, record.variation_type, normalize_case="variation")
-            self._update_axis_counter(msc_counter, record.most_severe_consequence)
+            self._update_axis_counter(
+                msc_counter,
+                record.most_severe_consequence,
+                normalize_case="most_severe_consequence",
+            )
             self._update_axis_counter(
                 cs_counter,
                 record.clinical_significance,
@@ -227,7 +231,11 @@ class PhenotypeRollupPublisher(Publisher):
                 record.variation_type,
                 normalize_case="variation",
             )
-            self._update_axis_counter(overall_data["msc"], record.most_severe_consequence)
+            self._update_axis_counter(
+                overall_data["msc"],
+                record.most_severe_consequence,
+                normalize_case="most_severe_consequence",
+            )
             self._update_axis_counter(
                 overall_data["cs"],
                 record.clinical_significance,

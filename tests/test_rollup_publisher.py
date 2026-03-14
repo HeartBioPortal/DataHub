@@ -219,3 +219,55 @@ def test_rollup_publisher_normalizes_list_like_clinical_significance(tmp_path: P
     payload = json.loads(out_path.read_text())
     cs = {item["name"]: item["value"] for item in payload[0]["cs"]}
     assert cs == {"likely benign": 1, "pathogenic": 1}
+
+
+def test_rollup_publisher_normalizes_variation_and_consequence_axes(tmp_path: Path) -> None:
+    tree_path = tmp_path / "phenotype_tree.json"
+    tree_path.write_text(json.dumps({"CVD": {"cardiomyopathies": ["cardiomyopathy"]}}))
+
+    publisher = PhenotypeRollupPublisher(
+        output_root=tmp_path / "out",
+        tree_json_path=tree_path,
+    )
+    publisher.publish(
+        [
+            CanonicalRecord(
+                dataset_id="legacy",
+                dataset_type="CVD",
+                source="legacy",
+                gene_id="GENE1",
+                variant_id="rs1",
+                phenotype="cardiomyopathy",
+                disease_category="cardiomyopathies",
+                variation_type="indel",
+                most_severe_consequence="Missense_Variant",
+            ),
+            CanonicalRecord(
+                dataset_id="legacy",
+                dataset_type="CVD",
+                source="legacy",
+                gene_id="GENE1",
+                variant_id="rs2",
+                phenotype="cardiomyopathy",
+                disease_category="cardiomyopathies",
+                variation_type="INDEL",
+                most_severe_consequence="missense_variant",
+            ),
+        ]
+    )
+
+    out_path = (
+        tmp_path
+        / "out"
+        / "association"
+        / "final"
+        / "association_rollup"
+        / "CVD"
+        / "GENE1.json"
+    )
+    payload = json.loads(out_path.read_text())
+
+    vc = {item["name"]: item["value"] for item in payload[0]["vc"]}
+    msc = {item["name"]: item["value"] for item in payload[0]["msc"]}
+    assert vc == {"INDEL": 2}
+    assert msc == {"missense variant": 2}

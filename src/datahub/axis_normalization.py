@@ -21,6 +21,21 @@ UNKNOWN_AXIS_VALUES = {
     "unspecified",
 }
 
+_VARIATION_TYPE_CANONICAL = {
+    "snp": "SNP",
+    "snv": "SNV",
+    "indel": "INDEL",
+    "insertion": "Insertion",
+    "deletion": "Deletion",
+    "duplication": "Duplication",
+    "inversion": "Inversion",
+    "cnv": "CNV",
+    "copy number variant": "CNV",
+    "structural variant": "Structural variant",
+    "sv": "SV",
+    "mnv": "MNV",
+}
+
 _CLINICAL_SIGNIFICANCE_PRIORITY = {
     "pathogenic": 1,
     "pathogenic/likely pathogenic": 2,
@@ -55,9 +70,16 @@ def normalize_variation_label(value: Any) -> str | None:
     if is_unknown_axis_value(value):
         return None
     normalized = normalize_text_label(value)
-    if normalized.lower() == "snp":
-        return "SNP"
+    folded = normalized.lower()
+    if folded in _VARIATION_TYPE_CANONICAL:
+        return _VARIATION_TYPE_CANONICAL[folded]
     return normalized
+
+
+def normalize_most_severe_consequence_label(value: Any) -> str | None:
+    if is_unknown_axis_value(value):
+        return None
+    return normalize_text_label(value).lower()
 
 
 def _parse_list_like_label(value: Any) -> list[str]:
@@ -145,6 +167,8 @@ def normalize_axis_value(value: Any, *, axis: str) -> str | None:
         return normalize_variation_label(value)
     if axis == "clinical_significance":
         return normalize_clinical_significance_label(value)
+    if axis == "most_severe_consequence":
+        return normalize_most_severe_consequence_label(value)
     if is_unknown_axis_value(value):
         return None
     return normalize_text_label(value)

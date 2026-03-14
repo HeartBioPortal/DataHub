@@ -59,8 +59,14 @@ def test_builder_creates_compact_serving_db_from_published_outputs(tmp_path: Pat
     assoc_cvd = [
         {
             "disease": ["", "atrial_fibrillation"],
-            "vc": [],
-            "msc": [],
+            "vc": [
+                {"name": "indel", "value": 2},
+                {"name": "INDEL", "value": 1},
+            ],
+            "msc": [
+                {"name": "Missense_Variant", "value": 2},
+                {"name": "missense_variant", "value": 1},
+            ],
             "cs": [
                 {"name": "['benign', 'benign', 'likely benign']", "value": 2},
                 {"name": "likely benign", "value": 1},
@@ -84,8 +90,8 @@ def test_builder_creates_compact_serving_db_from_published_outputs(tmp_path: Pat
     assoc_trait = [{"trait": ["blood_pressure", "systolic_blood_pressure"], "vc": [], "msc": [], "cs": [], "ancestry": []}]
     overall_cvd = {
         "data": {
-            "vc": {"SNP": 1},
-            "msc": {},
+            "vc": {"indel": 2, "INDEL": 1},
+            "msc": {"Missense_Variant": 2, "missense_variant": 1},
             "cs": {
                 "['benign', 'benign', 'likely benign']": 2,
                 "likely benign": 1,
@@ -173,8 +179,8 @@ WHERE dataset_type = 'CVD' AND gene_id_normalized = 'ANK2'
         assert json.loads(row[2]) == [
             {
                 "disease": ["cardiac_dysrhythmias", "atrial_fibrillation"],
-                "vc": [],
-                "msc": [],
+                "vc": [{"name": "INDEL", "value": 3}],
+                "msc": [{"name": "missense variant", "value": 3}],
                 "cs": [{"name": "likely benign", "value": 3}],
                 "ancestry": [],
                 "_datahub": {
@@ -200,6 +206,8 @@ FROM overall_gene_payloads
 WHERE dataset_type = 'CVD' AND gene_id_normalized = 'ANK2'
 """
         ).fetchone()
+        assert json.loads(overall_row[0])["data"]["vc"] == {"INDEL": 3}
+        assert json.loads(overall_row[0])["data"]["msc"] == {"missense variant": 3}
         assert json.loads(overall_row[0])["data"]["cs"] == {"likely benign": 3}
         assert json.loads(overall_row[0])["_datahub"] == {
             "manifest_id": "association_export_v1",

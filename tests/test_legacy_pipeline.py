@@ -241,6 +241,50 @@ def test_publisher_normalizes_list_like_clinical_significance(tmp_path: Path) ->
     assert overall_payload["data"]["cs"] == {"benign": 1, "likely benign": 1}
 
 
+def test_publisher_normalizes_variation_and_consequence_axes(tmp_path: Path) -> None:
+    records = [
+        CanonicalRecord(
+            dataset_id="d1",
+            dataset_type="CVD",
+            source="legacy",
+            gene_id="GENE1",
+            variant_id="rs1",
+            phenotype="cardiomyopathy",
+            disease_category="cardiomyopathies",
+            variation_type="indel",
+            most_severe_consequence="Missense_Variant",
+        ),
+        CanonicalRecord(
+            dataset_id="d1",
+            dataset_type="CVD",
+            source="legacy",
+            gene_id="GENE1",
+            variant_id="rs2",
+            phenotype="cardiomyopathy",
+            disease_category="cardiomyopathies",
+            variation_type="INDEL",
+            most_severe_consequence="missense_variant",
+        ),
+    ]
+
+    publisher = LegacyAssociationPublisher(output_root=tmp_path / "out")
+    publisher.publish(records)
+
+    cvd_path = tmp_path / "out" / "association" / "final" / "association" / "CVD" / "GENE1.json"
+    overall_path = tmp_path / "out" / "association" / "final" / "overall" / "CVD" / "GENE1.json"
+
+    association_payload = json.loads(cvd_path.read_text())
+    overall_payload = json.loads(overall_path.read_text())
+
+    vc = {item["name"]: item["value"] for item in association_payload[0]["vc"]}
+    msc = {item["name"]: item["value"] for item in association_payload[0]["msc"]}
+
+    assert vc == {"INDEL": 2}
+    assert msc == {"missense variant": 2}
+    assert overall_payload["data"]["vc"] == {"INDEL": 2}
+    assert overall_payload["data"]["msc"] == {"missense variant": 2}
+
+
 def test_publisher_restores_canonical_path_from_tree_when_category_missing(tmp_path: Path) -> None:
     tree_path = tmp_path / "phenotype_tree.json"
     tree_path.write_text(
