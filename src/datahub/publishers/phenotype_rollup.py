@@ -92,12 +92,6 @@ class PhenotypeRollupPublisher(Publisher):
 
             for gene_id, rollup_groups in genes.items():
                 payload: list[dict[str, Any]] = []
-                overall_data = {
-                    "vc": Counter(),
-                    "msc": Counter(),
-                    "cs": Counter(),
-                    "ancestry": defaultdict(dict),
-                }
 
                 for label, variant_map in sorted(rollup_groups.items(), key=lambda item: item[0][1]):
                     selected = list(variant_map.values())
@@ -108,7 +102,6 @@ class PhenotypeRollupPublisher(Publisher):
                             records=selected,
                         )
                     )
-                    self._update_overall(overall_data, selected)
 
                 association_path = association_dir / f"{self._safe_gene(gene_id)}.json"
                 if self.incremental_merge and self._payload_exists(association_path):
@@ -116,6 +109,12 @@ class PhenotypeRollupPublisher(Publisher):
                     payload = self._merge_association_payload(existing_payload, payload)
                 self._write_payload(association_path, payload)
 
+                gene_records = [
+                    record
+                    for variant_map in rollup_groups.values()
+                    for record in variant_map.values()
+                ]
+                overall_data = self._build_overall_data(gene_records)
                 overall_path = overall_dir / f"{self._safe_gene(gene_id)}.json"
                 overall_payload = {
                     "data": {
@@ -224,8 +223,14 @@ class PhenotypeRollupPublisher(Publisher):
             entry["disease"] = [category, phenotype]
         return entry
 
-    def _update_overall(self, overall_data: dict[str, Any], records: list[CanonicalRecord]) -> None:
-        for record in records:
+    def _build_overall_data(self, records: list[CanonicalRecord]) -> dict[str, Any]:
+        overall_data = {
+            "vc": Counter(),
+            "msc": Counter(),
+            "cs": Counter(),
+            "ancestry": defaultdict(dict),
+        }
+        for record in self._select_best_records_by_variant(records):
             self._update_axis_counter(
                 overall_data["vc"],
                 record.variation_type,
@@ -245,6 +250,7 @@ class PhenotypeRollupPublisher(Publisher):
                 if self._is_unknown(value):
                     continue
                 overall_data["ancestry"][population][record.variant_id] = self._normalize_ancestry_value(value)
+        return overall_data
 
     def _resolve_rollup_target(
         self,
@@ -278,6 +284,22 @@ class PhenotypeRollupPublisher(Publisher):
         if candidate_p is None:
             return existing
         return candidate if candidate_p < existing_p else existing
+
+    def _select_best_records_by_variant(
+        self,
+        records: list[CanonicalRecord],
+    ) -> list[CanonicalRecord]:
+        by_variant: dict[str, CanonicalRecord] = {}
+        for record in records:
+            existing = by_variant.get(record.variant_id)
+            if existing is None:
+                by_variant[record.variant_id] = record
+                continue
+            by_variant[record.variant_id] = self._pick_best_record(existing, record)
+        return [
+            by_variant[variant_id]
+            for variant_id in sorted(by_variant.keys())
+        ]
 
     def _update_axis_counter(
         self,

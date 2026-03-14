@@ -852,7 +852,7 @@ def _build_stage_publishers(
             skip_unknown_axis_values=True,
             ancestry_value_precision=ancestry_precision,
             deduplicate_ancestry_points=True,
-            incremental_merge=True,
+            incremental_merge=False,
             json_indent=json_indent,
             json_compression=json_compression,
             json_gzip_level=json_gzip_level,
@@ -869,7 +869,7 @@ def _build_stage_publishers(
                 skip_unknown_axis_values=True,
                 deduplicate_variants=True,
                 ancestry_value_precision=ancestry_precision,
-                incremental_merge=True,
+                incremental_merge=False,
                 json_indent=json_indent,
                 json_compression=json_compression,
                 json_gzip_level=json_gzip_level,
@@ -1331,7 +1331,8 @@ ORDER BY phenotype, variant_id, coalesce(ancestry, '')
 
             current_record: CanonicalRecord | None = None
             current_key: tuple[str, str, str, str] | None = None
-            publish_batch: list[CanonicalRecord] = []
+            current_gene_records: list[CanonicalRecord] = []
+            current_gene_id: str | None = None
             scanned_rows = 0
             published_for_unit = 0
 
@@ -1353,12 +1354,16 @@ ORDER BY phenotype, variant_id, coalesce(ancestry, '')
 
                     if row_key != current_key:
                         if current_record is not None:
-                            publish_batch.append(current_record)
-                            if len(publish_batch) >= args.publish_batch_size:
-                                _batched_publish(records=publish_batch, publishers=staged_publishers)
-                                published_for_unit += len(publish_batch)
-                                total_canonical_records += len(publish_batch)
-                                publish_batch = []
+                            record_gene_id = current_record.gene_id
+                            if current_gene_id is None:
+                                current_gene_id = record_gene_id
+                            elif record_gene_id != current_gene_id:
+                                _batched_publish(records=current_gene_records, publishers=staged_publishers)
+                                published_for_unit += len(current_gene_records)
+                                total_canonical_records += len(current_gene_records)
+                                current_gene_records = []
+                                current_gene_id = record_gene_id
+                            current_gene_records.append(current_record)
                         current_key = row_key
                         current_record = _new_record(
                             row,
@@ -1379,12 +1384,21 @@ ORDER BY phenotype, variant_id, coalesce(ancestry, '')
                     )
 
             if current_record is not None:
-                publish_batch.append(current_record)
+                record_gene_id = current_record.gene_id
+                if current_gene_id is None:
+                    current_gene_id = record_gene_id
+                elif record_gene_id != current_gene_id:
+                    _batched_publish(records=current_gene_records, publishers=staged_publishers)
+                    published_for_unit += len(current_gene_records)
+                    total_canonical_records += len(current_gene_records)
+                    current_gene_records = []
+                    current_gene_id = record_gene_id
+                current_gene_records.append(current_record)
 
-            if publish_batch:
-                _batched_publish(records=publish_batch, publishers=staged_publishers)
-                published_for_unit += len(publish_batch)
-                total_canonical_records += len(publish_batch)
+            if current_gene_records:
+                _batched_publish(records=current_gene_records, publishers=staged_publishers)
+                published_for_unit += len(current_gene_records)
+                total_canonical_records += len(current_gene_records)
 
             stage_files = _apply_stage_output(stage_root=stage_root, output_root=output_root)
             total_stage_files += stage_files

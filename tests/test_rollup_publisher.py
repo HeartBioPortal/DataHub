@@ -271,3 +271,71 @@ def test_rollup_publisher_normalizes_variation_and_consequence_axes(tmp_path: Pa
     msc = {item["name"]: item["value"] for item in payload[0]["msc"]}
     assert vc == {"INDEL": 2}
     assert msc == {"missense variant": 2}
+
+
+def test_rollup_publisher_deduplicates_overall_variant_counts_across_groups(tmp_path: Path) -> None:
+    tree_path = tmp_path / "phenotype_tree.json"
+    tree_path.write_text(
+        json.dumps(
+            {
+                "CVD": {
+                    "cardiomyopathies": ["cardiomyopathy"],
+                    "cardiac_dysrhythmias": ["arrhythmia"],
+                }
+            }
+        )
+    )
+
+    publisher = PhenotypeRollupPublisher(
+        output_root=tmp_path / "out",
+        tree_json_path=tree_path,
+    )
+    publisher.publish(
+        [
+            CanonicalRecord(
+                dataset_id="legacy",
+                dataset_type="CVD",
+                source="legacy",
+                gene_id="GENE1",
+                variant_id="rs1",
+                phenotype="cardiomyopathy",
+                disease_category="cardiomyopathies",
+                variation_type="SNP",
+                p_value=1e-8,
+            ),
+            CanonicalRecord(
+                dataset_id="legacy",
+                dataset_type="CVD",
+                source="legacy",
+                gene_id="GENE1",
+                variant_id="rs1",
+                phenotype="arrhythmia",
+                disease_category="cardiac_dysrhythmias",
+                variation_type="SNP",
+                p_value=1e-6,
+            ),
+            CanonicalRecord(
+                dataset_id="legacy",
+                dataset_type="CVD",
+                source="legacy",
+                gene_id="GENE1",
+                variant_id="rs2",
+                phenotype="arrhythmia",
+                disease_category="cardiac_dysrhythmias",
+                variation_type="INDEL",
+                p_value=1e-5,
+            ),
+        ]
+    )
+
+    overall_path = (
+        tmp_path
+        / "out"
+        / "association"
+        / "final"
+        / "overall_rollup"
+        / "CVD"
+        / "GENE1.json"
+    )
+    overall_payload = json.loads(overall_path.read_text())
+    assert overall_payload["data"]["vc"] == {"INDEL": 1, "SNP": 1}
