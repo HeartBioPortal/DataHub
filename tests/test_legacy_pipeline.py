@@ -8,8 +8,10 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from datahub import MissingFieldStrategy, build_association_contract
 from datahub.adapters import LegacyAssociationCsvAdapter, PhenotypeMapper
+from datahub.export_manifest import AssociationExportManifestCatalog
 from datahub.models import CanonicalRecord
 from datahub.pipeline import DataHubPipeline
+from datahub.phenotype_paths import PhenotypePathResolver
 from datahub.publishers import LegacyAssociationPublisher
 
 
@@ -237,6 +239,132 @@ def test_publisher_normalizes_list_like_clinical_significance(tmp_path: Path) ->
     cs = {item["name"]: item["value"] for item in association_payload[0]["cs"]}
     assert cs == {"benign": 1, "likely benign": 1}
     assert overall_payload["data"]["cs"] == {"benign": 1, "likely benign": 1}
+
+
+def test_publisher_restores_canonical_path_from_tree_when_category_missing(tmp_path: Path) -> None:
+    tree_path = tmp_path / "phenotype_tree.json"
+    tree_path.write_text(
+        json.dumps({"CVD": {"cardiac_dysrhythmias": ["atrial_fibrillation"]}})
+    )
+
+    publisher = LegacyAssociationPublisher(
+        output_root=tmp_path / "out",
+        tree_json_path=tree_path,
+    )
+    publisher.publish(
+        [
+            CanonicalRecord(
+                dataset_id="d1",
+                dataset_type="CVD",
+                source="legacy",
+                gene_id="GENE1",
+                variant_id="rs1",
+                phenotype="atrial_fibrillation",
+                disease_category="",
+            )
+        ]
+    )
+
+    cvd_path = tmp_path / "out" / "association" / "final" / "association" / "CVD" / "GENE1.json"
+    association_payload = json.loads(cvd_path.read_text())
+
+    assert association_payload[0]["disease"] == [
+        "cardiac_dysrhythmias",
+        "atrial_fibrillation",
+    ]
+
+
+def test_publisher_emits_manifest_driven_datahub_metadata(tmp_path: Path) -> None:
+    tree_path = tmp_path / "phenotype_tree.json"
+    tree_path.write_text(
+        json.dumps({"CVD": {"cardiac_dysrhythmias": ["atrial_fibrillation"]}})
+    )
+
+    manifest_catalog = AssociationExportManifestCatalog(
+        base_manifest_ref="association/base",
+        path_resolver=PhenotypePathResolver.from_tree_json(tree_path),
+    )
+
+    records = [
+        CanonicalRecord(
+            dataset_id="d1",
+            dataset_type="CVD",
+            source="legacy_cvd_raw",
+            gene_id="GENE1",
+            variant_id="rs1",
+            phenotype="atrial_fibrillation",
+            disease_category="",
+            clinical_significance="['benign', 'likely benign']",
+            ancestry={"African": 0.1},
+            metadata={
+                "source_file": "/tmp/cvd.csv",
+                "provenance": {"source_family": "legacy_raw"},
+                "source_ancestry": {
+                    "AFR": {
+                        "source_ancestry_code": "AFR",
+                        "source_ancestry_label": "African",
+                        "canonical_ancestry_group": "African",
+                        "af": 0.1,
+                    }
+                },
+            },
+        ),
+        CanonicalRecord(
+            dataset_id="d2",
+            dataset_type="CVD",
+            source="million_veteran_program",
+            gene_id="GENE1",
+            variant_id="rs2",
+            phenotype="atrial_fibrillation",
+            disease_category="",
+            clinical_significance="pathogenic",
+            ancestry={"European": 0.2},
+            metadata={
+                "source_file": "/tmp/mvp.csv.gz",
+                "provenance": {"source_family": "mvp"},
+                "source_ancestry": {
+                    "EUR": {
+                        "source_ancestry_code": "EUR",
+                        "source_ancestry_label": "European",
+                        "canonical_ancestry_group": "European",
+                        "af": 0.2,
+                    }
+                },
+            },
+        ),
+    ]
+
+    publisher = LegacyAssociationPublisher(
+        output_root=tmp_path / "out",
+        tree_json_path=tree_path,
+        export_runtime=manifest_catalog.base_runtime,
+    )
+    publisher.publish(records)
+
+    association_path = tmp_path / "out" / "association" / "final" / "association" / "CVD" / "GENE1.json"
+    overall_path = tmp_path / "out" / "association" / "final" / "overall" / "CVD" / "GENE1.json"
+
+    association_payload = json.loads(association_path.read_text())
+    overall_payload = json.loads(overall_path.read_text())
+
+    entry_meta = association_payload[0]["_datahub"]
+    assert entry_meta["manifest_id"] == "association_export_v1"
+    assert entry_meta["manifest_version"] == 1
+    assert entry_meta["provenance"]["sources"] == [
+        "legacy_cvd_raw",
+        "million_veteran_program",
+    ]
+    assert entry_meta["provenance"]["source_counts"] == {
+        "legacy_cvd_raw": 1,
+        "million_veteran_program": 1,
+    }
+    assert entry_meta["provenance"]["source_families"] == ["legacy_raw", "mvp"]
+    assert entry_meta["ancestry_provenance"]["source_codes"] == ["AFR", "EUR"]
+    assert entry_meta["coverage"]["status"] == "not_computed"
+
+    overall_meta = overall_payload["_datahub"]
+    assert overall_meta["manifest_id"] == "association_export_v1"
+    assert overall_meta["provenance"]["source_file_count"] == 2
 
 
 def test_incremental_merge_publisher_appends_new_variants_across_batches(tmp_path: Path) -> None:

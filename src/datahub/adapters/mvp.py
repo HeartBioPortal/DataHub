@@ -9,6 +9,7 @@ from typing import Any, Iterable
 
 import pandas as pd
 
+from datahub.ancestry import resolve_mvp_ancestry_with_overrides
 from datahub.adapters.base import DataAdapter
 from datahub.adapters.common import TabularAdapterMixin, expand_input_paths
 from datahub.adapters.phenotypes import PhenotypeMapper
@@ -34,18 +35,6 @@ class MVPAssociationAdapter(DataAdapter, TabularAdapterMixin):
 
     name = "mvp_association"
 
-    DEFAULT_ANCESTRY_CODE_MAP: dict[str, str] = {
-        "ALL": "Total",
-        "AFR": "African",
-        "AMR": "Admixed American",
-        "ASJ": "Ashkenazi Jewish",
-        "EAS": "East Asian",
-        "EUR": "European",
-        "FIN": "Finnish",
-        "SAS": "South Asian",
-        "OTH": "Other",
-    }
-
     def __init__(
         self,
         *,
@@ -54,7 +43,7 @@ class MVPAssociationAdapter(DataAdapter, TabularAdapterMixin):
         source: str = "million_veteran_program",
         phenotype_mapper: PhenotypeMapper | None = None,
         include_dataset_types: set[str] | None = None,
-        ancestry_code_map: dict[str, str] | None = None,
+        ancestry_code_map: dict[str, str | tuple[str, str]] | None = None,
         chunksize: int = 200_000,
         prefer_parent_phenotype_as_category: bool = True,
         log_progress: bool = False,
@@ -71,10 +60,11 @@ class MVPAssociationAdapter(DataAdapter, TabularAdapterMixin):
             if include_dataset_types
             else None
         )
-        self.ancestry_code_map = {
-            key.upper(): value
-            for key, value in (ancestry_code_map or self.DEFAULT_ANCESTRY_CODE_MAP).items()
-        }
+        self.ancestry_code_map = (
+            {str(key).upper(): value for key, value in ancestry_code_map.items()}
+            if ancestry_code_map
+            else None
+        )
         self.chunksize = chunksize
         self.prefer_parent_phenotype_as_category = prefer_parent_phenotype_as_category
         self.log_progress = log_progress
@@ -302,17 +292,19 @@ class MVPAssociationAdapter(DataAdapter, TabularAdapterMixin):
             yield dict(zip(columns, row))
 
     def _update_ancestry(self, record: CanonicalRecord, row: dict[str, Any]) -> None:
-        ancestry_code = self._to_string(row.get("ancestry"))
-        if ancestry_code is None:
+        ancestry_definition = resolve_mvp_ancestry_with_overrides(
+            self._to_string(row.get("ancestry")),
+            self.ancestry_code_map,
+        )
+        if ancestry_definition is None:
             return
 
-        population = self.ancestry_code_map.get(ancestry_code.upper(), ancestry_code)
         af = self._to_float(row.get("af"))
         if af is not None:
-            record.ancestry[population] = af
+            record.ancestry[ancestry_definition.canonical_group] = af
 
         per_population = record.metadata.setdefault("mvp_by_ancestry", {})
-        per_population[population] = {
+        per_population[ancestry_definition.canonical_group] = {
             "af": af,
             "case_af": self._to_float(row.get("case_af")),
             "control_af": self._to_float(row.get("control_af")),
@@ -325,7 +317,29 @@ class MVPAssociationAdapter(DataAdapter, TabularAdapterMixin):
             "q_pval": self._to_float(row.get("q_pval")),
             "i2": self._to_float(row.get("i2")),
             "direction": self._to_string(row.get("direction")),
-            "raw_ancestry_code": ancestry_code,
+            "raw_ancestry_code": ancestry_definition.source_code,
+            "source_ancestry_code": ancestry_definition.source_code,
+            "source_ancestry_label": ancestry_definition.source_label,
+            "canonical_ancestry_group": ancestry_definition.canonical_group,
+        }
+
+        source_ancestry = record.metadata.setdefault("mvp_source_ancestry", {})
+        source_ancestry[ancestry_definition.source_code] = {
+            "af": af,
+            "case_af": self._to_float(row.get("case_af")),
+            "control_af": self._to_float(row.get("control_af")),
+            "num_samples": self._to_int(row.get("num_samples")),
+            "num_cases": self._to_int(row.get("num_cases")),
+            "num_controls": self._to_int(row.get("num_controls")),
+            "or": self._to_float(row.get("or")),
+            "ci": self._parse_ci(row.get("ci")),
+            "r2": self._to_float(row.get("r2")),
+            "q_pval": self._to_float(row.get("q_pval")),
+            "i2": self._to_float(row.get("i2")),
+            "direction": self._to_string(row.get("direction")),
+            "source_ancestry_code": ancestry_definition.source_code,
+            "source_ancestry_label": ancestry_definition.source_label,
+            "canonical_ancestry_group": ancestry_definition.canonical_group,
         }
 
     def _update_best_statistics(self, accumulator: _MVPAccumulator, row: dict[str, Any]) -> None:

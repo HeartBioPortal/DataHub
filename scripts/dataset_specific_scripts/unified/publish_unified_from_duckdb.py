@@ -23,6 +23,8 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from datahub.models import CanonicalRecord  # noqa: E402
+from datahub.export_manifest import AssociationExportManifestCatalog  # noqa: E402
+from datahub.phenotype_paths import PhenotypePathResolver  # noqa: E402
 from datahub.publishers import (  # noqa: E402
     LegacyAssociationPublisher,
     LegacyRedisPublisher,
@@ -128,6 +130,44 @@ class UnifiedPublishCheckpoint:
         return inserted
 
 
+ROW_DATASET_ID = 0
+ROW_DATASET_TYPE = 1
+ROW_SOURCE = 2
+ROW_GENE_ID = 3
+ROW_VARIANT_ID = 4
+ROW_PHENOTYPE = 5
+ROW_DISEASE_CATEGORY = 6
+ROW_VARIATION_TYPE = 7
+ROW_CLINICAL_SIGNIFICANCE = 8
+ROW_MOST_SEVERE_CONSEQUENCE = 9
+ROW_P_VALUE = 10
+ROW_ANCESTRY = 11
+ROW_ANCESTRY_AF = 12
+ROW_ANCESTRY_SOURCE_CODE = 13
+ROW_ANCESTRY_SOURCE_LABEL = 14
+ROW_PHENOTYPE_KEY = 15
+ROW_SOURCE_FILE = 16
+ROW_FIELD_NAMES = (
+    "dataset_id",
+    "dataset_type",
+    "source",
+    "gene_id",
+    "variant_id",
+    "phenotype",
+    "disease_category",
+    "variation_type",
+    "clinical_significance",
+    "most_severe_consequence",
+    "p_value",
+    "ancestry",
+    "ancestry_af",
+    "ancestry_source_code",
+    "ancestry_source_label",
+    "phenotype_key",
+    "source_file",
+)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
@@ -177,6 +217,19 @@ def parse_args() -> argparse.Namespace:
         "--rollup-tree-json",
         default=None,
         help="Optional phenotype tree JSON path for rollup grouping.",
+    )
+    parser.add_argument(
+        "--export-manifest",
+        default="association/base",
+        help=(
+            "Association export manifest name/path under config/export_manifests. "
+            "Controls preserved and derived analyzed fields."
+        ),
+    )
+    parser.add_argument(
+        "--export-manifests-dir",
+        default=None,
+        help="Optional custom export manifest directory.",
     )
     parser.add_argument(
         "--disable-rollup",
@@ -495,6 +548,37 @@ def _base_source_where_clause(*, dataset_types: set[str] | None) -> tuple[str, l
     return " AND ".join(where_filters), filter_params
 
 
+def _table_columns(connection: Any, table_name: str) -> set[str]:
+    rows = connection.execute(f"DESCRIBE {table_name}").fetchall()
+    return {str(row[0]).strip().lower() for row in rows if row and row[0]}
+
+
+def _ancestry_source_select_sql(*, dataset_alias: str, available_columns: set[str]) -> tuple[str, str]:
+    source_code_column = f"{dataset_alias}.ancestry_source_code"
+    source_label_column = f"{dataset_alias}.ancestry_source_label"
+
+    source_code_sql = (
+        f"nullif(trim(coalesce({source_code_column}, '')), '')"
+        if "ancestry_source_code" in available_columns
+        else "NULL::VARCHAR"
+    )
+    source_label_sql = (
+        f"nullif(trim(coalesce({source_label_column}, '')), '')"
+        if "ancestry_source_label" in available_columns
+        else "NULL::VARCHAR"
+    )
+    return source_code_sql, source_label_sql
+
+
+def _ancestry_partition_sql(*, dataset_alias: str, available_columns: set[str]) -> str:
+    if "ancestry_source_code" in available_columns:
+        return (
+            f"coalesce(nullif(trim(coalesce({dataset_alias}.ancestry_source_code, '')), ''), "
+            f"nullif(trim(coalesce({dataset_alias}.ancestry, '')), ''))"
+        )
+    return f"nullif(trim(coalesce({dataset_alias}.ancestry, '')), '')"
+
+
 def _build_working_table(
     connection: Any,
     *,
@@ -506,6 +590,15 @@ def _build_working_table(
 ) -> tuple[int, int]:
     where_sql, filter_params = _base_source_where_clause(dataset_types=dataset_types)
     source_rank_sql = _source_rank_sql(dataset_alias="p", source_priority=source_priority)
+    available_columns = _table_columns(connection, source_table)
+    ancestry_source_code_sql, ancestry_source_label_sql = _ancestry_source_select_sql(
+        dataset_alias="p",
+        available_columns=available_columns,
+    )
+    ancestry_partition_sql = _ancestry_partition_sql(
+        dataset_alias="p",
+        available_columns=available_columns,
+    )
 
     sql = f"""
 CREATE OR REPLACE TABLE {working_table} AS
@@ -524,6 +617,8 @@ WITH ranked AS (
         p.p_value,
         nullif(trim(coalesce(p.ancestry, '')), '') AS ancestry,
         p.ancestry_af,
+        {ancestry_source_code_sql} AS ancestry_source_code,
+        {ancestry_source_label_sql} AS ancestry_source_label,
         nullif(trim(coalesce(p.phenotype_key, '')), '') AS phenotype_key,
         p.source_file,
         p.ingested_at,
@@ -534,7 +629,7 @@ WITH ranked AS (
                 trim(p.gene_id),
                 trim(p.variant_id),
                 lower(regexp_replace(replace(trim(p.phenotype), '/', '_'), '\\s+', '_', 'g')),
-                nullif(trim(coalesce(p.ancestry, '')), '')
+                {ancestry_partition_sql}
             ORDER BY
                 {source_rank_sql},
                 CASE WHEN p.p_value IS NULL THEN 1 ELSE 0 END,
@@ -559,6 +654,8 @@ SELECT
     p_value,
     ancestry,
     ancestry_af,
+    ancestry_source_code,
+    ancestry_source_label,
     phenotype_key,
     source_file,
     ingested_at
@@ -650,6 +747,15 @@ def _open_unit_cursor_from_source(
 ) -> Any:
     where_sql, params = _base_source_where_clause(dataset_types=dataset_types)
     source_rank_sql = _source_rank_sql(dataset_alias="p", source_priority=source_priority)
+    available_columns = _table_columns(connection, source_table)
+    ancestry_source_code_sql, ancestry_source_label_sql = _ancestry_source_select_sql(
+        dataset_alias="p",
+        available_columns=available_columns,
+    )
+    ancestry_partition_sql = _ancestry_partition_sql(
+        dataset_alias="p",
+        available_columns=available_columns,
+    )
     unit_filters = ["upper(trim(p.dataset_type)) = ?"]
     unit_params: list[Any] = [unit.dataset_type]
 
@@ -679,6 +785,8 @@ WITH ranked AS (
         p.p_value,
         nullif(trim(coalesce(p.ancestry, '')), '') AS ancestry,
         p.ancestry_af,
+        {ancestry_source_code_sql} AS ancestry_source_code,
+        {ancestry_source_label_sql} AS ancestry_source_label,
         nullif(trim(coalesce(p.phenotype_key, '')), '') AS phenotype_key,
         p.source_file,
         p.ingested_at,
@@ -689,7 +797,7 @@ WITH ranked AS (
                 trim(p.gene_id),
                 trim(p.variant_id),
                 lower(regexp_replace(replace(trim(p.phenotype), '/', '_'), '\\s+', '_', 'g')),
-                nullif(trim(coalesce(p.ancestry, '')), '')
+                {ancestry_partition_sql}
             ORDER BY
                 {source_rank_sql},
                 CASE WHEN p.p_value IS NULL THEN 1 ELSE 0 END,
@@ -715,6 +823,8 @@ SELECT
     p_value,
     ancestry,
     ancestry_af,
+    ancestry_source_code,
+    ancestry_source_label,
     phenotype_key,
     source_file
 FROM ranked
@@ -734,6 +844,7 @@ def _build_stage_publishers(
     json_compression: str,
     json_gzip_level: int,
     json_indent: int | None,
+    export_runtime: Any | None,
 ) -> list[Any]:
     publishers: list[Any] = [
         LegacyAssociationPublisher(
@@ -745,6 +856,8 @@ def _build_stage_publishers(
             json_indent=json_indent,
             json_compression=json_compression,
             json_gzip_level=json_gzip_level,
+            tree_json_path=rollup_tree_json,
+            export_runtime=export_runtime,
         )
     ]
 
@@ -783,32 +896,82 @@ def _apply_stage_output(*, stage_root: Path, output_root: Path) -> int:
 
 def _record_key(row: tuple[Any, ...]) -> tuple[str, str, str, str]:
     return (
-        str(row[1]),
-        str(row[3]),
-        str(row[4]),
-        str(row[5]),
+        str(row[ROW_DATASET_TYPE]),
+        str(row[ROW_GENE_ID]),
+        str(row[ROW_VARIANT_ID]),
+        str(row[ROW_PHENOTYPE]),
     )
 
 
-def _new_record(row: tuple[Any, ...]) -> CanonicalRecord:
-    metadata: dict[str, Any] = {}
-    if row[13] is not None and str(row[13]).strip():
-        metadata["phenotype_key"] = str(row[13]).strip()
-    if row[14] is not None and str(row[14]).strip():
-        metadata["source_file"] = str(row[14]).strip()
+def _row_to_mapping(row: tuple[Any, ...]) -> dict[str, Any]:
+    return {
+        field_name: row[index]
+        for index, field_name in enumerate(ROW_FIELD_NAMES)
+    }
+
+
+def _validate_export_manifest_projection(manifest_catalog: AssociationExportManifestCatalog) -> None:
+    supported_fields = set(ROW_FIELD_NAMES)
+    unsupported = [
+        field_name
+        for field_name in manifest_catalog.base_runtime.manifest.promoted_fields
+        if field_name not in supported_fields
+    ]
+    if unsupported:
+        raise ValueError(
+            "Export manifest promoted_fields are not available in unified publish projection: "
+            + ", ".join(sorted(unsupported))
+        )
+
+
+def _new_record(
+    row: tuple[Any, ...],
+    *,
+    manifest_catalog: AssociationExportManifestCatalog | None = None,
+) -> CanonicalRecord:
+    row_map = _row_to_mapping(row)
+    runtime = (
+        manifest_catalog.runtime_for_source(str(row_map["source"]))
+        if manifest_catalog is not None
+        else None
+    )
+    if runtime is not None:
+        metadata = runtime.extract_metadata(row_map)
+    else:
+        metadata: dict[str, Any] = {}
+        if row_map["phenotype_key"] is not None and str(row_map["phenotype_key"]).strip():
+            metadata["phenotype_key"] = str(row_map["phenotype_key"]).strip()
+        if row_map["source_file"] is not None and str(row_map["source_file"]).strip():
+            metadata["source_file"] = str(row_map["source_file"]).strip()
 
     record = CanonicalRecord(
-        dataset_id=str(row[0]),
-        dataset_type=str(row[1]),
-        source=str(row[2]),
-        gene_id=str(row[3]),
-        variant_id=str(row[4]),
-        phenotype=str(row[5]),
-        disease_category=str(row[6]) if row[6] is not None else "",
-        variation_type=str(row[7]) if row[7] is not None else None,
-        clinical_significance=str(row[8]) if row[8] is not None else None,
-        most_severe_consequence=str(row[9]) if row[9] is not None else None,
-        p_value=float(row[10]) if row[10] is not None else None,
+        dataset_id=str(row_map["dataset_id"]),
+        dataset_type=str(row_map["dataset_type"]),
+        source=str(row_map["source"]),
+        gene_id=str(row_map["gene_id"]),
+        variant_id=str(row_map["variant_id"]),
+        phenotype=str(row_map["phenotype"]),
+        disease_category=(
+            str(row_map["disease_category"])
+            if row_map["disease_category"] is not None
+            else ""
+        ),
+        variation_type=(
+            str(row_map["variation_type"])
+            if row_map["variation_type"] is not None
+            else None
+        ),
+        clinical_significance=(
+            str(row_map["clinical_significance"])
+            if row_map["clinical_significance"] is not None
+            else None
+        ),
+        most_severe_consequence=(
+            str(row_map["most_severe_consequence"])
+            if row_map["most_severe_consequence"] is not None
+            else None
+        ),
+        p_value=float(row_map["p_value"]) if row_map["p_value"] is not None else None,
         ancestry={},
         metadata=metadata,
     )
@@ -818,17 +981,17 @@ def _new_record(row: tuple[Any, ...]) -> CanonicalRecord:
 
 
 def _merge_row_into_record(record: CanonicalRecord, row: tuple[Any, ...]) -> None:
-    pval = float(row[10]) if row[10] is not None else None
+    pval = float(row[ROW_P_VALUE]) if row[ROW_P_VALUE] is not None else None
     if record.p_value is None:
         record.p_value = pval
     elif pval is not None and pval < record.p_value:
         record.p_value = pval
 
     for attr_index, attr_name in (
-        (6, "disease_category"),
-        (7, "variation_type"),
-        (8, "clinical_significance"),
-        (9, "most_severe_consequence"),
+        (ROW_DISEASE_CATEGORY, "disease_category"),
+        (ROW_VARIATION_TYPE, "variation_type"),
+        (ROW_CLINICAL_SIGNIFICANCE, "clinical_significance"),
+        (ROW_MOST_SEVERE_CONSEQUENCE, "most_severe_consequence"),
     ):
         current = getattr(record, attr_name)
         if current is None or (isinstance(current, str) and not current.strip()):
@@ -836,13 +999,38 @@ def _merge_row_into_record(record: CanonicalRecord, row: tuple[Any, ...]) -> Non
             if candidate is not None and str(candidate).strip():
                 setattr(record, attr_name, str(candidate).strip())
 
-    ancestry = str(row[11]).strip() if row[11] is not None else ""
-    ancestry_af = row[12]
+    ancestry = str(row[ROW_ANCESTRY]).strip() if row[ROW_ANCESTRY] is not None else ""
+    ancestry_af = row[ROW_ANCESTRY_AF]
     if ancestry and ancestry_af is not None:
         try:
             record.ancestry[ancestry] = float(ancestry_af)
         except (TypeError, ValueError):
             pass
+
+    source_ancestry_code = (
+        str(row[ROW_ANCESTRY_SOURCE_CODE]).strip()
+        if row[ROW_ANCESTRY_SOURCE_CODE] is not None
+        else ""
+    )
+    source_ancestry_label = (
+        str(row[ROW_ANCESTRY_SOURCE_LABEL]).strip()
+        if row[ROW_ANCESTRY_SOURCE_LABEL] is not None
+        else ""
+    )
+    if ancestry and ancestry_af is not None and (source_ancestry_code or source_ancestry_label):
+        try:
+            normalized_af = float(ancestry_af)
+        except (TypeError, ValueError):
+            normalized_af = None
+        if normalized_af is not None:
+            source_payload = record.metadata.setdefault("source_ancestry", {})
+            source_key = source_ancestry_code or source_ancestry_label or ancestry
+            source_payload[source_key] = {
+                "source_ancestry_code": source_ancestry_code or None,
+                "source_ancestry_label": source_ancestry_label or ancestry,
+                "canonical_ancestry_group": ancestry,
+                "af": normalized_af,
+            }
 
 
 def _batched_publish(
@@ -974,6 +1162,23 @@ def main() -> int:
         args.json_gzip_level,
         str(json_indent),
     )
+    path_resolver = (
+        PhenotypePathResolver.from_tree_json(args.rollup_tree_json)
+        if args.rollup_tree_json
+        else None
+    )
+    manifest_catalog = AssociationExportManifestCatalog(
+        base_manifest_ref=args.export_manifest,
+        manifests_dir=args.export_manifests_dir,
+        path_resolver=path_resolver,
+    )
+    _validate_export_manifest_projection(manifest_catalog)
+    logger.info(
+        "Export manifest: id=%s version=%d ref=%s",
+        manifest_catalog.base_runtime.manifest.manifest_id,
+        manifest_catalog.base_runtime.manifest.version,
+        args.export_manifest,
+    )
 
     row_count: int | None = None
     if args.dedup_mode == "global_table":
@@ -1084,6 +1289,7 @@ def main() -> int:
                 json_compression=args.json_compression,
                 json_gzip_level=args.json_gzip_level,
                 json_indent=json_indent,
+                export_runtime=manifest_catalog.base_runtime,
             )
 
             if args.dedup_mode == "global_table":
@@ -1103,6 +1309,8 @@ SELECT
     p_value,
     ancestry,
     ancestry_af,
+    ancestry_source_code,
+    ancestry_source_label,
     phenotype_key,
     source_file
 FROM {working_table}
@@ -1137,7 +1345,10 @@ ORDER BY phenotype, variant_id, coalesce(ancestry, '')
                     row_key = _record_key(row)
                     if current_key is None:
                         current_key = row_key
-                        current_record = _new_record(row)
+                        current_record = _new_record(
+                            row,
+                            manifest_catalog=manifest_catalog,
+                        )
                         continue
 
                     if row_key != current_key:
@@ -1149,7 +1360,10 @@ ORDER BY phenotype, variant_id, coalesce(ancestry, '')
                                 total_canonical_records += len(publish_batch)
                                 publish_batch = []
                         current_key = row_key
-                        current_record = _new_record(row)
+                        current_record = _new_record(
+                            row,
+                            manifest_catalog=manifest_catalog,
+                        )
                     else:
                         if current_record is not None:
                             _merge_row_into_record(current_record, row)
@@ -1233,6 +1447,8 @@ ORDER BY phenotype, variant_id, coalesce(ancestry, '')
                 "json_compression": args.json_compression,
                 "json_gzip_level": args.json_gzip_level,
                 "json_indent": json_indent,
+                "export_manifest_id": manifest_catalog.base_runtime.manifest.manifest_id,
+                "export_manifest_version": manifest_catalog.base_runtime.manifest.version,
                 "source_priority": [source for source, _rank in source_priority],
                 "dataset_filter": sorted(dataset_types) if dataset_types else [],
                 "working_table_rows": row_count,

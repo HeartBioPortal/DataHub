@@ -1,0 +1,126 @@
+{
+  "manifest_id": "association_export_v1",
+  "version": 1,
+  "dataset_types": [
+    "CVD",
+    "TRAIT"
+  ],
+  "promoted_fields": [
+    "dataset_id",
+    "dataset_type",
+    "source",
+    "gene_id",
+    "variant_id",
+    "phenotype",
+    "disease_category",
+    "variation_type",
+    "clinical_significance",
+    "most_severe_consequence",
+    "p_value",
+    "ancestry",
+    "ancestry_source_code",
+    "ancestry_source_label",
+    "phenotype_key",
+    "source_file"
+  ],
+  "metadata_fields": [
+    {
+      "name": "phenotype_key",
+      "source": "row.phenotype_key",
+      "target": "phenotype_key"
+    },
+    {
+      "name": "source_file",
+      "source": "row.source_file",
+      "target": "source_file"
+    }
+  ],
+  "derived_fields": [
+    {
+      "name": "canonical_phenotype_path",
+      "helper": "canonical_phenotype_path",
+      "scope": "entry",
+      "target": "label_path",
+      "params": {}
+    },
+    {
+      "name": "normalized_clinical_significance",
+      "helper": "normalized_clinical_significance",
+      "scope": "axis",
+      "target": "clinical_significance",
+      "params": {}
+    },
+    {
+      "name": "source_provenance",
+      "helper": "source_provenance_bundle",
+      "scope": "entry",
+      "target": "meta.provenance",
+      "params": {}
+    },
+    {
+      "name": "ancestry_provenance",
+      "helper": "ancestry_provenance_bundle",
+      "scope": "entry",
+      "target": "meta.ancestry_provenance",
+      "params": {}
+    },
+    {
+      "name": "coverage",
+      "helper": "coverage_stub",
+      "scope": "entry",
+      "target": "meta.coverage",
+      "params": {
+        "scope": "association_entry"
+      }
+    },
+    {
+      "name": "source_provenance_overall",
+      "helper": "source_provenance_bundle",
+      "scope": "overall",
+      "target": "meta.provenance",
+      "params": {}
+    },
+    {
+      "name": "ancestry_provenance_overall",
+      "helper": "ancestry_provenance_bundle",
+      "scope": "overall",
+      "target": "meta.ancestry_provenance",
+      "params": {}
+    },
+    {
+      "name": "coverage_overall",
+      "helper": "coverage_stub",
+      "scope": "overall",
+      "target": "meta.coverage",
+      "params": {
+        "scope": "association_overall"
+      }
+    }
+  ],
+  "publish_fields": {
+    "entry_meta": [
+      "manifest_id",
+      "manifest_version",
+      "source_provenance",
+      "ancestry_provenance",
+      "coverage"
+    ],
+    "overall_meta": [
+      "manifest_id",
+      "manifest_version",
+      "source_provenance_overall",
+      "ancestry_provenance_overall",
+      "coverage_overall"
+    ]
+  },
+  "serving_fields": {
+    "top_level_keys": [
+      "_datahub"
+    ]
+  },
+  "source_overrides": {
+    "legacy_cvd_raw": "overrides/legacy_cvd_raw.json",
+    "legacy_trait_raw": "overrides/legacy_trait_raw.json",
+    "million_veteran_program": "overrides/million_veteran_program.json"
+  }
+}

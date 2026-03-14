@@ -1,0 +1,50 @@
+:root {
+  --md-primary-fg-color: #344455;
+  --md-accent-fg-color: #a3334b;
+  --datahub-rose: #a3334b;
+  --datahub-slate: #243240;
+}
+
+.md-header {
+  box-shadow: 0 10px 30px rgba(19, 27, 35, 0.16);
+}
+
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3 {
+  letter-spacing: -0.02em;
+}
+
+.md-typeset h1 {
+  color: var(--datahub-slate);
+  font-weight: 800;
+}
+
+.md-typeset h2 {
+  color: #33475b;
+  font-weight: 750;
+}
+
+.md-typeset a {
+  text-decoration-thickness: 0.08em;
+}
+
+.md-typeset code {
+  border-radius: 0.35rem;
+}
+
+.md-typeset .admonition,
+.md-typeset details {
+  border-radius: 0.8rem;
+}
+
+.md-nav__title,
+.md-nav__link--active,
+.md-tabs__link--active {
+  font-weight: 700;
+}
+
+[data-md-color-scheme="slate"] .md-typeset h1,
+[data-md-color-scheme="slate"] .md-typeset h2 {
+  color: #f3f6f8;
+}

@@ -531,6 +531,8 @@ SELECT
     p_value,
     ancestry,
     ancestry_af,
+    NULL::VARCHAR AS ancestry_source_code,
+    NULL::VARCHAR AS ancestry_source_label,
     NULL::VARCHAR AS phenotype_key,
     ? AS source_file,
     now() AS ingested_at
@@ -565,11 +567,19 @@ CREATE TABLE IF NOT EXISTS {table_name} (
     p_value DOUBLE,
     ancestry VARCHAR,
     ancestry_af DOUBLE,
+    ancestry_source_code VARCHAR,
+    ancestry_source_label VARCHAR,
     phenotype_key VARCHAR,
     source_file VARCHAR,
     ingested_at TIMESTAMP
 );
 """
+    )
+    connection.execute(
+        f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS ancestry_source_code VARCHAR"
+    )
+    connection.execute(
+        f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS ancestry_source_label VARCHAR"
     )
 
 
