@@ -32,6 +32,45 @@ This step ingests historical raw CVD and trait files into the same points table 
 
 This step reads from DuckDB, applies source-priority deduplication, and publishes legacy-compatible analyzed outputs. It supports resumable unit processing and partitioned HPC execution.
 
+## Gene-boundary publication rule
+
+The unified publisher is allowed to stream rows from DuckDB in chunks, but it is not allowed to finalize association chart counts at arbitrary row-batch boundaries.
+
+Association publication has gene-level semantics:
+
+- axis counts are deduplicated by `variant_id`
+- overall counts are recomputed from the full gene record set
+- phenotype-level summaries must see the complete canonical record set for that gene
+
+Because of that, unified association publishing flushes outputs at gene boundaries rather than merely at record-count thresholds.
+
+### Why this matters
+
+If a gene is published in multiple incremental aggregated fragments and those fragments are merged later by summing counters, the same rsID can be counted more than once even when the intended scientific contract is variant-centric.
+
+Operational chunking is acceptable. Semantic fragmentation is not.
+
+## Best-record selection
+
+When more than one canonical record competes for the same variant inside a published counting scope, DataHub selects the best representative using the smallest available `p_value`.
+
+This keeps category summaries tied to the strongest surviving evidence for that variant instead of to arbitrary row order.
+
+## Early-failure preflight validation
+
+The unified publish script supports early staged-output validation through `--preflight-validate-units`.
+
+Use it when you want the run to inspect the first `N` staged publish units before the full job continues.
+
+The validator checks that early outputs already satisfy key analyzed-contract rules, including:
+
+- canonical axis labels
+- no duplicate category names inside `vc`, `msc`, or `cs`
+- valid overall payload structure
+- valid phenotype-level payload structure
+
+If a preflight validation fails, the script raises immediately instead of letting a long HPC run continue to produce bad artifacts.
+
 ### Optional serving build
 
 A compact serving DuckDB can then be built from published outputs.
@@ -58,3 +97,5 @@ The unified publish step supports:
 - long-running batch operation under Slurm
 
 This is why the publish step is written as a streaming, resumable process rather than a monolithic whole-dataset export.
+
+The companion rule is that operational batching must not change scientific meaning. Resumability is a runtime concern; variant-centric counting semantics are part of the analyzed contract and must remain stable regardless of execution environment.

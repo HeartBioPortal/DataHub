@@ -51,6 +51,79 @@ This shape includes:
 - axes such as variation type, clinical significance, and most severe consequence
 - ancestry payloads grouped by population label
 
+## Scientific counting semantics
+
+Association chart axes are **variant-centric**, not raw-row-centric.
+
+That means the unit of counting for:
+
+- variation type (`vc`)
+- most severe consequence (`msc`)
+- clinical significance (`cs`)
+
+is the canonical `variant_id` / rsID for the published scope.
+
+### Why this rule exists
+
+The same biological variant can appear multiple times in upstream data because:
+
+- the same rsID is reported by multiple sources
+- the same rsID appears in repeated rows within one phenotype dataset
+- the same rsID is observed across multiple ancestry rows
+- the same rsID survives source-priority selection but still has repeated record representations before publication
+
+If publication simply counts rows, the charts inflate category totals and stop representing unique variant evidence. That is scientifically misleading for category summaries such as variation type.
+
+### Per-phenotype counting rule
+
+Within a single published phenotype entry, DataHub first collapses records by `variant_id`.
+
+If more than one record exists for the same variant inside that phenotype bucket, DataHub keeps the best representative record using the smallest available `p_value`.
+
+After that representative selection step, `vc`, `msc`, and `cs` are counted once per variant.
+
+### Overall gene-level counting rule
+
+The overall payload is also variant-centric.
+
+DataHub does **not** compute overall axis counts by summing already-aggregated phenotype counters. Instead, it re-evaluates the full gene record set, collapses by `variant_id`, selects the best representative record per variant, and then counts categories once per unique variant.
+
+This prevents the same rsID from being counted repeatedly across phenotype buckets in the overall gene summary.
+
+### Ancestry semantics
+
+Ancestry payloads remain rsID-keyed. Population maps are allowed to keep one point per variant per population label. This is different from chart-axis counting:
+
+- chart axes answer: "how many unique variants fall into this category?"
+- ancestry answers: "what per-variant population values are available?"
+
+Those are intentionally different analytical questions.
+
+## Axis normalization semantics
+
+Association category axes are normalized before publication so equivalent source labels collapse into a coherent chart vocabulary.
+
+Examples:
+
+- `indel` and `INDEL` become `INDEL`
+- `Missense_Variant` and `missense_variant` become `missense variant`
+- list-like clinical significance labels are reduced to a canonical category using the configured priority order
+
+This normalization is part of the analyzed scientific contract. It is not a frontend cleanup step.
+
+## What publication intentionally does not preserve
+
+The published `.json` / `.json.gz` outputs are analyzed artifacts, not a raw record dump.
+
+They intentionally preserve:
+
+- canonicalized phenotype-level summaries
+- canonicalized overall summaries
+- ancestry point payloads
+- additive `_datahub` metadata
+
+They intentionally do **not** preserve every raw row or every intermediate duplicate representation from upstream sources.
+
 ### 6. Serving artifact build
 
 The serving builder can read the published outputs and create a compact DuckDB serving artifact. This is downstream of publication.

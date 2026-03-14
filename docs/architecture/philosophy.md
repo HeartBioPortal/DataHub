@@ -68,3 +68,22 @@ For scientific credibility, provenance must survive normal operation. That means
 - keeping additive metadata explicit instead of implicit in ad hoc naming or comments
 
 This is why the export manifest layer exists.
+
+## Why algorithmic semantics must be documented
+
+In a repository like DataHub, many bugs are not syntax bugs or runtime failures. They are semantic bugs:
+
+- counting rows when the intended unit is unique variants
+- collapsing ancestry too early
+- changing phenotype grouping behavior without recording why
+- normalizing labels in a way that changes scientific interpretation
+
+Those errors are expensive because they can still produce valid files and attractive charts while being analytically wrong.
+
+So DataHub treats algorithmic semantics as part of the public architecture:
+
+- the code implements the rule
+- the tests prove the rule
+- the docs explain the scientific rationale for the rule
+
+That triad is necessary for outside contributors to change the repository safely.

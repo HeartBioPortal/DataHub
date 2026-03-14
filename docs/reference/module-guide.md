@@ -60,13 +60,25 @@ Canonical storage backends.
 
 Create analyzed artifacts.
 
-**Philosophy:** publication is the boundary where canonical data becomes consumer-facing shape. It must preserve meaning, compatibility, and provenance.
+**Philosophy:** publication is the boundary where canonical data becomes consumer-facing shape. It must preserve meaning, compatibility, provenance, and explicit scientific counting semantics.
+
+For association payloads this includes:
+
+- counting category axes at unique `variant_id` granularity
+- selecting a representative record per variant when duplicates survive upstream
+- avoiding row-batch merge behavior that changes final chart meaning
 
 ## `axis_normalization.py`
 
 Normalizes chart axes such as clinical significance.
 
 **Philosophy:** categorical semantics must be normalized centrally so chart contracts remain coherent.
+
+This module is responsible for keeping semantically equivalent labels from fragmenting chart categories, for example:
+
+- `indel` vs `INDEL`
+- case variants of most severe consequence labels
+- list-like clinical significance payloads that should reduce to one canonical category
 
 ## `phenotype_paths.py`
 

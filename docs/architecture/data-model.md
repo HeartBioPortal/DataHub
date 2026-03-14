@@ -18,6 +18,20 @@ It intentionally keeps a compact, reusable core:
 - ancestry values
 - structured metadata
 
+## Variant identity semantics
+
+For association publication, `variant_id` is the scientific identity used for deduplication and counting.
+
+This is typically an rsID in current HeartBioPortal association data, but the code treats it generically as the canonical variant identifier.
+
+That means:
+
+- repeated rows for the same `variant_id` are not independent variants
+- chart axes such as variation type, clinical significance, and most severe consequence are counted at unique-variant granularity
+- when multiple records share the same `variant_id`, publication selects one representative record for counting using the smallest available `p_value`
+
+This is a scientific modeling decision, not just an implementation detail. A row and a variant are not the same thing.
+
 ## Why the core model is small
 
 The model is deliberately not a giant union of every possible source field. Instead:

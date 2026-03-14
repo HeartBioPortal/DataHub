@@ -15,6 +15,7 @@ from datahub.export_helpers import (
 )
 from datahub.models import CanonicalRecord
 from datahub.phenotype_paths import PhenotypePathResolver
+from datahub.axis_normalization import normalize_axis_value
 
 
 @dataclass(frozen=True)
@@ -346,7 +347,7 @@ class AssociationExportRuntime:
     def normalize_axis(self, *, axis: str, value: Any) -> Any:
         helper_spec = self._axis_by_target.get(axis)
         if helper_spec is None:
-            return value
+            return normalize_axis_value(value, axis=axis)
         helper = self.helper_registry.get(helper_spec.helper)
         return helper(
             value=value,
@@ -461,17 +462,22 @@ class AssociationExportRuntime:
                 )
                 cloned[key] = list(self.resolve_label_path(record=record, dataset_type=dataset_type))
 
-        axis_helper = self._axis_by_target.get("clinical_significance")
-        if axis_helper is not None and isinstance(cloned.get("cs"), list):
+        for payload_key, axis in (
+            ("vc", "variation"),
+            ("msc", "most_severe_consequence"),
+            ("cs", "clinical_significance"),
+        ):
+            if not isinstance(cloned.get(payload_key), list):
+                continue
             counter: dict[str, int] = {}
-            for item in cloned.get("cs", []):
+            for item in cloned.get(payload_key, []):
                 if not isinstance(item, dict):
                     continue
-                normalized = self.normalize_axis(axis="clinical_significance", value=item.get("name"))
+                normalized = self.normalize_axis(axis=axis, value=item.get("name"))
                 if normalized is None:
                     continue
                 counter[normalized] = counter.get(normalized, 0) + int(item.get("value", 0))
-            cloned["cs"] = [
+            cloned[payload_key] = [
                 {"name": name, "value": value}
                 for name, value in sorted(counter.items(), key=lambda pair: pair[0])
             ]
@@ -484,14 +490,20 @@ class AssociationExportRuntime:
         cloned = dict(payload)
         if isinstance(cloned.get("data"), dict):
             data = dict(cloned["data"])
-            if isinstance(data.get("cs"), dict):
+            for payload_key, axis in (
+                ("vc", "variation"),
+                ("msc", "most_severe_consequence"),
+                ("cs", "clinical_significance"),
+            ):
+                if not isinstance(data.get(payload_key), dict):
+                    continue
                 normalized_counter: dict[str, int] = {}
-                for key, value in data["cs"].items():
-                    normalized = self.normalize_axis(axis="clinical_significance", value=key)
+                for key, value in data[payload_key].items():
+                    normalized = self.normalize_axis(axis=axis, value=key)
                     if normalized is None:
                         continue
                     normalized_counter[normalized] = normalized_counter.get(normalized, 0) + int(value)
-                data["cs"] = dict(sorted(normalized_counter.items(), key=lambda item: item[0]))
+                data[payload_key] = dict(sorted(normalized_counter.items(), key=lambda item: item[0]))
             cloned["data"] = data
         if "_datahub" in cloned and "_datahub" not in self.manifest.serving_fields.top_level_keys:
             cloned.pop("_datahub", None)

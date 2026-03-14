@@ -1,6 +1,10 @@
 import importlib.util
+import json
+import logging
 import sys
 from pathlib import Path
+
+import pytest
 
 
 def _load_publish_module():
@@ -57,3 +61,97 @@ def test_unified_publish_records_preserve_source_ancestry_metadata() -> None:
             "af": 0.456,
         }
     }
+
+
+def test_preflight_stage_validation_accepts_canonical_payloads(tmp_path: Path) -> None:
+    module = _load_publish_module()
+
+    stage_root = tmp_path / "stage"
+    association_path = stage_root / "association" / "final" / "association" / "CVD" / "GENE1.json"
+    overall_path = stage_root / "association" / "final" / "overall" / "CVD" / "GENE1.json"
+    association_path.parent.mkdir(parents=True, exist_ok=True)
+    overall_path.parent.mkdir(parents=True, exist_ok=True)
+
+    association_path.write_text(
+        json.dumps(
+            [
+                {
+                    "disease": ["cardiomyopathies", "cardiomyopathy"],
+                    "vc": [{"name": "INDEL", "value": 1}],
+                    "msc": [{"name": "missense variant", "value": 1}],
+                    "cs": [{"name": "likely benign", "value": 1}],
+                    "ancestry": [],
+                }
+            ]
+        )
+    )
+    overall_path.write_text(
+        json.dumps(
+            {
+                "data": {
+                    "vc": {"INDEL": 1},
+                    "msc": {"missense variant": 1},
+                    "cs": {"likely benign": 1},
+                    "ancestry": {},
+                },
+                "pvals": {},
+            }
+        )
+    )
+
+    unit = module.GeneWorkUnit(dataset_type="CVD", gene_id="GENE1", point_rows=1)
+    module._validate_stage_output(
+        stage_root=stage_root,
+        unit=unit,
+        disable_rollup=True,
+        logger=logging.getLogger("test"),
+    )
+
+
+def test_preflight_stage_validation_rejects_noncanonical_axis_labels(tmp_path: Path) -> None:
+    module = _load_publish_module()
+
+    stage_root = tmp_path / "stage"
+    association_path = stage_root / "association" / "final" / "association" / "CVD" / "GENE1.json"
+    overall_path = stage_root / "association" / "final" / "overall" / "CVD" / "GENE1.json"
+    association_path.parent.mkdir(parents=True, exist_ok=True)
+    overall_path.parent.mkdir(parents=True, exist_ok=True)
+
+    association_path.write_text(
+        json.dumps(
+            [
+                {
+                    "disease": ["cardiomyopathies", "cardiomyopathy"],
+                    "vc": [
+                        {"name": "indel", "value": 1},
+                        {"name": "INDEL", "value": 1},
+                    ],
+                    "msc": [],
+                    "cs": [],
+                    "ancestry": [],
+                }
+            ]
+        )
+    )
+    overall_path.write_text(
+        json.dumps(
+            {
+                "data": {
+                    "vc": {"indel": 1, "INDEL": 1},
+                    "msc": {},
+                    "cs": {},
+                    "ancestry": {},
+                },
+                "pvals": {},
+            }
+        )
+    )
+
+    unit = module.GeneWorkUnit(dataset_type="CVD", gene_id="GENE1", point_rows=1)
+    with pytest.raises(ValueError, match="non-canonical category"):
+        module._validate_stage_output(
+            stage_root=stage_root,
+            unit=unit,
+            disable_rollup=True,
+            logger=logging.getLogger("test"),
+        )

@@ -69,12 +69,6 @@ class LegacyAssociationPublisher(Publisher):
 
             for gene_id, phenotype_groups in genes.items():
                 association_payload = []
-                overall_data = {
-                    "vc": Counter(),
-                    "msc": Counter(),
-                    "cs": Counter(),
-                    "ancestry": defaultdict(dict),
-                }
 
                 for label, phenotype_records in sorted(
                     phenotype_groups.items(),
@@ -87,8 +81,6 @@ class LegacyAssociationPublisher(Publisher):
                             records=phenotype_records,
                         )
                     )
-
-                    self._update_overall(overall_data, phenotype_records)
 
                 association_path = association_dir / f"{self._safe_gene(gene_id)}.json"
                 if self.incremental_merge and self._payload_exists(association_path):
@@ -104,6 +96,7 @@ class LegacyAssociationPublisher(Publisher):
                     for phenotype_records in phenotype_groups.values()
                     for record in phenotype_records
                 ]
+                overall_data = self._build_overall_data(gene_records)
                 overall_path = overall_dir / f"{self._safe_gene(gene_id)}.json"
                 overall_payload = {
                     "data": {
@@ -177,20 +170,27 @@ class LegacyAssociationPublisher(Publisher):
         label: tuple[str, ...],
         records: list[CanonicalRecord],
     ) -> dict[str, Any]:
+        axis_records = self._select_best_records_by_variant(records)
+        ancestry_records = axis_records if self.deduplicate_ancestry_points else records
         ancestry_points: dict[str, dict[str, Any]] = defaultdict(dict)
         vc_counter: Counter[str] = Counter()
         msc_counter: Counter[str] = Counter()
         cs_counter: Counter[str] = Counter()
 
-        for record in records:
+        for record in axis_records:
             self._update_axis_counter(vc_counter, record.variation_type, normalize_case="variation")
-            self._update_axis_counter(msc_counter, record.most_severe_consequence)
+            self._update_axis_counter(
+                msc_counter,
+                record.most_severe_consequence,
+                normalize_case="most_severe_consequence",
+            )
             self._update_axis_counter(
                 cs_counter,
                 record.clinical_significance,
                 normalize_case="clinical_significance",
             )
 
+        for record in ancestry_records:
             for population, value in record.ancestry.items():
                 if self._is_unknown(value):
                     continue
@@ -269,18 +269,24 @@ class LegacyAssociationPublisher(Publisher):
             fallback_path=fallback_path,
         )
 
-    def _update_overall(
-        self,
-        overall_data: dict[str, Any],
-        records: list[CanonicalRecord],
-    ) -> None:
-        for record in records:
+    def _build_overall_data(self, records: list[CanonicalRecord]) -> dict[str, Any]:
+        overall_data = {
+            "vc": Counter(),
+            "msc": Counter(),
+            "cs": Counter(),
+            "ancestry": defaultdict(dict),
+        }
+        for record in self._select_best_records_by_variant(records):
             self._update_axis_counter(
                 overall_data["vc"],
                 record.variation_type,
                 normalize_case="variation",
             )
-            self._update_axis_counter(overall_data["msc"], record.most_severe_consequence)
+            self._update_axis_counter(
+                overall_data["msc"],
+                record.most_severe_consequence,
+                normalize_case="most_severe_consequence",
+            )
             self._update_axis_counter(
                 overall_data["cs"],
                 record.clinical_significance,
@@ -291,6 +297,23 @@ class LegacyAssociationPublisher(Publisher):
                 if self._is_unknown(value):
                     continue
                 overall_data["ancestry"][population][record.variant_id] = self._normalize_ancestry_value(value)
+        return overall_data
+
+    def _select_best_records_by_variant(
+        self,
+        records: list[CanonicalRecord],
+    ) -> list[CanonicalRecord]:
+        by_variant: dict[str, CanonicalRecord] = {}
+        for record in records:
+            existing = by_variant.get(record.variant_id)
+            if existing is None:
+                by_variant[record.variant_id] = record
+                continue
+            by_variant[record.variant_id] = self._pick_best_record(existing, record)
+        return [
+            by_variant[variant_id]
+            for variant_id in sorted(by_variant.keys())
+        ]
 
     def _update_axis_counter(
         self,
@@ -300,11 +323,8 @@ class LegacyAssociationPublisher(Publisher):
         normalize_case: str | None = None,
     ) -> None:
         axis = "variation" if normalize_case == "variation" else normalize_case
-        if self.export_runtime is not None and axis == "clinical_significance":
-            normalized = self.export_runtime.normalize_axis(
-                axis="clinical_significance",
-                value=value,
-            )
+        if self.export_runtime is not None and axis is not None:
+            normalized = self.export_runtime.normalize_axis(axis=axis, value=value)
         else:
             normalized = normalize_axis_value(value, axis=axis or "generic")
         if normalized is None:
@@ -320,6 +340,16 @@ class LegacyAssociationPublisher(Publisher):
             {"name": name, "value": value}
             for name, value in sorted(counter.items(), key=lambda item: item[0])
         ]
+
+    @staticmethod
+    def _pick_best_record(existing: CanonicalRecord, candidate: CanonicalRecord) -> CanonicalRecord:
+        existing_p = existing.p_value
+        candidate_p = candidate.p_value
+        if existing_p is None:
+            return candidate
+        if candidate_p is None:
+            return existing
+        return candidate if candidate_p < existing_p else existing
 
     @staticmethod
     def _safe_gene(gene_id: str) -> str:
