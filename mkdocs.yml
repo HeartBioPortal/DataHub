@@ -1,0 +1,67 @@
+site_name: HeartBioPortal DataHub
+site_description: Modular cardiovascular genomics and omics data integration platform for HeartBioPortal.
+site_url: https://heartbioportal.github.io/DataHub/
+repo_url: https://github.com/HeartBioPortal/DataHub
+repo_name: HeartBioPortal/DataHub
+edit_uri: edit/main/
+theme:
+  name: material
+  logo: null
+  favicon: null
+  palette:
+    - scheme: default
+      primary: blue grey
+      accent: red
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - scheme: slate
+      primary: blue grey
+      accent: red
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - content.code.copy
+    - content.action.edit
+    - toc.follow
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+plugins:
+  - search
+extra_css:
+  - stylesheets/extra.css
+nav:
+  - Overview: index.md
+  - Getting Started: getting-started.md
+  - Repository Tour: repository-tour.md
+  - Architecture:
+      - Philosophy: architecture/philosophy.md
+      - System Overview: architecture/system-overview.md
+      - Data Model: architecture/data-model.md
+      - Configuration Surfaces: architecture/configuration.md
+  - Pipelines:
+      - Association Pipeline: pipelines/association.md
+      - Unified DuckDB Pipeline: pipelines/unified.md
+      - Serving Artifacts: pipelines/serving.md
+  - Extending DataHub:
+      - New Source Onboarding: extending/new-source.md
+      - Export Manifest Framework: extending/export-manifests.md
+  - Reference:
+      - Module Guide: reference/module-guide.md
+      - Scripts Guide: reference/scripts.md
+      - Config Guide: reference/config-guide.md
+  - Contributing: contributing.md
+  - Docs Site: docs-site.md
