@@ -13,6 +13,13 @@ from .config import (
     SourcePriority,
     build_association_contract,
 )
+from .export_helpers import ExportHelperRegistry, build_default_export_helper_registry
+from .export_manifest import (
+    AssociationExportManifest,
+    AssociationExportManifestCatalog,
+    AssociationExportManifestLoader,
+    AssociationExportRuntime,
+)
 from .models import CanonicalRecord
 from .pipeline import DataHubPipeline, DataHubRunReport
 from .prep import (
@@ -40,6 +47,10 @@ from .sources import (
 
 __all__ = [
     "CanonicalRecord",
+    "AssociationExportManifest",
+    "AssociationExportManifestCatalog",
+    "AssociationExportManifestLoader",
+    "AssociationExportRuntime",
     "ASSOCIATION_AXIS_FIELDS",
     "ASSOCIATION_CORE_FIELDS",
     "DatasetContract",
@@ -68,6 +79,8 @@ __all__ = [
     "SourceRegistry",
     "SourceConnectorPluginSpec",
     "build_association_contract",
+    "ExportHelperRegistry",
+    "build_default_export_helper_registry",
     "build_default_adapter_registry",
     "build_default_source_registry",
 ]

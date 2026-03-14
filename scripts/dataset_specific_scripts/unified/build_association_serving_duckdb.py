@@ -23,6 +23,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from datahub.axis_normalization import normalize_counter_items, normalize_counter_mapping
+from datahub.export_manifest import AssociationExportManifestCatalog
 from datahub.phenotype_paths import PhenotypePathResolver
 
 
@@ -80,6 +81,19 @@ def parse_args() -> argparse.Namespace:
         "--phenotype-tree-json",
         default=None,
         help="Optional phenotype hierarchy JSON used to canonicalize disease/trait paths.",
+    )
+    parser.add_argument(
+        "--export-manifest",
+        default="association/base",
+        help=(
+            "Association export manifest name/path under config/export_manifests. "
+            "Used to validate and preserve additive analyzed fields."
+        ),
+    )
+    parser.add_argument(
+        "--export-manifests-dir",
+        default=None,
+        help="Optional custom export manifest directory.",
     )
     parser.add_argument(
         "--expression-json-path",
@@ -256,6 +270,7 @@ def _load_payload(
     *,
     dataset_type: str,
     path_resolver: PhenotypePathResolver | None,
+    export_runtime: Any | None,
 ) -> Any:
     if path.name.endswith(".json.gz"):
         with gzip.open(path, "rt", encoding="utf-8") as stream:
@@ -263,11 +278,13 @@ def _load_payload(
                 json.load(stream),
                 dataset_type=dataset_type,
                 path_resolver=path_resolver,
+                export_runtime=export_runtime,
             )
     return _normalize_payload(
         json.loads(path.read_text()),
         dataset_type=dataset_type,
         path_resolver=path_resolver,
+        export_runtime=export_runtime,
     )
 
 def _normalize_payload(
@@ -275,6 +292,7 @@ def _normalize_payload(
     *,
     dataset_type: str,
     path_resolver: PhenotypePathResolver | None,
+    export_runtime: Any | None,
 ) -> Any:
     if isinstance(payload, list):
         normalized_entries = []
@@ -287,7 +305,12 @@ def _normalize_payload(
                 dataset_type=dataset_type,
                 path_resolver=path_resolver,
             )
-            if isinstance(cloned.get("cs"), list):
+            if export_runtime is not None:
+                cloned = export_runtime.normalize_payload_entry(
+                    cloned,
+                    dataset_type=dataset_type,
+                )
+            elif isinstance(cloned.get("cs"), list):
                 cloned["cs"] = normalize_counter_items(
                     cloned["cs"],
                     axis="clinical_significance",
@@ -297,6 +320,9 @@ def _normalize_payload(
         return normalized_entries
 
     if isinstance(payload, dict) and isinstance(payload.get("data"), dict):
+        if export_runtime is not None:
+            return export_runtime.normalize_overall_payload(payload)
+
         cloned = dict(payload)
         data = dict(cloned["data"])
         if isinstance(data.get("cs"), dict):
@@ -377,6 +403,8 @@ CREATE TABLE build_metadata (
     source_root VARCHAR,
     association_subdir VARCHAR,
     overall_subdir VARCHAR,
+    export_manifest_id VARCHAR,
+    export_manifest_version BIGINT,
     dataset_types VARCHAR,
     filtered_gene_count BIGINT,
     association_row_count BIGINT,
@@ -539,6 +567,11 @@ def main() -> int:
         if args.phenotype_tree_json
         else None
     )
+    manifest_catalog = AssociationExportManifestCatalog(
+        base_manifest_ref=args.export_manifest,
+        manifests_dir=args.export_manifests_dir,
+        path_resolver=path_resolver,
+    )
     db_path = Path(args.db_path)
     expression_json_path = _resolve_optional_path(
         value=args.expression_json_path,
@@ -563,8 +596,9 @@ def main() -> int:
         len(include_genes) if include_genes is not None else "ALL",
     )
     logger.info(
-        "Serving builder configuration: phenotype_tree=%s expression=%s sga=%s replace=%s",
+        "Serving builder configuration: phenotype_tree=%s export_manifest=%s expression=%s sga=%s replace=%s",
         args.phenotype_tree_json or "disabled",
+        f"{manifest_catalog.base_runtime.manifest.manifest_id}@{manifest_catalog.base_runtime.manifest.version}",
         str(expression_json_path) if expression_json_path else "disabled",
         str(sga_root) if sga_root else "disabled",
         bool(args.replace),
@@ -612,6 +646,7 @@ def main() -> int:
                                     payload_path,
                                     dataset_type=dataset_type,
                                     path_resolver=path_resolver,
+                                    export_runtime=manifest_catalog.base_runtime,
                                 ),
                                 separators=(",", ":"),
                             ),
@@ -641,6 +676,7 @@ def main() -> int:
                                     payload_path,
                                     dataset_type=dataset_type,
                                     path_resolver=path_resolver,
+                                    export_runtime=manifest_catalog.base_runtime,
                                 ),
                                 separators=(",", ":"),
                             ),
@@ -731,11 +767,13 @@ FULL OUTER JOIN (
         )
 
         connection.execute(
-            "INSERT INTO build_metadata VALUES (current_timestamp, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO build_metadata VALUES (current_timestamp, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [
                 str(final_root),
                 args.association_subdir,
                 args.overall_subdir,
+                manifest_catalog.base_runtime.manifest.manifest_id,
+                manifest_catalog.base_runtime.manifest.version,
                 ",".join(dataset_types),
                 0 if include_genes is None else len(include_genes),
                 len(association_rows),
@@ -766,6 +804,8 @@ FULL OUTER JOIN (
         summary = {
             "db_path": str(db_path),
             "source_root": str(final_root),
+            "export_manifest_id": manifest_catalog.base_runtime.manifest.manifest_id,
+            "export_manifest_version": manifest_catalog.base_runtime.manifest.version,
             "dataset_types": dataset_types,
             "filtered_gene_count": 0 if include_genes is None else len(include_genes),
             "association_rows": len(association_rows),

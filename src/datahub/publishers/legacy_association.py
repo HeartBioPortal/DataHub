@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from datahub.axis_normalization import is_unknown_axis_value, normalize_axis_value
+from datahub.export_manifest import AssociationExportRuntime
 from datahub.models import CanonicalRecord
 from datahub.phenotype_paths import PhenotypePathResolver
 from datahub.publishers.base import Publisher
@@ -29,6 +30,7 @@ class LegacyAssociationPublisher(Publisher):
         json_compression: str = "none",
         json_gzip_level: int = 6,
         tree_json_path: str | Path | None = None,
+        export_runtime: AssociationExportRuntime | None = None,
     ) -> None:
         self.output_root = Path(output_root)
         self.skip_unknown_axis_values = skip_unknown_axis_values
@@ -43,6 +45,7 @@ class LegacyAssociationPublisher(Publisher):
             if tree_json_path
             else None
         )
+        self.export_runtime = export_runtime
         if self.json_compression not in {"none", "gzip"}:
             raise ValueError("json_compression must be one of: none, gzip")
 
@@ -96,6 +99,11 @@ class LegacyAssociationPublisher(Publisher):
                     )
                 self._write_payload(association_path, association_payload)
 
+                gene_records = [
+                    record
+                    for phenotype_records in phenotype_groups.values()
+                    for record in phenotype_records
+                ]
                 overall_path = overall_dir / f"{self._safe_gene(gene_id)}.json"
                 overall_payload = {
                     "data": {
@@ -109,6 +117,14 @@ class LegacyAssociationPublisher(Publisher):
                     },
                     "pvals": {},
                 }
+                if self.export_runtime is not None:
+                    meta = self.export_runtime.build_publish_meta(
+                        scope="overall",
+                        records=gene_records,
+                        dataset_type=dataset_type,
+                    )
+                    if meta:
+                        overall_payload["_datahub"] = meta
                 if self.incremental_merge and self._payload_exists(overall_path):
                     overall_existing = self._read_payload(overall_path)
                     overall_payload = self._merge_overall_payload(overall_existing, overall_payload)
@@ -211,6 +227,15 @@ class LegacyAssociationPublisher(Publisher):
         else:
             payload["disease"] = list(label)
 
+        if self.export_runtime is not None:
+            meta = self.export_runtime.build_publish_meta(
+                scope="entry",
+                records=records,
+                dataset_type=dataset_type,
+            )
+            if meta:
+                payload["_datahub"] = meta
+
         return payload
 
     def _resolve_label_path(
@@ -220,10 +245,21 @@ class LegacyAssociationPublisher(Publisher):
     ) -> tuple[str, ...]:
         fallback_path = [record.disease_category, record.phenotype]
         if self.path_resolver is None:
-            return tuple(
-                segment
-                for segment in fallback_path
-                if segment is not None and str(segment).strip()
+            if self.export_runtime is None:
+                return tuple(
+                    segment
+                    for segment in fallback_path
+                    if segment is not None and str(segment).strip()
+                )
+            return self.export_runtime.resolve_label_path(
+                record=record,
+                dataset_type=dataset_type,
+            )
+
+        if self.export_runtime is not None:
+            return self.export_runtime.resolve_label_path(
+                record=record,
+                dataset_type=dataset_type,
             )
 
         return self.path_resolver.resolve_leaf_path(
@@ -264,7 +300,13 @@ class LegacyAssociationPublisher(Publisher):
         normalize_case: str | None = None,
     ) -> None:
         axis = "variation" if normalize_case == "variation" else normalize_case
-        normalized = normalize_axis_value(value, axis=axis or "generic")
+        if self.export_runtime is not None and axis == "clinical_significance":
+            normalized = self.export_runtime.normalize_axis(
+                axis="clinical_significance",
+                value=value,
+            )
+        else:
+            normalized = normalize_axis_value(value, axis=axis or "generic")
         if normalized is None:
             if not self.skip_unknown_axis_values:
                 counter["Unknown"] += 1
@@ -343,6 +385,13 @@ class LegacyAssociationPublisher(Publisher):
             existing.get("ancestry", []),
             new.get("ancestry", []),
         )
+        if self.export_runtime is not None:
+            merged_meta = self.export_runtime.merge_publish_meta(
+                existing.get("_datahub"),
+                new.get("_datahub"),
+            )
+            if merged_meta:
+                result["_datahub"] = merged_meta
         return result
 
     def _merge_overall_payload(
@@ -352,7 +401,7 @@ class LegacyAssociationPublisher(Publisher):
     ) -> dict[str, Any]:
         existing_data = existing.get("data", {})
         new_data = new.get("data", {})
-        return {
+        merged_payload = {
             "data": {
                 "vc": self._merge_counter_dict(
                     existing_data.get("vc", {}),
@@ -373,6 +422,14 @@ class LegacyAssociationPublisher(Publisher):
             },
             "pvals": {},
         }
+        if self.export_runtime is not None:
+            merged_meta = self.export_runtime.merge_publish_meta(
+                existing.get("_datahub"),
+                new.get("_datahub"),
+            )
+            if merged_meta:
+                merged_payload["_datahub"] = merged_meta
+        return merged_payload
 
     @staticmethod
     def _entry_key(entry: dict[str, Any]) -> tuple[str, ...] | None:

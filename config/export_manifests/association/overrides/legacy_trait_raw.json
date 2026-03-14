@@ -1,0 +1,9 @@
+{
+  "metadata_fields": [
+    {
+      "name": "source_family",
+      "source": "literal:legacy_raw",
+      "target": "provenance.source_family"
+    }
+  ]
+}

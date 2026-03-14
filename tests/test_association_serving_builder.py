@@ -66,6 +66,19 @@ def test_builder_creates_compact_serving_db_from_published_outputs(tmp_path: Pat
                 {"name": "likely benign", "value": 1},
             ],
             "ancestry": [],
+            "_datahub": {
+                "manifest_id": "association_export_v1",
+                "manifest_version": 1,
+                "provenance": {
+                    "sources": ["legacy_cvd_raw", "million_veteran_program"],
+                    "source_counts": {
+                        "legacy_cvd_raw": 2,
+                        "million_veteran_program": 1,
+                    },
+                    "source_families": ["legacy_raw", "mvp"],
+                    "source_file_count": 2,
+                },
+            },
         }
     ]
     assoc_trait = [{"trait": ["blood_pressure", "systolic_blood_pressure"], "vc": [], "msc": [], "cs": [], "ancestry": []}]
@@ -80,6 +93,10 @@ def test_builder_creates_compact_serving_db_from_published_outputs(tmp_path: Pat
             "ancestry": {},
         },
         "pvals": {},
+        "_datahub": {
+            "manifest_id": "association_export_v1",
+            "manifest_version": 1,
+        },
     }
     overall_trait = {"data": {"vc": {}, "msc": {}, "cs": {}, "ancestry": {}}, "pvals": {}}
 
@@ -160,6 +177,19 @@ WHERE dataset_type = 'CVD' AND gene_id_normalized = 'ANK2'
                 "msc": [],
                 "cs": [{"name": "likely benign", "value": 3}],
                 "ancestry": [],
+                "_datahub": {
+                    "manifest_id": "association_export_v1",
+                    "manifest_version": 1,
+                    "provenance": {
+                        "sources": ["legacy_cvd_raw", "million_veteran_program"],
+                        "source_counts": {
+                            "legacy_cvd_raw": 2,
+                            "million_veteran_program": 1,
+                        },
+                        "source_families": ["legacy_raw", "mvp"],
+                        "source_file_count": 2,
+                    },
+                },
             }
         ]
 
@@ -171,6 +201,10 @@ WHERE dataset_type = 'CVD' AND gene_id_normalized = 'ANK2'
 """
         ).fetchone()
         assert json.loads(overall_row[0])["data"]["cs"] == {"likely benign": 3}
+        assert json.loads(overall_row[0])["_datahub"] == {
+            "manifest_id": "association_export_v1",
+            "manifest_version": 1,
+        }
 
         catalog = con.execute(
             """
@@ -203,5 +237,10 @@ WHERE gene_id_normalized = 'ANK2'
             {"gene": "ANK2", "data": {"rs1": [1.0, 2.0]}, "type": "cvd", "name": "angina"},
             {"gene": "ANK2", "data": {"rs2": [3.0, 4.0]}, "type": "trait", "name": "QT_interval"},
         ]
+
+        build_meta = con.execute(
+            "SELECT export_manifest_id, export_manifest_version FROM build_metadata"
+        ).fetchone()
+        assert build_meta == ("association_export_v1", 1)
     finally:
         con.close()

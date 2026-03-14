@@ -23,6 +23,8 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from datahub.models import CanonicalRecord  # noqa: E402
+from datahub.export_manifest import AssociationExportManifestCatalog  # noqa: E402
+from datahub.phenotype_paths import PhenotypePathResolver  # noqa: E402
 from datahub.publishers import (  # noqa: E402
     LegacyAssociationPublisher,
     LegacyRedisPublisher,
@@ -145,6 +147,25 @@ ROW_ANCESTRY_SOURCE_CODE = 13
 ROW_ANCESTRY_SOURCE_LABEL = 14
 ROW_PHENOTYPE_KEY = 15
 ROW_SOURCE_FILE = 16
+ROW_FIELD_NAMES = (
+    "dataset_id",
+    "dataset_type",
+    "source",
+    "gene_id",
+    "variant_id",
+    "phenotype",
+    "disease_category",
+    "variation_type",
+    "clinical_significance",
+    "most_severe_consequence",
+    "p_value",
+    "ancestry",
+    "ancestry_af",
+    "ancestry_source_code",
+    "ancestry_source_label",
+    "phenotype_key",
+    "source_file",
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -196,6 +217,19 @@ def parse_args() -> argparse.Namespace:
         "--rollup-tree-json",
         default=None,
         help="Optional phenotype tree JSON path for rollup grouping.",
+    )
+    parser.add_argument(
+        "--export-manifest",
+        default="association/base",
+        help=(
+            "Association export manifest name/path under config/export_manifests. "
+            "Controls preserved and derived analyzed fields."
+        ),
+    )
+    parser.add_argument(
+        "--export-manifests-dir",
+        default=None,
+        help="Optional custom export manifest directory.",
     )
     parser.add_argument(
         "--disable-rollup",
@@ -810,6 +844,7 @@ def _build_stage_publishers(
     json_compression: str,
     json_gzip_level: int,
     json_indent: int | None,
+    export_runtime: Any | None,
 ) -> list[Any]:
     publishers: list[Any] = [
         LegacyAssociationPublisher(
@@ -822,6 +857,7 @@ def _build_stage_publishers(
             json_compression=json_compression,
             json_gzip_level=json_gzip_level,
             tree_json_path=rollup_tree_json,
+            export_runtime=export_runtime,
         )
     ]
 
@@ -867,41 +903,75 @@ def _record_key(row: tuple[Any, ...]) -> tuple[str, str, str, str]:
     )
 
 
-def _new_record(row: tuple[Any, ...]) -> CanonicalRecord:
-    metadata: dict[str, Any] = {}
-    if row[ROW_PHENOTYPE_KEY] is not None and str(row[ROW_PHENOTYPE_KEY]).strip():
-        metadata["phenotype_key"] = str(row[ROW_PHENOTYPE_KEY]).strip()
-    if row[ROW_SOURCE_FILE] is not None and str(row[ROW_SOURCE_FILE]).strip():
-        metadata["source_file"] = str(row[ROW_SOURCE_FILE]).strip()
+def _row_to_mapping(row: tuple[Any, ...]) -> dict[str, Any]:
+    return {
+        field_name: row[index]
+        for index, field_name in enumerate(ROW_FIELD_NAMES)
+    }
+
+
+def _validate_export_manifest_projection(manifest_catalog: AssociationExportManifestCatalog) -> None:
+    supported_fields = set(ROW_FIELD_NAMES)
+    unsupported = [
+        field_name
+        for field_name in manifest_catalog.base_runtime.manifest.promoted_fields
+        if field_name not in supported_fields
+    ]
+    if unsupported:
+        raise ValueError(
+            "Export manifest promoted_fields are not available in unified publish projection: "
+            + ", ".join(sorted(unsupported))
+        )
+
+
+def _new_record(
+    row: tuple[Any, ...],
+    *,
+    manifest_catalog: AssociationExportManifestCatalog | None = None,
+) -> CanonicalRecord:
+    row_map = _row_to_mapping(row)
+    runtime = (
+        manifest_catalog.runtime_for_source(str(row_map["source"]))
+        if manifest_catalog is not None
+        else None
+    )
+    if runtime is not None:
+        metadata = runtime.extract_metadata(row_map)
+    else:
+        metadata: dict[str, Any] = {}
+        if row_map["phenotype_key"] is not None and str(row_map["phenotype_key"]).strip():
+            metadata["phenotype_key"] = str(row_map["phenotype_key"]).strip()
+        if row_map["source_file"] is not None and str(row_map["source_file"]).strip():
+            metadata["source_file"] = str(row_map["source_file"]).strip()
 
     record = CanonicalRecord(
-        dataset_id=str(row[ROW_DATASET_ID]),
-        dataset_type=str(row[ROW_DATASET_TYPE]),
-        source=str(row[ROW_SOURCE]),
-        gene_id=str(row[ROW_GENE_ID]),
-        variant_id=str(row[ROW_VARIANT_ID]),
-        phenotype=str(row[ROW_PHENOTYPE]),
+        dataset_id=str(row_map["dataset_id"]),
+        dataset_type=str(row_map["dataset_type"]),
+        source=str(row_map["source"]),
+        gene_id=str(row_map["gene_id"]),
+        variant_id=str(row_map["variant_id"]),
+        phenotype=str(row_map["phenotype"]),
         disease_category=(
-            str(row[ROW_DISEASE_CATEGORY])
-            if row[ROW_DISEASE_CATEGORY] is not None
+            str(row_map["disease_category"])
+            if row_map["disease_category"] is not None
             else ""
         ),
         variation_type=(
-            str(row[ROW_VARIATION_TYPE])
-            if row[ROW_VARIATION_TYPE] is not None
+            str(row_map["variation_type"])
+            if row_map["variation_type"] is not None
             else None
         ),
         clinical_significance=(
-            str(row[ROW_CLINICAL_SIGNIFICANCE])
-            if row[ROW_CLINICAL_SIGNIFICANCE] is not None
+            str(row_map["clinical_significance"])
+            if row_map["clinical_significance"] is not None
             else None
         ),
         most_severe_consequence=(
-            str(row[ROW_MOST_SEVERE_CONSEQUENCE])
-            if row[ROW_MOST_SEVERE_CONSEQUENCE] is not None
+            str(row_map["most_severe_consequence"])
+            if row_map["most_severe_consequence"] is not None
             else None
         ),
-        p_value=float(row[ROW_P_VALUE]) if row[ROW_P_VALUE] is not None else None,
+        p_value=float(row_map["p_value"]) if row_map["p_value"] is not None else None,
         ancestry={},
         metadata=metadata,
     )
@@ -1092,6 +1162,23 @@ def main() -> int:
         args.json_gzip_level,
         str(json_indent),
     )
+    path_resolver = (
+        PhenotypePathResolver.from_tree_json(args.rollup_tree_json)
+        if args.rollup_tree_json
+        else None
+    )
+    manifest_catalog = AssociationExportManifestCatalog(
+        base_manifest_ref=args.export_manifest,
+        manifests_dir=args.export_manifests_dir,
+        path_resolver=path_resolver,
+    )
+    _validate_export_manifest_projection(manifest_catalog)
+    logger.info(
+        "Export manifest: id=%s version=%d ref=%s",
+        manifest_catalog.base_runtime.manifest.manifest_id,
+        manifest_catalog.base_runtime.manifest.version,
+        args.export_manifest,
+    )
 
     row_count: int | None = None
     if args.dedup_mode == "global_table":
@@ -1202,6 +1289,7 @@ def main() -> int:
                 json_compression=args.json_compression,
                 json_gzip_level=args.json_gzip_level,
                 json_indent=json_indent,
+                export_runtime=manifest_catalog.base_runtime,
             )
 
             if args.dedup_mode == "global_table":
@@ -1257,7 +1345,10 @@ ORDER BY phenotype, variant_id, coalesce(ancestry, '')
                     row_key = _record_key(row)
                     if current_key is None:
                         current_key = row_key
-                        current_record = _new_record(row)
+                        current_record = _new_record(
+                            row,
+                            manifest_catalog=manifest_catalog,
+                        )
                         continue
 
                     if row_key != current_key:
@@ -1269,7 +1360,10 @@ ORDER BY phenotype, variant_id, coalesce(ancestry, '')
                                 total_canonical_records += len(publish_batch)
                                 publish_batch = []
                         current_key = row_key
-                        current_record = _new_record(row)
+                        current_record = _new_record(
+                            row,
+                            manifest_catalog=manifest_catalog,
+                        )
                     else:
                         if current_record is not None:
                             _merge_row_into_record(current_record, row)
@@ -1353,6 +1447,8 @@ ORDER BY phenotype, variant_id, coalesce(ancestry, '')
                 "json_compression": args.json_compression,
                 "json_gzip_level": args.json_gzip_level,
                 "json_indent": json_indent,
+                "export_manifest_id": manifest_catalog.base_runtime.manifest.manifest_id,
+                "export_manifest_version": manifest_catalog.base_runtime.manifest.version,
                 "source_priority": [source for source, _rank in source_priority],
                 "dataset_filter": sorted(dataset_types) if dataset_types else [],
                 "working_table_rows": row_count,
