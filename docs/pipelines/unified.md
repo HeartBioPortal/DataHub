@@ -62,6 +62,8 @@ The unified publish script supports early staged-output validation through `--pr
 
 Use it when you want the run to inspect the first `N` staged publish units before the full job continues.
 
+In sharded `per_gene` mode, a "unit" is a shard. Preflight validation inspects the staged gene payloads created inside that shard output, not a synthetic shard filename.
+
 The validator checks that early outputs already satisfy key analyzed-contract rules, including:
 
 - canonical axis labels

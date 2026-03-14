@@ -921,6 +921,18 @@ def _resolve_payload_path(base_path: Path) -> Path:
     raise FileNotFoundError(f"Expected staged payload not found: {base_path}")
 
 
+def _list_payload_paths(directory: Path) -> list[Path]:
+    if not directory.exists():
+        return []
+    payloads: list[Path] = []
+    for path in sorted(directory.iterdir()):
+        if not path.is_file():
+            continue
+        if path.name.endswith(".json") or path.name.endswith(".json.gz"):
+            payloads.append(path)
+    return payloads
+
+
 def _validate_axis_items(items: Any, *, axis: str, context: str) -> None:
     if not isinstance(items, list):
         raise ValueError(f"{context}: expected list payload for axis '{axis}'")
@@ -1000,50 +1012,69 @@ def _validate_stage_output(
     logger: logging.Logger,
 ) -> None:
     dataset_type = unit.dataset_type.upper()
-    safe_gene = unit.gene_id.replace("/", "-")
+    association_dir = stage_root / "association" / "final" / "association" / dataset_type
+    overall_dir = stage_root / "association" / "final" / "overall" / dataset_type
 
-    association_path = _resolve_payload_path(
-        stage_root / "association" / "final" / "association" / dataset_type / f"{safe_gene}.json"
-    )
-    overall_path = _resolve_payload_path(
-        stage_root / "association" / "final" / "overall" / dataset_type / f"{safe_gene}.json"
-    )
+    if unit.shard_id is None:
+        safe_gene = unit.gene_id.replace("/", "-")
+        association_paths = [_resolve_payload_path(association_dir / f"{safe_gene}.json")]
+        overall_paths = [_resolve_payload_path(overall_dir / f"{safe_gene}.json")]
+    else:
+        association_paths = _list_payload_paths(association_dir)
+        overall_paths = _list_payload_paths(overall_dir)
+        if not association_paths or not overall_paths:
+            raise FileNotFoundError(
+                f"Expected staged payloads not found for shard unit: dataset_type={dataset_type} shard={unit.shard_id}"
+            )
 
-    association_payload = _read_json_payload(association_path)
-    overall_payload = _read_json_payload(overall_path)
+    overall_by_stem = {
+        path.name.removesuffix(".gz").removesuffix(".json"): path
+        for path in overall_paths
+    }
 
-    if not isinstance(association_payload, list) or not association_payload:
-        raise ValueError(f"Preflight validation failed for {unit.gene_id}: empty association payload")
+    for association_path in association_paths:
+        gene_key = association_path.name.removesuffix(".gz").removesuffix(".json")
+        overall_path = overall_by_stem.get(gene_key)
+        if overall_path is None:
+            raise FileNotFoundError(
+                f"Expected matching overall payload not found for staged gene '{gene_key}'"
+            )
 
-    for index, entry in enumerate(association_payload):
-        _validate_association_entry(
-            entry,
-            dataset_type=dataset_type,
-            context=f"{unit.dataset_type}:{unit.gene_id}:association[{index}]",
+        association_payload = _read_json_payload(association_path)
+        overall_payload = _read_json_payload(overall_path)
+
+        if not isinstance(association_payload, list) or not association_payload:
+            raise ValueError(f"Preflight validation failed for {gene_key}: empty association payload")
+
+        for index, entry in enumerate(association_payload):
+            _validate_association_entry(
+                entry,
+                dataset_type=dataset_type,
+                context=f"{unit.dataset_type}:{gene_key}:association[{index}]",
+            )
+
+        _validate_overall_payload(
+            overall_payload,
+            context=f"{unit.dataset_type}:{gene_key}:overall",
         )
 
-    _validate_overall_payload(
-        overall_payload,
-        context=f"{unit.dataset_type}:{unit.gene_id}:overall",
-    )
-
-    if not disable_rollup:
-        rollup_association = stage_root / "association" / "final" / "association_rollup" / dataset_type / f"{safe_gene}.json"
-        rollup_overall = stage_root / "association" / "final" / "overall_rollup" / dataset_type / f"{safe_gene}.json"
-        if rollup_association.exists() or rollup_association.with_suffix(".json.gz").exists():
-            rollup_payload = _read_json_payload(_resolve_payload_path(rollup_association))
-            if not isinstance(rollup_payload, list) or not rollup_payload:
-                raise ValueError(f"Preflight validation failed for {unit.gene_id}: empty rollup payload")
-            for index, entry in enumerate(rollup_payload):
-                _validate_association_entry(
-                    entry,
-                    dataset_type=dataset_type,
-                    context=f"{unit.dataset_type}:{unit.gene_id}:association_rollup[{index}]",
+        if not disable_rollup:
+            rollup_association = stage_root / "association" / "final" / "association_rollup" / dataset_type / association_path.name
+            rollup_overall = stage_root / "association" / "final" / "overall_rollup" / dataset_type / overall_path.name
+            if rollup_association.exists():
+                rollup_payload = _read_json_payload(rollup_association)
+                if not isinstance(rollup_payload, list) or not rollup_payload:
+                    raise ValueError(f"Preflight validation failed for {gene_key}: empty rollup payload")
+                for index, entry in enumerate(rollup_payload):
+                    _validate_association_entry(
+                        entry,
+                        dataset_type=dataset_type,
+                        context=f"{unit.dataset_type}:{gene_key}:association_rollup[{index}]",
+                    )
+                _validate_overall_payload(
+                    _read_json_payload(rollup_overall),
+                    context=f"{unit.dataset_type}:{gene_key}:overall_rollup",
                 )
-            _validate_overall_payload(
-                _read_json_payload(_resolve_payload_path(rollup_overall)),
-                context=f"{unit.dataset_type}:{unit.gene_id}:overall_rollup",
-            )
 
     logger.info("Preflight validation passed: %s", _unit_label(unit))
 

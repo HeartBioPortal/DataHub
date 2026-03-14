@@ -155,3 +155,49 @@ def test_preflight_stage_validation_rejects_noncanonical_axis_labels(tmp_path: P
             disable_rollup=True,
             logger=logging.getLogger("test"),
         )
+
+
+def test_preflight_stage_validation_accepts_shard_stage_outputs(tmp_path: Path) -> None:
+    module = _load_publish_module()
+
+    stage_root = tmp_path / "stage"
+    association_dir = stage_root / "association" / "final" / "association" / "CVD"
+    overall_dir = stage_root / "association" / "final" / "overall" / "CVD"
+    association_dir.mkdir(parents=True, exist_ok=True)
+    overall_dir.mkdir(parents=True, exist_ok=True)
+
+    for gene in ("ANK2", "TTN"):
+        (association_dir / f"{gene}.json").write_text(
+            json.dumps(
+                [
+                    {
+                        "disease": ["cardiomyopathies", "cardiomyopathy"],
+                        "vc": [{"name": "SNP", "value": 1}],
+                        "msc": [{"name": "missense variant", "value": 1}],
+                        "cs": [{"name": "likely benign", "value": 1}],
+                        "ancestry": [],
+                    }
+                ]
+            )
+        )
+        (overall_dir / f"{gene}.json").write_text(
+            json.dumps(
+                {
+                    "data": {
+                        "vc": {"SNP": 1},
+                        "msc": {"missense variant": 1},
+                        "cs": {"likely benign": 1},
+                        "ancestry": {},
+                    },
+                    "pvals": {},
+                }
+            )
+        )
+
+    unit = module.GeneWorkUnit(dataset_type="CVD", gene_id="shard_0000", point_rows=2, shard_id=0)
+    module._validate_stage_output(
+        stage_root=stage_root,
+        unit=unit,
+        disable_rollup=True,
+        logger=logging.getLogger("test"),
+    )
