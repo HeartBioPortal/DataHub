@@ -39,3 +39,31 @@ A good contribution should answer these questions clearly:
 ## Documentation rule
 
 If a change affects how contributors understand the repository, update the docs in the same change set.
+
+That includes:
+
+- algorithm changes
+- scientific counting semantics
+- deduplication rules
+- normalization rules
+- provenance behavior
+- publication/serving contract changes
+
+## Documentation standard for algorithm changes
+
+When a change modifies scientific or analytical behavior, the code change is not complete until the documentation answers these questions:
+
+- What is the algorithmic rule?
+- What biological or analytical question is that rule trying to answer?
+- What are the units of counting or identity?
+- What ambiguity or previous failure mode does the rule prevent?
+- What tests prove the intended semantics?
+
+For example, an association counting change should explicitly document whether the unit is:
+
+- raw row
+- source-specific record
+- phenotype-level record
+- unique `variant_id`
+
+Do not assume future contributors will infer scientific intent from the implementation alone.
