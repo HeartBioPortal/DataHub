@@ -24,13 +24,19 @@ The repository previously had a more fragmented story where different datasets o
 
 This step ingests long-form MVP rows into a unified points table in DuckDB. It is optimized for scale and resumability.
 
+Rows whose `gene_id` is not gene-like are rejected during ingest. Numeric leaks such as `0.799091` are treated as malformed identifiers, not valid genes.
+
 ### Legacy raw ingest
 
 This step ingests historical raw CVD and trait files into the same points table schema.
 
+The same gene-identifier sanity rule applies here. A row must have a non-empty `gene_id` containing at least one letter to enter the shared points table.
+
 ### Unified publish
 
 This step reads from DuckDB, applies source-priority deduplication, and publishes legacy-compatible analyzed outputs. It supports resumable unit processing and partitioned HPC execution.
+
+Unified publish also re-applies the gene-identifier sanity filter before grouping work units. This backstops already-built DuckDB tables so malformed numeric `gene_id` values cannot become published filenames.
 
 ## Gene-boundary publication rule
 
@@ -61,6 +67,8 @@ This keeps category summaries tied to the strongest surviving evidence for that 
 The unified publish script supports early staged-output validation through `--preflight-validate-units`.
 
 Use it when you want the run to inspect the first `N` staged publish units before the full job continues.
+
+In sharded `per_gene` mode, a "unit" is a shard. Preflight validation inspects the staged gene payloads created inside that shard output, not a synthetic shard filename.
 
 The validator checks that early outputs already satisfy key analyzed-contract rules, including:
 
