@@ -20,6 +20,8 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
+from datahub.gene_ids import sql_has_gene_like_identifier  # noqa: E402
+
 from datahub.adapters import PhenotypeMapper  # noqa: E402
 from datahub.adapters.common import expand_input_paths  # noqa: E402
 from datahub.ancestry import (  # noqa: E402
@@ -396,7 +398,10 @@ resolved AS (
     FROM raw AS r
     LEFT JOIN phenotype_map AS pm
         ON pm.phenotype_slug = r.phenotype
-    WHERE r.gene_id <> '' AND r.variant_id <> '' AND r.phenotype <> ''
+    WHERE r.gene_id <> ''
+      AND {sql_has_gene_like_identifier("r.gene_id")}
+      AND r.variant_id <> ''
+      AND r.phenotype <> ''
 ),
 aggregated AS (
     SELECT

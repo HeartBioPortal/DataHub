@@ -10,6 +10,7 @@ import pandas as pd
 
 from datahub.adapters.base import DataAdapter
 from datahub.adapters.phenotypes import PhenotypeMapper
+from datahub.gene_ids import is_valid_gene_id
 from datahub.models import CanonicalRecord
 
 
@@ -62,7 +63,7 @@ class LegacyAssociationCsvAdapter(DataAdapter):
                 variant_id = self._to_string(getattr(row, "rsid", None))
                 phenotype = PhenotypeMapper.normalize(self._to_string(getattr(row, "phenotype", None)))
 
-                if not gene_id or not variant_id or not phenotype:
+                if not gene_id or not variant_id or not phenotype or not is_valid_gene_id(gene_id):
                     continue
 
                 dataset_type, category = self.phenotype_mapper.resolve(phenotype)

@@ -26,6 +26,7 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 from datahub.models import CanonicalRecord  # noqa: E402
 from datahub.axis_normalization import normalize_axis_value  # noqa: E402
 from datahub.export_manifest import AssociationExportManifestCatalog  # noqa: E402
+from datahub.gene_ids import sql_has_gene_like_identifier  # noqa: E402
 from datahub.phenotype_paths import PhenotypePathResolver  # noqa: E402
 from datahub.publishers import (  # noqa: E402
     LegacyAssociationPublisher,
@@ -546,6 +547,7 @@ def _base_source_where_clause(*, dataset_types: set[str] | None) -> tuple[str, l
     where_filters: list[str] = [
         "coalesce(trim(p.dataset_type), '') <> ''",
         "coalesce(trim(p.gene_id), '') <> ''",
+        sql_has_gene_like_identifier("p.gene_id"),
         "coalesce(trim(p.variant_id), '') <> ''",
         "coalesce(trim(p.phenotype), '') <> ''",
     ]

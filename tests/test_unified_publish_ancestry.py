@@ -4,6 +4,7 @@ import logging
 import sys
 from pathlib import Path
 
+import duckdb
 import pytest
 
 
@@ -201,3 +202,56 @@ def test_preflight_stage_validation_accepts_shard_stage_outputs(tmp_path: Path) 
         disable_rollup=True,
         logger=logging.getLogger("test"),
     )
+
+
+def test_working_table_excludes_numeric_gene_identifiers(tmp_path: Path) -> None:
+    module = _load_publish_module()
+
+    db_path = tmp_path / "points.duckdb"
+    con = duckdb.connect(str(db_path))
+    con.execute(
+        """
+        CREATE TABLE mvp_association_points (
+            dataset_id VARCHAR,
+            dataset_type VARCHAR,
+            source VARCHAR,
+            gene_id VARCHAR,
+            variant_id VARCHAR,
+            phenotype VARCHAR,
+            disease_category VARCHAR,
+            variation_type VARCHAR,
+            clinical_significance VARCHAR,
+            most_severe_consequence VARCHAR,
+            p_value DOUBLE,
+            ancestry VARCHAR,
+            ancestry_af DOUBLE,
+            phenotype_key VARCHAR,
+            source_file VARCHAR,
+            ingested_at TIMESTAMP
+        )
+        """
+    )
+    con.execute(
+        """
+        INSERT INTO mvp_association_points VALUES
+        ('d1', 'CVD', 'legacy_cvd_raw', 'TTN', 'rs1', 'cardiomyopathy', 'cardiomyopathies', 'SNP', NULL, NULL, 1e-8, 'African', 0.1, NULL, '/tmp/a.csv', now()),
+        ('d1', 'CVD', 'legacy_cvd_raw', '0.799091', 'rs2', 'cardiomyopathy', 'cardiomyopathies', 'SNP', NULL, NULL, 2e-8, 'African', 0.2, NULL, '/tmp/b.csv', now())
+        """
+    )
+
+    logger = logging.getLogger("test")
+    row_count, gene_count = module._build_working_table(
+        con,
+        source_table="mvp_association_points",
+        working_table="__working_points",
+        dataset_types={"CVD"},
+        source_priority=[("legacy_cvd_raw", 1)],
+        logger=logger,
+    )
+
+    genes = con.execute("SELECT gene_id FROM __working_points ORDER BY gene_id").fetchall()
+    con.close()
+
+    assert row_count == 1
+    assert gene_count == 1
+    assert genes == [("TTN",)]

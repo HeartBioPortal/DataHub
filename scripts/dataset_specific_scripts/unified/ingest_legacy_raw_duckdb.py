@@ -24,6 +24,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from datahub.adapters import PhenotypeMapper  # noqa: E402
+from datahub.gene_ids import sql_has_gene_like_identifier  # noqa: E402
 
 
 ANCESTRY_COLUMNS: tuple[tuple[str, str, str], ...] = (
@@ -487,7 +488,10 @@ resolved AS (
     LEFT JOIN phenotype_map pm
       ON pm.phenotype_slug = r.phenotype
      AND pm.dataset_type = ?
-    WHERE r.gene_id <> '' AND r.variant_id <> '' AND r.phenotype <> ''
+    WHERE r.gene_id <> ''
+      AND {sql_has_gene_like_identifier("r.gene_id")}
+      AND r.variant_id <> ''
+      AND r.phenotype <> ''
 ),
 expanded AS (
 {ancestry_union}

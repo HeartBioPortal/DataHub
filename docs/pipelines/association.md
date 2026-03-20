@@ -40,6 +40,8 @@ Dataset contracts enforce minimum quality expectations:
 
 Categorical axes, phenotype routing, and source-priority behavior are normalized here or immediately before publication.
 
+Gene identifiers are also sanity-filtered before publication. DataHub does not publish analyzed outputs for rows whose `gene_id` is clearly not gene-like, such as bare numeric values that leaked in from malformed input rows or shifted columns. The current rule is intentionally permissive: a publishable `gene_id` must contain at least one letter.
+
 ### 5. Publication
 
 The association publisher emits the legacy-compatible payload shape that the older HeartBioPortal stack expects.

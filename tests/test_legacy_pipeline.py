@@ -65,6 +65,18 @@ def _write_csv(path: Path) -> None:
             "ancestry_data": json.dumps({"African": {"MAF": 0.05}}),
             "functional_class": "coding",
         },
+        {
+            "rsid": "rs_bad",
+            "gene": "0.799091",
+            "phenotype": "cardiomyopathy",
+            "var_class": "SNP",
+            "clinical_significance": "Pathogenic",
+            "most_severe_consequence": "missense_variant",
+            "pval": "8e-6",
+            "pmid": "3002",
+            "ancestry_data": json.dumps({"African": {"MAF": 0.05}}),
+            "functional_class": "coding",
+        },
     ]
 
     with path.open("w", newline="") as stream:
@@ -111,6 +123,9 @@ def test_legacy_pipeline_emits_legacy_json(tmp_path: Path) -> None:
     cvd_payload = json.loads(cvd_path.read_text())
     trait_payload = json.loads(trait_path.read_text())
     overall_payload = json.loads(overall_path.read_text())
+    invalid_gene_path = (
+        tmp_path / "out" / "association" / "final" / "association" / "CVD" / "0.799091.json"
+    )
 
     assert cvd_payload[0]["disease"] == ["cardiomyopathies", "cardiomyopathy"]
     assert {item["name"]: item["value"] for item in cvd_payload[0]["vc"]} == {"SNP": 1}
@@ -123,6 +138,7 @@ def test_legacy_pipeline_emits_legacy_json(tmp_path: Path) -> None:
 
     assert overall_payload["data"]["vc"]["SNP"] == 1
     assert overall_payload["data"]["ancestry"]["African"]["rs1"] == 0.1
+    assert not invalid_gene_path.exists()
 
 
 def test_missing_axis_can_be_bucketed_as_unknown(tmp_path: Path) -> None:
