@@ -10,6 +10,7 @@ from typing import Any
 from datahub.adapters import (
     ClinVarAssociationAdapter,
     DataAdapter,
+    DbVarStructuralVariantAdapter,
     EnsemblAssociationAdapter,
     GWASAssociationAdapter,
     LegacyAssociationCsvAdapter,
@@ -75,5 +76,6 @@ def build_default_adapter_registry() -> AdapterRegistry:
     registry.register(GWASAssociationAdapter.name, GWASAssociationAdapter)
     registry.register(EnsemblAssociationAdapter.name, EnsemblAssociationAdapter)
     registry.register(ClinVarAssociationAdapter.name, ClinVarAssociationAdapter)
+    registry.register(DbVarStructuralVariantAdapter.name, DbVarStructuralVariantAdapter)
     registry.register(MVPAssociationAdapter.name, MVPAssociationAdapter)
     return registry

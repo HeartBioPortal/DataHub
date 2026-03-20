@@ -22,6 +22,7 @@ def test_source_manifest_loader_lists_expected_default_manifests() -> None:
     assert "gwas_catalog" in available
     assert "ensembl_variation" in available
     assert "clinvar" in available
+    assert "dbvar" in available
 
 
 def test_source_registry_creates_adapter_from_source_manifest(tmp_path: Path) -> None:

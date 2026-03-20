@@ -1,0 +1,22 @@
+{
+  "source_id": "dbvar",
+  "display_name": "NCBI dbVar",
+  "description": "Structural variant records and study annotations from NCBI dbVar.",
+  "adapter_name": "dbvar_structural_variant",
+  "dataset_types": ["STRUCTURAL_VARIANT"],
+  "modalities": ["genomics", "structural_variant"],
+  "access_mode": "download",
+  "homepage_url": "https://www.ncbi.nlm.nih.gov/dbvar/",
+  "api_base_url": "https://www.ncbi.nlm.nih.gov/dbvar/",
+  "bulk_download_url": "https://ftp.ncbi.nlm.nih.gov/pub/dbVar/data/Homo_sapiens/by_study/",
+  "license_name": "NCBI Disclaimer and Copyright Notice",
+  "update_frequency": "periodic",
+  "priority_tier": 1,
+  "provenance_tags": ["dbvar", "structural_variant", "copy_number_variation"],
+  "data_category": "population_reference_variation",
+  "integration_status": "integrated",
+  "default_params": {
+    "source": "dbvar",
+    "dataset_type": "STRUCTURAL_VARIANT"
+  }
+}

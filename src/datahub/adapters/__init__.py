@@ -2,6 +2,7 @@
 
 from .base import DataAdapter
 from .clinvar import ClinVarAssociationAdapter
+from .dbvar_structural_variant import DbVarStructuralVariantAdapter
 from .ensembl import EnsemblAssociationAdapter
 from .gwas import GWASAssociationAdapter
 from .legacy_csv import LegacyAssociationCsvAdapter
@@ -14,6 +15,7 @@ __all__ = [
     "GWASAssociationAdapter",
     "EnsemblAssociationAdapter",
     "ClinVarAssociationAdapter",
+    "DbVarStructuralVariantAdapter",
     "MVPAssociationAdapter",
     "PhenotypeMapper",
 ]

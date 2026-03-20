@@ -81,3 +81,9 @@ class ClinVarSourceConnector(_AdapterValidatedConnector):
     """Connector for ClinVar-derived source data."""
 
     expected_adapter = "clinvar_association"
+
+
+class DbVarSourceConnector(_AdapterValidatedConnector):
+    """Connector for dbVar-derived structural-variant source data."""
+
+    expected_adapter = "dbvar_structural_variant"

@@ -4,6 +4,13 @@ This package provides the reusable building blocks for DataHub ingestion,
 validation, enrichment, storage and publication.
 """
 
+from .apis import (
+    ApiClientError,
+    EnsemblRestClient,
+    JsonFileApiCache,
+    NcbiVariationApiClient,
+    RestApiClient,
+)
 from .config import (
     ASSOCIATION_AXIS_FIELDS,
     ASSOCIATION_CORE_FIELDS,
@@ -31,8 +38,10 @@ from .prep import (
 )
 from .profiles import DatasetProfile, DatasetProfileLoader
 from .registry import AdapterPluginSpec, AdapterRegistry, build_default_adapter_registry
+from .publishers import StructuralVariantLegacyPublisher
 from .sources import (
     ClinVarSourceConnector,
+    DbVarSourceConnector,
     EnsemblSourceConnector,
     GWASSourceConnector,
     ManifestSourceConnector,
@@ -47,6 +56,11 @@ from .sources import (
 
 __all__ = [
     "CanonicalRecord",
+    "ApiClientError",
+    "RestApiClient",
+    "JsonFileApiCache",
+    "EnsemblRestClient",
+    "NcbiVariationApiClient",
     "AssociationExportManifest",
     "AssociationExportManifestCatalog",
     "AssociationExportManifestLoader",
@@ -76,8 +90,10 @@ __all__ = [
     "GWASSourceConnector",
     "EnsemblSourceConnector",
     "ClinVarSourceConnector",
+    "DbVarSourceConnector",
     "SourceRegistry",
     "SourceConnectorPluginSpec",
+    "StructuralVariantLegacyPublisher",
     "build_association_contract",
     "ExportHelperRegistry",
     "build_default_export_helper_registry",

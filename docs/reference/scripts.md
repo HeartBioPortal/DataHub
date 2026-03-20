@@ -29,6 +29,16 @@ Use this when:
 - you want a config-driven adapter/source/publisher pipeline
 - you are exercising the more general modular ingestion surface
 
+### `scripts/run_structural_variant_ingestion.py`
+
+Run streaming dbVar structural-variant publication through DataHub.
+
+Use this when:
+
+- you need the legacy `structural_variants.json` artifact
+- the source file is large enough that the generic in-memory pipeline is the wrong tool
+- you want dbVar parsing, Ensembl enrichment, validation, and publication to live in DataHub instead of DataManager
+
 ## MVP scripts
 
 ### `scripts/dataset_specific_scripts/mvp/ingest_mvp_duckdb_fast.py`

@@ -8,6 +8,7 @@ import importlib.util
 import shutil
 import sys
 import tempfile
+from collections.abc import Iterable
 from pathlib import Path
 
 from datahub.models import CanonicalRecord
@@ -25,7 +26,7 @@ class LegacyRedisPublisher(Publisher):
         self.output_root = Path(output_root)
         self.strict = strict
 
-    def publish(self, records: list[CanonicalRecord]) -> None:  # noqa: ARG002
+    def publish(self, records: Iterable[CanonicalRecord]) -> None:  # noqa: ARG002
         try:
             asyncio.run(self._publish())
         except Exception as exc:

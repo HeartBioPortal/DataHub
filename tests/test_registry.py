@@ -31,6 +31,7 @@ def test_default_registry_contains_builtin_adapters() -> None:
     assert "gwas_association" in names
     assert "ensembl_association" in names
     assert "clinvar_association" in names
+    assert "dbvar_structural_variant" in names
     assert "mvp_association" in names
 
 

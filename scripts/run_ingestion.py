@@ -27,6 +27,7 @@ from datahub.publishers import (  # noqa: E402
     LegacyAssociationPublisher,
     LegacyRedisPublisher,
     PhenotypeRollupPublisher,
+    StructuralVariantLegacyPublisher,
 )
 from datahub.storage import DuckDBParquetStorage  # noqa: E402
 
@@ -53,6 +54,8 @@ def build_publishers(config: dict[str, Any]) -> list[Any]:
             publishers.append(LegacyRedisPublisher(**params))
         elif name == "phenotype_rollup":
             publishers.append(PhenotypeRollupPublisher(**params))
+        elif name == "structural_variant":
+            publishers.append(StructuralVariantLegacyPublisher(**params))
         else:
             raise ValueError(f"Unknown publisher: {name}")
 

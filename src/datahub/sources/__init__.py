@@ -2,6 +2,7 @@
 
 from .connectors import (
     ClinVarSourceConnector,
+    DbVarSourceConnector,
     EnsemblSourceConnector,
     GWASSourceConnector,
     ManifestSourceConnector,
@@ -23,6 +24,7 @@ __all__ = [
     "GWASSourceConnector",
     "EnsemblSourceConnector",
     "ClinVarSourceConnector",
+    "DbVarSourceConnector",
     "SourceConnectorPluginSpec",
     "SourceRegistry",
     "build_default_source_registry",

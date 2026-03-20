@@ -4,3 +4,4 @@ jsonschema2md
 PyGithub
 pandas
 duckdb
+requests

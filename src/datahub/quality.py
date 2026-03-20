@@ -42,56 +42,65 @@ class ContractValidator:
         result = ValidationResult()
 
         for record in records:
-            keep_record = True
-            for field_name, policy in contract.field_policies.items():
-                value = self._get_value(record, field_name)
-                has_value = value is not None and str(value).strip() != ""
-
-                if has_value:
-                    continue
-
-                if not policy.required:
-                    if policy.missing_strategy is MissingFieldStrategy.UNKNOWN:
-                        self._set_value(record, field_name, policy.unknown_value)
-                    continue
-
-                if policy.missing_strategy is MissingFieldStrategy.UNKNOWN:
-                    self._set_value(record, field_name, policy.unknown_value)
-                    result.issues.append(
-                        ValidationIssue(
-                            record_key=record.key(),
-                            field_name=field_name,
-                            message="Required field missing; set to unknown marker.",
-                        )
-                    )
-                    continue
-
-                if policy.missing_strategy is MissingFieldStrategy.ALLOW:
-                    result.issues.append(
-                        ValidationIssue(
-                            record_key=record.key(),
-                            field_name=field_name,
-                            message="Required field missing; kept by policy.",
-                        )
-                    )
-                    continue
-
-                keep_record = False
-                result.issues.append(
-                    ValidationIssue(
-                        record_key=record.key(),
-                        field_name=field_name,
-                        message="Required field missing; record excluded.",
-                    )
-                )
-                break
-
-            if keep_record:
-                result.records.append(record)
+            validated_record, issues = self.validate_record(record, contract)
+            result.issues.extend(issues)
+            if validated_record is not None:
+                result.records.append(validated_record)
             else:
                 result.dropped += 1
 
         return result
+
+    def validate_record(
+        self,
+        record: CanonicalRecord,
+        contract: DatasetContract,
+    ) -> tuple[CanonicalRecord | None, list[ValidationIssue]]:
+        issues: list[ValidationIssue] = []
+
+        for field_name, policy in contract.field_policies.items():
+            value = self._get_value(record, field_name)
+            has_value = value is not None and str(value).strip() != ""
+
+            if has_value:
+                continue
+
+            if not policy.required:
+                if policy.missing_strategy is MissingFieldStrategy.UNKNOWN:
+                    self._set_value(record, field_name, policy.unknown_value)
+                continue
+
+            if policy.missing_strategy is MissingFieldStrategy.UNKNOWN:
+                self._set_value(record, field_name, policy.unknown_value)
+                issues.append(
+                    ValidationIssue(
+                        record_key=record.key(),
+                        field_name=field_name,
+                        message="Required field missing; set to unknown marker.",
+                    )
+                )
+                continue
+
+            if policy.missing_strategy is MissingFieldStrategy.ALLOW:
+                issues.append(
+                    ValidationIssue(
+                        record_key=record.key(),
+                        field_name=field_name,
+                        message="Required field missing; kept by policy.",
+                    )
+                )
+                continue
+
+            issues.append(
+                ValidationIssue(
+                    record_key=record.key(),
+                    field_name=field_name,
+                    message="Required field missing; record excluded.",
+                )
+            )
+            return None, issues
+
+        return record, issues
 
     @staticmethod
     def _get_value(record: CanonicalRecord, field_name: str) -> Any:

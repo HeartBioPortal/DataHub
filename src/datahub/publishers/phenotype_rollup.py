@@ -5,6 +5,7 @@ from __future__ import annotations
 import gzip
 import json
 from collections import Counter, defaultdict
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -52,7 +53,7 @@ class PhenotypeRollupPublisher(Publisher):
             raise ValueError("json_compression must be one of: none, gzip")
         self.rollup_map = self._load_rollup_map(tree_json_path)
 
-    def publish(self, records: list[CanonicalRecord]) -> None:
+    def publish(self, records: Iterable[CanonicalRecord]) -> None:
         grouped: dict[str, dict[str, dict[tuple[str, str], dict[str, CanonicalRecord]]]] = defaultdict(
             lambda: defaultdict(lambda: defaultdict(dict))
         )

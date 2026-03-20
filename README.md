@@ -52,12 +52,14 @@ Current runtime requirements:
 - `PyGithub`
 - `pandas`
 - `duckdb`
+- `requests`
 
 ## Primary Entry Points
 
 - `scripts/prepare_association_raw.py`
 - `scripts/build_legacy_association.py`
 - `scripts/run_ingestion.py`
+- `scripts/run_structural_variant_ingestion.py`
 - `scripts/dataset_specific_scripts/mvp/run_mvp_pipeline.py`
 - `scripts/dataset_specific_scripts/unified/run_unified_pipeline.py`
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from collections.abc import Iterable
 
 from datahub.models import CanonicalRecord
 
@@ -12,5 +12,5 @@ class Publisher(ABC):
     """Publishes canonical records into consumer-facing artifacts."""
 
     @abstractmethod
-    def publish(self, records: Sequence[CanonicalRecord]) -> None:
+    def publish(self, records: Iterable[CanonicalRecord]) -> None:
         """Publish records into output targets."""

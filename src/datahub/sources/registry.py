@@ -10,6 +10,7 @@ from datahub.adapters import DataAdapter
 from datahub.registry import AdapterRegistry
 from datahub.sources.connectors import (
     ClinVarSourceConnector,
+    DbVarSourceConnector,
     EnsemblSourceConnector,
     GWASSourceConnector,
     SourceConnector,
@@ -92,6 +93,7 @@ def build_default_source_registry(
         ("gwas_catalog", GWASSourceConnector),
         ("ensembl_variation", EnsemblSourceConnector),
         ("clinvar", ClinVarSourceConnector),
+        ("dbvar", DbVarSourceConnector),
     ):
         manifest = loader.load(source_id)
         registry.register(connector_cls(manifest))

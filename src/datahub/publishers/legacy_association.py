@@ -5,6 +5,7 @@ from __future__ import annotations
 import gzip
 import json
 from collections import Counter, defaultdict
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -49,7 +50,7 @@ class LegacyAssociationPublisher(Publisher):
         if self.json_compression not in {"none", "gzip"}:
             raise ValueError("json_compression must be one of: none, gzip")
 
-    def publish(self, records: list[CanonicalRecord]) -> None:
+    def publish(self, records: Iterable[CanonicalRecord]) -> None:
         grouped_by_dtype: dict[str, dict[str, dict[tuple[str, ...], list[CanonicalRecord]]]] = defaultdict(
             lambda: defaultdict(lambda: defaultdict(list))
         )
