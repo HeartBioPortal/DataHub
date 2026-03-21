@@ -9,13 +9,13 @@ Dataset type:
 
 Naming convention:
 
-- tracked baseline or seed artifacts: `dbvar_structural_variants_<artifact_role>.json.zip`
+- tracked baseline or seed artifacts: `dbvar_structural_variants_<study_id>_<artifact_role>.json.zip`
 - local run outputs: `dbvar_structural_variants_<study_id>.json`
 - local run reports: `dbvar_structural_variants_<study_id>.report.json`
 
 Current tracked artifact:
 
-- `dbvar_structural_variants_legacy_seed.json.zip`
+- `dbvar_structural_variants_nstd102_seed.json.zip`
 
 Notes:
 

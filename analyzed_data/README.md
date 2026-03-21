@@ -26,7 +26,7 @@ Recommended layout:
 
 Examples:
 
-- `analyzed_data/dbvar/dbvar_structural_variants_legacy_seed.json.zip`
+- `analyzed_data/dbvar/dbvar_structural_variants_nstd102_seed.json.zip`
 - `analyzed_data/clinvar/...`
 
 Guidelines:
@@ -35,4 +35,4 @@ Guidelines:
 - treat tracked files here as curated baselines, not an append-only dump of every run
 - write fresh local outputs here when convenient, but only commit the ones worth preserving
 - name files so they identify the source, dataset kind, and artifact role
-- prefer names like `<source>_<dataset_kind>_<artifact_role>.<ext>`
+- prefer names like `<source>_<dataset_kind>_<study_or_release>_<artifact_role>.<ext>`

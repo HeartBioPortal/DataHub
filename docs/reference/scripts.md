@@ -51,8 +51,8 @@ Recommended repository-local invocation:
 python scripts/run_structural_variant_ingestion.py \
   --input raw_data/dbvar/dbvar_structural_variants_nstd229.csv.zip \
   --output-json analyzed_data/dbvar/dbvar_structural_variants_nstd229.json \
-  --gene-metadata-seed analyzed_data/dbvar/dbvar_structural_variants_legacy_seed.json.zip \
-  --merge-source-json analyzed_data/dbvar/dbvar_structural_variants_legacy_seed.json.zip \
+  --gene-metadata-seed analyzed_data/dbvar/dbvar_structural_variants_nstd102_seed.json.zip \
+  --merge-source-json analyzed_data/dbvar/dbvar_structural_variants_nstd102_seed.json.zip \
   --merge-existing \
   --report-path analyzed_data/dbvar/dbvar_structural_variants_nstd229.report.json \
   --cache-path analyzed_data/dbvar/dbvar_structural_variant_ensembl_cache.json \
