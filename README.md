@@ -66,7 +66,7 @@ Current runtime requirements:
 ## Main Repository Areas
 
 - `src/datahub/`: reusable pipeline, adapter, config, validation, storage, and publisher code
-- `config/`: profiles, manifests, runtime configs, phenotype hierarchy, and export manifests
+- `config/`: profiles, manifests, runtime configs, phenotype hierarchy, output contracts, and export manifests
 - `scripts/`: operational entrypoints for preparation, ingest, publish, and orchestration
 - `tests/`: focused coverage for adapters, manifests, publishers, runners, and serving builders
 - `docs/`: contributor-facing documentation and docs-site content

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from datahub.models import CanonicalRecord
+from datahub.output_contracts import OutputContractLoader
 from datahub.publishers.base import Publisher
 
 
@@ -123,18 +124,24 @@ class StructuralVariantLegacyPublisher(Publisher):
         *,
         output_path: str | Path,
         report_path: str | Path | None = None,
+        merge_source_json_path: str | Path | None = None,
         existing_json_path: str | Path | None = None,
+        contract_path: str | Path | None = None,
         merge_existing: bool = False,
         json_indent: int | None = 2,
         progress_every: int = 5_000,
     ) -> None:
         self.output_path = Path(output_path)
         self.report_path = Path(report_path) if report_path else None
-        self.existing_json_path = Path(existing_json_path) if existing_json_path else None
+        merge_source = merge_source_json_path or existing_json_path
+        if merge_existing and not merge_source:
+            merge_source = self.output_path
+        self.merge_source_json_path = Path(merge_source) if merge_source else None
         self.merge_existing = merge_existing
         self.json_indent = json_indent
         self.progress_every = max(int(progress_every), 1)
         self.publish_report: dict[str, Any] = {}
+        self.contract = OutputContractLoader().load(contract_path or "structural_variant_legacy")
 
     def publish(self, records: Iterable[CanonicalRecord]) -> None:
         payload: dict[str, Any] = {}
@@ -161,7 +168,7 @@ class StructuralVariantLegacyPublisher(Publisher):
         _sort_payload_variants_in_place(payload)
 
         if self.merge_existing:
-            existing_payload = load_structural_variant_payload(self.existing_json_path)
+            existing_payload = load_structural_variant_payload(self.merge_source_json_path)
             payload = merge_structural_variant_payloads(existing_payload, payload)
 
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -175,6 +182,7 @@ class StructuralVariantLegacyPublisher(Publisher):
 
         self.publish_report = {
             "output_path": str(self.output_path),
+            "contract_name": self.contract.name,
             "records_seen": records_seen,
             "records_skipped": records_skipped,
             "genes_written": len(payload),
@@ -212,22 +220,29 @@ class StructuralVariantLegacyPublisher(Publisher):
         if not gene_name or not record.variant_id or not variant_region or not study_id:
             return None
 
-        variant_payload = {
-            "variant_id": record.variant_id,
-            "study_id": study_id,
-            "variant_type": record.variation_type,
-            "phenotype": list(metadata.get("phenotypes") or []),
-            "clinical_significance": record.clinical_significance,
-            "assembly_name": metadata.get("assembly_name"),
-            "variant_region": variant_region,
-        }
-        gene_payload = {
-            gene_name: {
+        variant_payload = deepcopy(self.contract.payload["variant_defaults"])
+        variant_payload.update(
+            {
+                "variant_id": record.variant_id,
+                "study_id": study_id,
+                "variant_type": record.variation_type,
+                "phenotype": list(metadata.get("phenotypes") or []),
+                "clinical_significance": record.clinical_significance,
+                "assembly_name": metadata.get("assembly_name"),
+                "variant_region": variant_region,
+            }
+        )
+        gene_record = deepcopy(self.contract.payload["gene_defaults"])
+        gene_record.update(
+            {
                 "gene_location": metadata.get("gene_location"),
                 "strand": metadata.get("strand"),
                 "biotype": metadata.get("biotype"),
                 "canonical_transcript": deepcopy(metadata.get("canonical_transcript") or []),
                 "variants": [variant_payload],
             }
+        )
+        gene_payload = {
+            gene_name: gene_record
         }
         return gene_payload

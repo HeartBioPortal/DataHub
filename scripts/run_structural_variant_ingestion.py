@@ -28,11 +28,21 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--input", required=True, help="dbVar CSV/CSV.GZ file, directory, or glob.")
     parser.add_argument("--output-json", required=True, help="Output path for the structural_variants JSON.")
     parser.add_argument(
-        "--existing-json",
+        "--gene-metadata-seed",
         default="",
-        help="Existing structural_variants JSON used for metadata reuse and optional merging.",
+        help="Optional gene-metadata seed JSON used to reuse gene-level annotations during ingestion.",
     )
     parser.add_argument("--report-path", default="", help="Optional JSON path for the combined run report.")
+    parser.add_argument(
+        "--merge-source-json",
+        default="",
+        help="Optional existing structural_variants JSON to merge into. Defaults to --output-json when --merge-existing is set.",
+    )
+    parser.add_argument(
+        "--contract-path",
+        default="",
+        help="Optional output-contract JSON path. Defaults to DataHub's structural_variant_legacy contract.",
+    )
     parser.add_argument("--profile", default="structural_variant", help="Dataset profile name or path.")
     parser.add_argument("--source-id", default="dbvar", help="Source manifest ID to instantiate.")
     parser.add_argument(
@@ -116,13 +126,14 @@ def main() -> int:
     manifest_loader = SourceManifestLoader(args.sources_dir or None)
     source_registry = build_default_source_registry(manifest_loader)
     adapter_registry = build_default_adapter_registry()
+    merge_source_json = args.merge_source_json or (args.output_json if args.merge_existing else "")
 
     adapter = source_registry.create_adapter(
         args.source_id,
         adapter_registry=adapter_registry,
         params={
             "input_paths": args.input,
-            "reference_json_path": args.existing_json or None,
+            "metadata_seed_path": args.gene_metadata_seed or None,
             "ensembl_cache_path": args.cache_path or None,
             "ensembl_timeout_seconds": args.timeout_seconds,
             "ensembl_sleep_seconds": args.sleep_seconds,
@@ -136,7 +147,8 @@ def main() -> int:
     publisher = StructuralVariantLegacyPublisher(
         output_path=args.output_json,
         report_path=None,
-        existing_json_path=args.existing_json or None,
+        merge_source_json_path=merge_source_json or None,
+        contract_path=args.contract_path or None,
         merge_existing=args.merge_existing,
         progress_every=args.progress_every,
     )
@@ -161,6 +173,7 @@ def main() -> int:
 
     payload = {
         **run_report,
+        "contract_name": publisher.contract.name,
         "adapter_report": adapter.report,
         "publish_report": publisher.publish_report,
     }

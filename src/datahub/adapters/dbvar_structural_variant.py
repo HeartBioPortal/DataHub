@@ -113,7 +113,7 @@ def _count_data_rows(path: Path) -> int:
         return sum(1 for _ in reader)
 
 
-def load_legacy_structural_variant_payload(path: str | Path | None) -> dict[str, Any]:
+def load_structural_variant_metadata_seed(path: str | Path | None) -> dict[str, Any]:
     if path is None:
         return {}
     payload_path = Path(path)
@@ -173,6 +173,7 @@ class DbVarStructuralVariantAdapter(DataAdapter):
         dataset_type: str = "STRUCTURAL_VARIANT",
         source: str = "dbvar",
         phenotype_terms: str | Iterable[str] | None = None,
+        metadata_seed_path: str | Path | None = None,
         reference_json_path: str | Path | None = None,
         ensembl_client: EnsemblRestClient | None = None,
         ensembl_cache_path: str | Path | None = None,
@@ -190,7 +191,8 @@ class DbVarStructuralVariantAdapter(DataAdapter):
         self.dataset_type = dataset_type.upper()
         self.source = source
         self.phenotype_terms = _normalize_phenotype_terms(phenotype_terms)
-        self.reference_payload = load_legacy_structural_variant_payload(reference_json_path)
+        seed_path = metadata_seed_path or reference_json_path
+        self.metadata_seed = load_structural_variant_metadata_seed(seed_path)
         self.progress_every = max(int(progress_every), 1)
         self.count_rows = bool(count_rows)
         self._gene_metadata_cache: dict[str, GeneMetadata] = {}
@@ -444,7 +446,7 @@ class DbVarStructuralVariantAdapter(DataAdapter):
         if cached is not None:
             return cached
 
-        reference = self.reference_payload.get(gene_symbol) or {}
+        reference = self.metadata_seed.get(gene_symbol) or {}
         reference_gene_location = _clean_text(reference.get("gene_location")) or None
         reference_strand = reference.get("strand")
         if reference_strand in ("", None):

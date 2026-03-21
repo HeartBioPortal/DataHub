@@ -28,6 +28,7 @@ from .export_manifest import (
     AssociationExportRuntime,
 )
 from .models import CanonicalRecord
+from .output_contracts import OutputContract, OutputContractLoader
 from .pipeline import DataHubPipeline, DataHubRunReport
 from .prep import (
     PREPARED_ASSOCIATION_COLUMNS,
@@ -56,6 +57,8 @@ from .sources import (
 
 __all__ = [
     "CanonicalRecord",
+    "OutputContract",
+    "OutputContractLoader",
     "ApiClientError",
     "RestApiClient",
     "JsonFileApiCache",

@@ -39,6 +39,12 @@ Use this when:
 - the source file is large enough that the generic in-memory pipeline is the wrong tool
 - you want dbVar parsing, Ensembl enrichment, validation, and publication to live in DataHub instead of DataManager
 
+Important contract/config split:
+
+- output shape comes from `config/output_contracts/structural_variant_legacy.json`
+- gene metadata reuse is a separate seed input
+- merge behavior is a separate existing-output concern
+
 ## MVP scripts
 
 ### `scripts/dataset_specific_scripts/mvp/ingest_mvp_duckdb_fast.py`

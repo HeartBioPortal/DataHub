@@ -1,0 +1,36 @@
+{
+  "name": "structural_variant_legacy",
+  "description": "Legacy HeartBioPortal structural_variants.json output contract.",
+  "gene_defaults": {
+    "gene_location": null,
+    "strand": null,
+    "biotype": null,
+    "canonical_transcript": [],
+    "variants": []
+  },
+  "gene_required_fields": [
+    "gene_location",
+    "strand",
+    "biotype",
+    "canonical_transcript",
+    "variants"
+  ],
+  "variant_defaults": {
+    "variant_id": "",
+    "study_id": "",
+    "variant_type": null,
+    "phenotype": [],
+    "clinical_significance": null,
+    "assembly_name": null,
+    "variant_region": ""
+  },
+  "variant_required_fields": [
+    "variant_id",
+    "study_id",
+    "variant_type",
+    "phenotype",
+    "clinical_significance",
+    "assembly_name",
+    "variant_region"
+  ]
+}
