@@ -1,6 +1,7 @@
 import csv
 import json
 import sys
+import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -106,12 +107,19 @@ def _write_dbvar_csv(path: Path) -> None:
         writer.writerow(row)
 
 
+def _write_zip_text(path: Path, member_name: str, payload: str) -> None:
+    with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr(member_name, payload)
+
+
 def test_dbvar_structural_variant_adapter_emits_enriched_records(tmp_path: Path) -> None:
     csv_path = tmp_path / "all_variants_for_nstd102.csv"
     _write_dbvar_csv(csv_path)
+    zip_path = tmp_path / "all_variants_for_nstd102.csv.zip"
+    _write_zip_text(zip_path, csv_path.name, csv_path.read_text())
 
     adapter = DbVarStructuralVariantAdapter(
-        input_paths=csv_path,
+        input_paths=zip_path,
         ensembl_client=_FakeEnsemblClient(),
         count_rows=False,
         progress_every=1,
@@ -129,6 +137,39 @@ def test_dbvar_structural_variant_adapter_emits_enriched_records(tmp_path: Path)
     assert record.metadata["gene_location"] == "202376327-202567751"
     assert record.metadata["canonical_transcript"][0]["id"] == "ENST00000263377"
     assert adapter.report["records_emitted"] == 1
+
+
+def test_dbvar_structural_variant_adapter_loads_zipped_metadata_seed(tmp_path: Path) -> None:
+    csv_path = tmp_path / "all_variants_for_nstd102.csv"
+    _write_dbvar_csv(csv_path)
+    seed_path = tmp_path / "structural_variants.json.zip"
+    _write_zip_text(
+        seed_path,
+        "structural_variants.json",
+        json.dumps(
+            {
+                "BMPR2": {
+                    "gene_location": "202376327-202567751",
+                    "strand": 1,
+                    "biotype": "protein_coding",
+                    "canonical_transcript": [{"id": "ENST00000263377"}],
+                    "variants": [],
+                }
+            }
+        ),
+    )
+
+    adapter = DbVarStructuralVariantAdapter(
+        input_paths=csv_path,
+        metadata_seed_path=seed_path,
+        ensembl_client=_FakeEnsemblClient(),
+        count_rows=False,
+        progress_every=1,
+    )
+    records = list(adapter.read())
+
+    assert len(records) == 1
+    assert adapter.metadata_seed["BMPR2"]["canonical_transcript"][0]["id"] == "ENST00000263377"
 
 
 def test_structural_variant_publisher_writes_legacy_payload(tmp_path: Path) -> None:
@@ -183,3 +224,71 @@ def test_structural_variant_publisher_writes_legacy_payload(tmp_path: Path) -> N
         "nssv15119707",
     ]
     assert publisher.publish_report["variants_written"] == 2
+
+
+def test_structural_variant_publisher_merges_from_zipped_payload(tmp_path: Path) -> None:
+    merge_source = tmp_path / "structural_variants.json.zip"
+    _write_zip_text(
+        merge_source,
+        "structural_variants.json",
+        json.dumps(
+            {
+                "BMPR2": {
+                    "gene_location": "202376327-202567751",
+                    "strand": 1,
+                    "biotype": "protein_coding",
+                    "canonical_transcript": [{"id": "ENST00000263377"}],
+                    "variants": [
+                        {
+                            "variant_id": "nssv15119705",
+                            "study_id": "nstd100",
+                            "variant_type": "deletion",
+                            "phenotype": ["PPH1"],
+                            "clinical_significance": "Pathogenic",
+                            "assembly_name": "GRCh38 (hg38)",
+                            "variant_region": "202464700-202464800",
+                        }
+                    ],
+                }
+            }
+        ),
+    )
+
+    output_path = tmp_path / "structural_variants.json"
+    publisher = StructuralVariantLegacyPublisher(
+        output_path=output_path,
+        merge_source_json_path=merge_source,
+        merge_existing=True,
+        progress_every=1,
+    )
+
+    publisher.publish(
+        [
+            CanonicalRecord(
+                dataset_id="hbp_dbvar_structural_variant",
+                dataset_type="STRUCTURAL_VARIANT",
+                source="dbvar",
+                gene_id="BMPR2",
+                variant_id="nssv15119706",
+                phenotype="PPH1",
+                variation_type="deletion",
+                clinical_significance="Pathogenic",
+                metadata={
+                    "study_id": "nstd102",
+                    "assembly_name": "GRCh38 (hg38)",
+                    "variant_region": "202464809-202464979",
+                    "phenotypes": ["PPH1"],
+                    "gene_location": "202376327-202567751",
+                    "strand": 1,
+                    "biotype": "protein_coding",
+                    "canonical_transcript": [{"id": "ENST00000263377"}],
+                },
+            )
+        ]
+    )
+
+    payload = json.loads(output_path.read_text())
+    assert [variant["variant_id"] for variant in payload["BMPR2"]["variants"]] == [
+        "nssv15119705",
+        "nssv15119706",
+    ]

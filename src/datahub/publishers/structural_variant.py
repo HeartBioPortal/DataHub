@@ -8,6 +8,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Iterable
 
+from datahub.artifact_io import load_json_artifact
 from datahub.models import CanonicalRecord
 from datahub.output_contracts import OutputContractLoader
 from datahub.publishers.base import Publisher
@@ -58,7 +59,7 @@ def load_structural_variant_payload(path: str | Path | None) -> dict[str, Any]:
     payload_path = Path(path)
     if not payload_path.exists():
         return {}
-    loaded = json.loads(payload_path.read_text())
+    loaded = load_json_artifact(payload_path)
     return loaded if isinstance(loaded, dict) else {}
 
 

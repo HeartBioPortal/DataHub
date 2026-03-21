@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import csv
-import gzip
-import json
 import logging
 import time
 from copy import deepcopy
@@ -15,6 +13,7 @@ from typing import Any, Iterable, Iterator, Mapping
 from datahub.adapters.base import DataAdapter
 from datahub.adapters.common import expand_input_paths
 from datahub.apis import EnsemblRestClient
+from datahub.artifact_io import load_json_artifact, open_text_artifact
 from datahub.models import CanonicalRecord
 
 
@@ -101,13 +100,8 @@ def phenotype_matches_terms(phenotypes: Iterable[str], phenotype_terms: Iterable
     return False
 
 
-def _open_text(path: Path):
-    opener = gzip.open if path.suffix == ".gz" else open
-    return opener(path, "rt", newline="", encoding="utf-8")
-
-
 def _count_data_rows(path: Path) -> int:
-    with _open_text(path) as handle:
+    with open_text_artifact(path, newline="") as handle:
         reader = csv.reader(handle)
         next(reader, None)
         return sum(1 for _ in reader)
@@ -119,7 +113,7 @@ def load_structural_variant_metadata_seed(path: str | Path | None) -> dict[str, 
     payload_path = Path(path)
     if not payload_path.exists():
         return {}
-    loaded = json.loads(payload_path.read_text())
+    loaded = load_json_artifact(payload_path)
     return loaded if isinstance(loaded, dict) else {}
 
 
@@ -318,7 +312,7 @@ class DbVarStructuralVariantAdapter(DataAdapter):
         )
 
     def _iter_rows(self, input_path: Path) -> Iterator[dict[str, str]]:
-        with _open_text(input_path) as handle:
+        with open_text_artifact(input_path, newline="") as handle:
             reader = csv.DictReader(handle)
             if reader.fieldnames:
                 reader.fieldnames[0] = reader.fieldnames[0].lstrip("\ufeff")

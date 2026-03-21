@@ -25,18 +25,22 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Stream dbVar structural variants through DataHub into the legacy SV JSON contract.",
     )
-    parser.add_argument("--input", required=True, help="dbVar CSV/CSV.GZ file, directory, or glob.")
+    parser.add_argument(
+        "--input",
+        required=True,
+        help="dbVar CSV/CSV.GZ/CSV.ZIP file, directory, or glob.",
+    )
     parser.add_argument("--output-json", required=True, help="Output path for the structural_variants JSON.")
     parser.add_argument(
         "--gene-metadata-seed",
         default="",
-        help="Optional gene-metadata seed JSON used to reuse gene-level annotations during ingestion.",
+        help="Optional gene-metadata seed JSON/JSON.ZIP used to reuse gene-level annotations during ingestion.",
     )
     parser.add_argument("--report-path", default="", help="Optional JSON path for the combined run report.")
     parser.add_argument(
         "--merge-source-json",
         default="",
-        help="Optional existing structural_variants JSON to merge into. Defaults to --output-json when --merge-existing is set.",
+        help="Optional existing structural_variants JSON/JSON.ZIP to merge into. Defaults to --output-json when --merge-existing is set.",
     )
     parser.add_argument(
         "--contract-path",

@@ -45,6 +45,21 @@ Important contract/config split:
 - gene metadata reuse is a separate seed input
 - merge behavior is a separate existing-output concern
 
+Recommended repository-local invocation:
+
+```bash
+python scripts/run_structural_variant_ingestion.py \
+  --input raw_data/dbvar/all_variants_for_nstd229.csv.zip \
+  --output-json analyzed_data/dbvar/structural_variants_nstd229.json \
+  --gene-metadata-seed analyzed_data/dbvar/structural_variants.json.zip \
+  --merge-source-json analyzed_data/dbvar/structural_variants.json.zip \
+  --merge-existing \
+  --report-path analyzed_data/dbvar/structural_variants_nstd229.report.json \
+  --cache-path analyzed_data/dbvar/sv_ensembl_cache.json \
+  --skip-row-count \
+  --progress-every 5000
+```
+
 ## MVP scripts
 
 ### `scripts/dataset_specific_scripts/mvp/ingest_mvp_duckdb_fast.py`

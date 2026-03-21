@@ -32,7 +32,7 @@ def _is_csv_like(path: Path) -> bool:
     """Return True if the file looks like a CSV or compressed CSV."""
 
     name = path.name.lower()
-    return name.endswith(".csv") or name.endswith(".csv.gz")
+    return name.endswith(".csv") or name.endswith(".csv.gz") or name.endswith(".csv.zip")
 
 
 def expand_input_paths(input_paths: str | Path | Iterable[str | Path]) -> list[Path]:

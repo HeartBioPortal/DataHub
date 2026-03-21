@@ -20,6 +20,7 @@ from .config import (
     SourcePriority,
     build_association_contract,
 )
+from .artifact_io import load_json_artifact, open_text_artifact
 from .export_helpers import ExportHelperRegistry, build_default_export_helper_registry
 from .export_manifest import (
     AssociationExportManifest,
@@ -74,6 +75,8 @@ __all__ = [
     "DataHubPipeline",
     "DataHubRunReport",
     "PREPARED_ASSOCIATION_COLUMNS",
+    "open_text_artifact",
+    "load_json_artifact",
     "AssociationRawPreparer",
     "PreparationReport",
     "RawAssociationPreparationProfile",

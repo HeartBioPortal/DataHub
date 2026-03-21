@@ -1,0 +1,4 @@
+*.json
+*.report.json
+!*.json.zip
+!.gitignore
