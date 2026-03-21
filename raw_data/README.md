@@ -2,6 +2,12 @@
 
 This directory is the checked-in home for small, standalone raw inputs that are useful to keep with the repository.
 
+Dataset scope:
+
+- raw source datasets as received from upstream providers
+- typically source-native CSV, TSV, JSON, or compressed equivalents
+- no analysis-time reshaping beyond safe archival compression
+
 Use it for:
 
 - source files needed for reproducible local development
@@ -21,14 +27,14 @@ Recommended layout:
 
 Examples:
 
-- `raw_data/dbvar/all_variants_for_nstd229.csv`
-- `raw_data/dbvar/all_variants_for_nstd229.csv.zip`
+- `raw_data/dbvar/dbvar_structural_variants_nstd229.csv.zip`
 - `raw_data/clinvar/...`
 
 Guidelines:
 
-- keep filenames close to the upstream source name when possible
 - prefer per-source subdirectories over putting files directly in `raw_data/`
 - keep tracked files reasonably small and redistributable
 - prefer compressed archives for large plain-text raw files that would otherwise exceed Git hosting limits
+- name files so they identify the source, dataset kind, and specific study/cohort when applicable
+- prefer names like `<source>_<dataset_kind>_<study_or_release>.<ext>`
 - point scripts at these files explicitly; do not hardcode this directory as the only input location

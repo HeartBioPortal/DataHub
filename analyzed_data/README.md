@@ -2,6 +2,12 @@
 
 This directory is the checked-in home for curated analyzed artifacts that are useful as small baselines, merge seeds, or reproducible examples.
 
+Dataset scope:
+
+- analyzed or normalized datasets produced by DataHub-compatible pipelines
+- merge seeds, metadata seeds, or compact baseline artifacts used to bootstrap future runs
+- payloads that preserve a stable downstream contract rather than raw upstream format
+
 Use it for:
 
 - legacy-compatible analyzed outputs that downstream tools still need
@@ -20,7 +26,7 @@ Recommended layout:
 
 Examples:
 
-- `analyzed_data/dbvar/structural_variants.json.zip`
+- `analyzed_data/dbvar/dbvar_structural_variants_legacy_seed.json.zip`
 - `analyzed_data/clinvar/...`
 
 Guidelines:
@@ -28,3 +34,5 @@ Guidelines:
 - prefer compressed archives for versioned JSON artifacts when that keeps repository size reasonable
 - treat tracked files here as curated baselines, not an append-only dump of every run
 - write fresh local outputs here when convenient, but only commit the ones worth preserving
+- name files so they identify the source, dataset kind, and artifact role
+- prefer names like `<source>_<dataset_kind>_<artifact_role>.<ext>`

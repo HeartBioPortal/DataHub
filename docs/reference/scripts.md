@@ -49,13 +49,13 @@ Recommended repository-local invocation:
 
 ```bash
 python scripts/run_structural_variant_ingestion.py \
-  --input raw_data/dbvar/all_variants_for_nstd229.csv.zip \
-  --output-json analyzed_data/dbvar/structural_variants_nstd229.json \
-  --gene-metadata-seed analyzed_data/dbvar/structural_variants.json.zip \
-  --merge-source-json analyzed_data/dbvar/structural_variants.json.zip \
+  --input raw_data/dbvar/dbvar_structural_variants_nstd229.csv.zip \
+  --output-json analyzed_data/dbvar/dbvar_structural_variants_nstd229.json \
+  --gene-metadata-seed analyzed_data/dbvar/dbvar_structural_variants_legacy_seed.json.zip \
+  --merge-source-json analyzed_data/dbvar/dbvar_structural_variants_legacy_seed.json.zip \
   --merge-existing \
-  --report-path analyzed_data/dbvar/structural_variants_nstd229.report.json \
-  --cache-path analyzed_data/dbvar/sv_ensembl_cache.json \
+  --report-path analyzed_data/dbvar/dbvar_structural_variants_nstd229.report.json \
+  --cache-path analyzed_data/dbvar/dbvar_structural_variant_ensembl_cache.json \
   --skip-row-count \
   --progress-every 5000
 ```
