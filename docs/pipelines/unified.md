@@ -32,6 +32,8 @@ This step ingests historical raw CVD and trait files into the same points table 
 
 The same gene-identifier sanity rule applies here. A row must have a non-empty `gene_id` containing at least one letter to enter the shared points table.
 
+Legacy association files also rely on an explicit double-quote CSV policy during DuckDB ingest. Some CVD rows contain comma-bearing allele strings such as `\"['A', 'C']\"`. If quote handling is left to mis-detection, DuckDB can shift columns and turn allele-frequency fields into fake `gene_id` values. DataHub pins the quote character so those rows stay aligned.
+
 ### Unified publish
 
 This step reads from DuckDB, applies source-priority deduplication, and publishes legacy-compatible analyzed outputs. It supports resumable unit processing and partitioned HPC execution.

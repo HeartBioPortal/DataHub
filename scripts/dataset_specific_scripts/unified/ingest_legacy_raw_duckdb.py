@@ -457,6 +457,7 @@ WITH raw AS (
         header=true,
         compression='auto',
         all_varchar=true,
+        quote='\"',
 {delimiter_clause}
         strict_mode={strict_mode},
         ignore_errors={ignore_errors},
