@@ -1,4 +1,5 @@
 import csv
+import gzip
 import json
 import sys
 import zipfile
@@ -46,6 +47,17 @@ class _FakeEnsemblClient:
                 }
             ],
         }
+
+    def close(self) -> None:
+        return None
+
+
+class _FailingEnsemblClient:
+    def overlap_region_genes(self, *, chromosome: str, start: int, end: int, species: str = "human"):
+        raise AssertionError("Ensembl overlap should not be called when local GTF annotations are available")
+
+    def gene_lookup(self, gene_id: str):
+        raise AssertionError("Ensembl lookup should not be called when local GTF annotations are available")
 
     def close(self) -> None:
         return None
@@ -112,6 +124,42 @@ def _write_zip_text(path: Path, member_name: str, payload: str) -> None:
         archive.writestr(member_name, payload)
 
 
+def _write_gtf(path: Path) -> None:
+    payload = "\n".join(
+        [
+            "##description: test",
+            '\t'.join(
+                [
+                    "2",
+                    "HAVANA",
+                    "gene",
+                    "202376327",
+                    "202567751",
+                    ".",
+                    "+",
+                    ".",
+                    'gene_id "ENSG00000114739.12"; gene_name "BMPR2"; gene_type "protein_coding";',
+                ]
+            ),
+            '\t'.join(
+                [
+                    "2",
+                    "HAVANA",
+                    "transcript",
+                    "202376327",
+                    "202567751",
+                    ".",
+                    "+",
+                    ".",
+                    'gene_id "ENSG00000114739.12"; gene_name "BMPR2"; transcript_id "ENST00000263377.9"; transcript_name "BMPR2-201"; transcript_type "protein_coding"; tag "basic"; tag "Ensembl_canonical";',
+                ]
+            ),
+        ]
+    )
+    with gzip.open(path, "wt", encoding="utf-8") as handle:
+        handle.write(payload)
+
+
 def test_dbvar_structural_variant_adapter_emits_enriched_records(tmp_path: Path) -> None:
     csv_path = tmp_path / "all_variants_for_nstd102.csv"
     _write_dbvar_csv(csv_path)
@@ -170,6 +218,28 @@ def test_dbvar_structural_variant_adapter_loads_zipped_metadata_seed(tmp_path: P
 
     assert len(records) == 1
     assert adapter.metadata_seed["BMPR2"]["canonical_transcript"][0]["id"] == "ENST00000263377"
+
+
+def test_dbvar_structural_variant_adapter_uses_local_gtf_annotations(tmp_path: Path) -> None:
+    csv_path = tmp_path / "all_variants_for_nstd102.csv"
+    gtf_path = tmp_path / "gencode.test.annotation.gtf.gz"
+    _write_dbvar_csv(csv_path)
+    _write_gtf(gtf_path)
+
+    adapter = DbVarStructuralVariantAdapter(
+        input_paths=csv_path,
+        gene_annotation_gtf_path=gtf_path,
+        ensembl_client=_FailingEnsemblClient(),
+        count_rows=False,
+        progress_every=1,
+    )
+    records = list(adapter.read())
+
+    assert len(records) == 1
+    record = records[0]
+    assert record.gene_id == "BMPR2"
+    assert record.metadata["gene_location"] == "202376327-202567751"
+    assert record.metadata["canonical_transcript"][0]["id"] == "ENST00000263377"
 
 
 def test_structural_variant_publisher_writes_legacy_payload(tmp_path: Path) -> None:

@@ -12,6 +12,7 @@ from typing import Any, Iterable, Iterator, Mapping
 
 from datahub.adapters.base import DataAdapter
 from datahub.adapters.common import expand_input_paths
+from datahub.annotations import GtfGeneAnnotationIndex
 from datahub.apis import EnsemblRestClient
 from datahub.artifact_io import load_json_artifact, open_text_artifact
 from datahub.models import CanonicalRecord
@@ -169,6 +170,8 @@ class DbVarStructuralVariantAdapter(DataAdapter):
         phenotype_terms: str | Iterable[str] | None = None,
         metadata_seed_path: str | Path | None = None,
         reference_json_path: str | Path | None = None,
+        gene_annotation_gtf_path: str | Path | None = None,
+        gene_annotation_index: GtfGeneAnnotationIndex | None = None,
         ensembl_client: EnsemblRestClient | None = None,
         ensembl_cache_path: str | Path | None = None,
         ensembl_timeout_seconds: float = 30.0,
@@ -191,6 +194,15 @@ class DbVarStructuralVariantAdapter(DataAdapter):
         self.count_rows = bool(count_rows)
         self._gene_metadata_cache: dict[str, GeneMetadata] = {}
         self.report: dict[str, Any] = {}
+        self._owns_gene_annotation_index = False
+
+        if gene_annotation_index is not None:
+            self.gene_annotation_index = gene_annotation_index
+        elif gene_annotation_gtf_path is not None:
+            self.gene_annotation_index = GtfGeneAnnotationIndex(path=gene_annotation_gtf_path)
+            self._owns_gene_annotation_index = True
+        else:
+            self.gene_annotation_index = None
 
         if ensembl_client is None:
             self.ensembl_client = EnsemblRestClient(
@@ -210,6 +222,8 @@ class DbVarStructuralVariantAdapter(DataAdapter):
             for source_path in self.input_paths:
                 yield from self._read_one_file(source_path)
         finally:
+            if self._owns_gene_annotation_index and self.gene_annotation_index is not None:
+                self.gene_annotation_index.close()
             if self._owns_ensembl_client:
                 self.ensembl_client.close()
 
@@ -268,17 +282,15 @@ class DbVarStructuralVariantAdapter(DataAdapter):
                 )
                 continue
 
-            overlap_payloads = self.ensembl_client.overlap_region_genes(
-                chromosome=variant.chromosome,
-                start=variant.start,
-                end=variant.end,
-            )
+            overlap_payloads = self._overlap_region_genes(variant)
             emitted_for_row = 0
             for overlap_payload in overlap_payloads:
                 record = self._to_record(
                     variant=variant,
                     overlap_payload=overlap_payload,
                     source_path=source_path,
+                    source_row_index=file_row_index,
+                    source_total_rows=total_rows,
                 )
                 if record is None:
                     continue
@@ -353,6 +365,22 @@ class DbVarStructuralVariantAdapter(DataAdapter):
             self.report["rows_without_overlapping_genes"],
         )
 
+    def _overlap_region_genes(self, variant: NormalizedStructuralVariant) -> list[dict[str, Any]]:
+        if self.gene_annotation_index is not None:
+            overlap_payloads = self.gene_annotation_index.overlap_region_genes(
+                chromosome=variant.chromosome,
+                start=variant.start,
+                end=variant.end,
+            )
+            if overlap_payloads:
+                return overlap_payloads
+
+        return self.ensembl_client.overlap_region_genes(
+            chromosome=variant.chromosome,
+            start=variant.start,
+            end=variant.end,
+        )
+
     def _normalize_variant_row(self, row: Mapping[str, Any]) -> NormalizedStructuralVariant | None:
         variant_id = _clean_text(row.get("Variant ID"))
         study_id = _clean_text(row.get("Study ID"))
@@ -381,6 +409,8 @@ class DbVarStructuralVariantAdapter(DataAdapter):
         variant: NormalizedStructuralVariant,
         overlap_payload: Mapping[str, Any],
         source_path: Path,
+        source_row_index: int,
+        source_total_rows: int,
     ) -> CanonicalRecord | None:
         gene_symbol = _clean_text(
             overlap_payload.get("external_name")
@@ -426,6 +456,8 @@ class DbVarStructuralVariantAdapter(DataAdapter):
                 "biotype": metadata.biotype,
                 "canonical_transcript": deepcopy(metadata.canonical_transcript),
                 "source_file": str(source_path),
+                "source_row_index": source_row_index,
+                "source_total_rows": source_total_rows or None,
             },
         )
 
@@ -457,7 +489,11 @@ class DbVarStructuralVariantAdapter(DataAdapter):
             self._gene_metadata_cache[gene_stable_id] = metadata
             return metadata
 
-        lookup_payload = self.ensembl_client.gene_lookup(gene_stable_id)
+        lookup_payload: Mapping[str, Any] = {}
+        if self.gene_annotation_index is not None:
+            lookup_payload = self.gene_annotation_index.gene_lookup(gene_stable_id)
+        if not lookup_payload:
+            lookup_payload = self.ensembl_client.gene_lookup(gene_stable_id)
         start = _parse_int(lookup_payload.get("start")) or _parse_int(overlap_payload.get("start"))
         end = _parse_int(lookup_payload.get("end")) or _parse_int(overlap_payload.get("end"))
         gene_location = f"{start}-{end}" if start is not None and end is not None else None

@@ -11,6 +11,7 @@ from .apis import (
     NcbiVariationApiClient,
     RestApiClient,
 )
+from .annotations import GtfGeneAnnotationIndex, GtfGeneRecord, GtfTranscriptRecord
 from .config import (
     ASSOCIATION_AXIS_FIELDS,
     ASSOCIATION_CORE_FIELDS,
@@ -65,6 +66,9 @@ __all__ = [
     "JsonFileApiCache",
     "EnsemblRestClient",
     "NcbiVariationApiClient",
+    "GtfGeneAnnotationIndex",
+    "GtfGeneRecord",
+    "GtfTranscriptRecord",
     "AssociationExportManifest",
     "AssociationExportManifestCatalog",
     "AssociationExportManifestLoader",

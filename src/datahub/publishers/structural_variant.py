@@ -117,6 +117,18 @@ def _merge_structural_variant_payloads_in_place(
         _sort_payload_variants_in_place(target_payload)
 
 
+def _seed_seen_variant_identities(
+    payload: dict[str, Any],
+) -> dict[str, set[tuple[str, str, str, str]]]:
+    seeded: dict[str, set[tuple[str, str, str, str]]] = {}
+    for gene_name, gene_payload in payload.items():
+        variants = gene_payload.get("variants")
+        if not isinstance(variants, list):
+            continue
+        seeded[gene_name] = {_variant_identity(variant) for variant in variants}
+    return seeded
+
+
 class StructuralVariantLegacyPublisher(Publisher):
     """Publish canonical structural-variant records into the legacy SV JSON contract."""
 
@@ -145,32 +157,38 @@ class StructuralVariantLegacyPublisher(Publisher):
         self.contract = OutputContractLoader().load(contract_path or "structural_variant_legacy")
 
     def publish(self, records: Iterable[CanonicalRecord]) -> None:
-        payload: dict[str, Any] = {}
-        seen_variant_identities: dict[str, set[tuple[str, str, str, str]]] = {}
+        payload: dict[str, Any]
+        if self.merge_existing:
+            payload = load_structural_variant_payload(self.merge_source_json_path)
+        else:
+            payload = {}
+        seen_variant_identities = _seed_seen_variant_identities(payload)
         records_seen = 0
         records_skipped = 0
 
         for record in records:
             records_seen += 1
-            gene_payload = self._record_to_gene_payload(record)
-            if gene_payload is None:
+            applied = self._apply_record(
+                payload=payload,
+                seen_variant_identities=seen_variant_identities,
+                record=record,
+            )
+            if not applied:
                 records_skipped += 1
-                self._log_progress(records_seen=records_seen, genes_written=len(payload))
+                self._log_progress(
+                    records_seen=records_seen,
+                    genes_written=len(payload),
+                    record=record,
+                )
                 continue
 
-            _merge_structural_variant_payloads_in_place(
-                payload,
-                gene_payload,
-                seen_variant_identities=seen_variant_identities,
-                sort_variants=False,
+            self._log_progress(
+                records_seen=records_seen,
+                genes_written=len(payload),
+                record=record,
             )
-            self._log_progress(records_seen=records_seen, genes_written=len(payload))
 
         _sort_payload_variants_in_place(payload)
-
-        if self.merge_existing:
-            existing_payload = load_structural_variant_payload(self.merge_source_json_path)
-            payload = merge_structural_variant_payloads(existing_payload, payload)
 
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
         self.output_path.write_text(
@@ -204,22 +222,81 @@ class StructuralVariantLegacyPublisher(Publisher):
             self.output_path,
         )
 
-    def _log_progress(self, *, records_seen: int, genes_written: int) -> None:
+    def _log_progress(
+        self,
+        *,
+        records_seen: int,
+        genes_written: int,
+        record: CanonicalRecord | None = None,
+    ) -> None:
         if records_seen % self.progress_every != 0:
             return
+
+        row_progress = ""
+        if record is not None:
+            metadata = dict(record.metadata or {})
+            source_row_index = _parse_int(metadata.get("source_row_index"))
+            source_total_rows = _parse_int(metadata.get("source_total_rows"))
+            if source_row_index is not None and source_total_rows:
+                row_progress = (
+                    f" rows={source_row_index}/{source_total_rows} "
+                    f"({source_row_index / source_total_rows * 100.0:.1f}%)"
+                )
+            elif source_row_index is not None:
+                row_progress = f" rows={source_row_index}/?"
+
         logger.info(
-            "[SV publish] records=%d genes=%d",
+            "[SV publish] records=%d genes=%d%s",
             records_seen,
             genes_written,
+            row_progress,
         )
 
-    def _record_to_gene_payload(self, record: CanonicalRecord) -> dict[str, Any] | None:
+    def _apply_record(
+        self,
+        *,
+        payload: dict[str, Any],
+        seen_variant_identities: dict[str, set[tuple[str, str, str, str]]],
+        record: CanonicalRecord,
+    ) -> bool:
         gene_name = _clean_text(record.gene_id)
         metadata = dict(record.metadata or {})
         variant_region = _clean_text(metadata.get("variant_region"))
         study_id = _clean_text(metadata.get("study_id"))
         if not gene_name or not record.variant_id or not variant_region or not study_id:
-            return None
+            return False
+
+        gene_record = payload.get(gene_name)
+        if not isinstance(gene_record, dict):
+            gene_record = deepcopy(self.contract.payload["gene_defaults"])
+            gene_record["variants"] = []
+            payload[gene_name] = gene_record
+
+        for field_name, field_value in (
+            ("gene_location", metadata.get("gene_location")),
+            ("strand", metadata.get("strand")),
+            ("biotype", metadata.get("biotype")),
+        ):
+            if gene_record.get(field_name) in (None, "") and field_value not in (None, ""):
+                gene_record[field_name] = field_value
+
+        if not gene_record.get("canonical_transcript") and metadata.get("canonical_transcript"):
+            gene_record["canonical_transcript"] = deepcopy(metadata.get("canonical_transcript") or [])
+
+        existing_variants = gene_record.get("variants")
+        if not isinstance(existing_variants, list):
+            existing_variants = []
+            gene_record["variants"] = existing_variants
+
+        identity = (
+            _clean_text(record.variant_id),
+            study_id,
+            variant_region,
+            _clean_text(record.variation_type),
+        )
+        seen = seen_variant_identities.setdefault(gene_name, set())
+        if identity in seen:
+            return True
 
         variant_payload = deepcopy(self.contract.payload["variant_defaults"])
         variant_payload.update(
@@ -233,17 +310,6 @@ class StructuralVariantLegacyPublisher(Publisher):
                 "variant_region": variant_region,
             }
         )
-        gene_record = deepcopy(self.contract.payload["gene_defaults"])
-        gene_record.update(
-            {
-                "gene_location": metadata.get("gene_location"),
-                "strand": metadata.get("strand"),
-                "biotype": metadata.get("biotype"),
-                "canonical_transcript": deepcopy(metadata.get("canonical_transcript") or []),
-                "variants": [variant_payload],
-            }
-        )
-        gene_payload = {
-            gene_name: gene_record
-        }
-        return gene_payload
+        existing_variants.append(variant_payload)
+        seen.add(identity)
+        return True

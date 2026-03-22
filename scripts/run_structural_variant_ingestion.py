@@ -60,6 +60,11 @@ def parse_args() -> argparse.Namespace:
         help="Optional persistent JSON cache path for Ensembl API responses.",
     )
     parser.add_argument(
+        "--gene-annotation-gtf",
+        default="",
+        help="Optional local GTF/GTF.GZ path for gene overlap and metadata lookup before Ensembl fallback.",
+    )
+    parser.add_argument(
         "--phenotype-term",
         action="append",
         default=[],
@@ -138,6 +143,7 @@ def main() -> int:
         params={
             "input_paths": args.input,
             "metadata_seed_path": args.gene_metadata_seed or None,
+            "gene_annotation_gtf_path": args.gene_annotation_gtf or None,
             "ensembl_cache_path": args.cache_path or None,
             "ensembl_timeout_seconds": args.timeout_seconds,
             "ensembl_sleep_seconds": args.sleep_seconds,

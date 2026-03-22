@@ -44,12 +44,14 @@ Important contract/config split:
 - output shape comes from `config/output_contracts/structural_variant_legacy.json`
 - gene metadata reuse is a separate seed input
 - merge behavior is a separate existing-output concern
+- local gene overlap can come from a pinned GTF, with Ensembl used only as fallback when needed
 
 Recommended repository-local invocation:
 
 ```bash
 python scripts/run_structural_variant_ingestion.py \
   --input raw_data/dbvar/dbvar_structural_variants_nstd229.csv.zip \
+  --gene-annotation-gtf raw_data/gencode.v49.annotation.gtf.gz \
   --output-json analyzed_data/dbvar/dbvar_structural_variants_nstd229.json \
   --gene-metadata-seed analyzed_data/dbvar/dbvar_structural_variants_nstd102_seed.json.zip \
   --merge-source-json analyzed_data/dbvar/dbvar_structural_variants_nstd102_seed.json.zip \

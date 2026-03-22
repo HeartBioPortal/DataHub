@@ -6,6 +6,7 @@ Dataset scope:
 
 - raw source datasets as received from upstream providers
 - typically source-native CSV, TSV, JSON, or compressed equivalents
+- reference annotation files such as GTFs when pipelines need pinned local genome annotations
 - no analysis-time reshaping beyond safe archival compression
 
 Use it for:
@@ -28,6 +29,7 @@ Recommended layout:
 Examples:
 
 - `raw_data/dbvar/dbvar_structural_variants_nstd229.csv.zip`
+- `raw_data/gencode.v49.annotation.gtf.gz`
 - `raw_data/clinvar/...`
 
 Guidelines:
