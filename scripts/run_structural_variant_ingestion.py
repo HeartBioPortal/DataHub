@@ -13,7 +13,13 @@ from typing import Any, Iterator
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from datahub import DatasetProfileLoader, SourceManifestLoader, build_default_adapter_registry, build_default_source_registry  # noqa: E402
+from datahub import (  # noqa: E402
+    DatasetProfileLoader,
+    SourceManifestLoader,
+    StructuralVariantCheckpoint,
+    build_default_adapter_registry,
+    build_default_source_registry,
+)
 from datahub.publishers import StructuralVariantLegacyPublisher  # noqa: E402
 from datahub.quality import ContractValidator  # noqa: E402
 
@@ -104,6 +110,27 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Skip the initial full-file row count and log progress without a total percentage.",
     )
+    parser.add_argument(
+        "--checkpoint-path",
+        default="",
+        help="Optional checkpoint JSON path. Defaults to <output-json>.checkpoint.json.",
+    )
+    parser.add_argument(
+        "--checkpoint-every-rows",
+        type=int,
+        default=50_000,
+        help="Write resumable snapshots/checkpoints every N raw rows.",
+    )
+    parser.add_argument(
+        "--no-resume",
+        action="store_true",
+        help="Disable checkpoint-based resume and process the raw input from the beginning.",
+    )
+    parser.add_argument(
+        "--reset-checkpoint",
+        action="store_true",
+        help="Reset checkpoint metadata before the run starts.",
+    )
     return parser.parse_args()
 
 
@@ -135,7 +162,39 @@ def main() -> int:
     manifest_loader = SourceManifestLoader(args.sources_dir or None)
     source_registry = build_default_source_registry(manifest_loader)
     adapter_registry = build_default_adapter_registry()
-    merge_source_json = args.merge_source_json or (args.output_json if args.merge_existing else "")
+    requested_merge_source_json = args.merge_source_json or (args.output_json if args.merge_existing else "")
+
+    checkpoint: StructuralVariantCheckpoint | None = None
+    resume_rows_by_file: dict[str, int] = {}
+    merge_source_json = requested_merge_source_json
+    merge_existing = args.merge_existing
+    if not args.no_resume:
+        checkpoint_path = (
+            Path(args.checkpoint_path)
+            if args.checkpoint_path
+            else Path(f"{args.output_json}.checkpoint.json")
+        )
+        checkpoint = StructuralVariantCheckpoint(checkpoint_path)
+        checkpoint.load()
+        if args.reset_checkpoint:
+            checkpoint.reset()
+            logger.info("Checkpoint reset: %s", checkpoint_path)
+        resume_rows_by_file = checkpoint.completed_rows()
+        if resume_rows_by_file:
+            output_path = Path(args.output_json)
+            if not output_path.exists():
+                raise FileNotFoundError(
+                    f"Checkpoint exists at {checkpoint_path}, but output snapshot is missing: {output_path}. "
+                    "Restore the output file or rerun with --reset-checkpoint."
+                )
+            merge_source_json = str(output_path)
+            merge_existing = True
+            logger.info(
+                "Resume enabled: checkpoint=%s completed_files=%d snapshot=%s",
+                checkpoint_path,
+                len(resume_rows_by_file),
+                output_path,
+            )
 
     adapter = source_registry.create_adapter(
         args.source_id,
@@ -144,6 +203,7 @@ def main() -> int:
             "input_paths": args.input,
             "metadata_seed_path": args.gene_metadata_seed or None,
             "gene_annotation_gtf_path": args.gene_annotation_gtf or None,
+            "resume_rows_by_file": resume_rows_by_file,
             "ensembl_cache_path": args.cache_path or None,
             "ensembl_timeout_seconds": args.timeout_seconds,
             "ensembl_sleep_seconds": args.sleep_seconds,
@@ -159,9 +219,13 @@ def main() -> int:
         report_path=None,
         merge_source_json_path=merge_source_json or None,
         contract_path=args.contract_path or None,
-        merge_existing=args.merge_existing,
+        merge_existing=merge_existing,
         progress_every=args.progress_every,
+        checkpoint=checkpoint,
+        checkpoint_every_rows=args.checkpoint_every_rows,
     )
+    if hasattr(adapter, "row_completion_callback"):
+        adapter.row_completion_callback = publisher.mark_source_row_completed
     validator = ContractValidator()
     run_report = {
         "profile": profile.name,
@@ -170,6 +234,9 @@ def main() -> int:
         "validated_records": 0,
         "dropped_records": 0,
         "issues": 0,
+        "resume_enabled": not args.no_resume,
+        "checkpoint_path": str(checkpoint.path) if checkpoint is not None else None,
+        "checkpoint_rows_loaded": sum(resume_rows_by_file.values()) if resume_rows_by_file else 0,
     }
 
     publisher.publish(

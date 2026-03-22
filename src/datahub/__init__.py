@@ -12,6 +12,7 @@ from .apis import (
     RestApiClient,
 )
 from .annotations import GtfGeneAnnotationIndex, GtfGeneRecord, GtfTranscriptRecord
+from .checkpoints import StructuralVariantCheckpoint, write_json_atomic
 from .config import (
     ASSOCIATION_AXIS_FIELDS,
     ASSOCIATION_CORE_FIELDS,
@@ -69,6 +70,8 @@ __all__ = [
     "GtfGeneAnnotationIndex",
     "GtfGeneRecord",
     "GtfTranscriptRecord",
+    "StructuralVariantCheckpoint",
+    "write_json_atomic",
     "AssociationExportManifest",
     "AssociationExportManifestCatalog",
     "AssociationExportManifestLoader",

@@ -45,6 +45,7 @@ Important contract/config split:
 - gene metadata reuse is a separate seed input
 - merge behavior is a separate existing-output concern
 - local gene overlap can come from a pinned GTF, with Ensembl used only as fallback when needed
+- resume uses a row-level checkpoint plus periodic output snapshots, so reruns can continue from the last saved raw-row boundary
 
 Recommended repository-local invocation:
 
@@ -58,9 +59,17 @@ python scripts/run_structural_variant_ingestion.py \
   --merge-existing \
   --report-path analyzed_data/dbvar/dbvar_structural_variants_nstd229.report.json \
   --cache-path analyzed_data/dbvar/dbvar_structural_variant_ensembl_cache.json \
+  --checkpoint-every-rows 50000 \
   --skip-row-count \
   --progress-every 5000
 ```
+
+Resume notes:
+
+- checkpoint defaults to `analyzed_data/dbvar/dbvar_structural_variants_nstd229.json.checkpoint.json`
+- rerun the same command to continue from the latest saved checkpoint
+- use `--reset-checkpoint` to force a clean restart
+- use `--no-resume` to ignore checkpoint state for a one-off fresh run
 
 ## MVP scripts
 

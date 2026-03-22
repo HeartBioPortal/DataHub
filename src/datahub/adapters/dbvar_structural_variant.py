@@ -8,7 +8,7 @@ import time
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Iterator, Mapping
+from typing import Any, Callable, Iterable, Iterator, Mapping
 
 from datahub.adapters.base import DataAdapter
 from datahub.adapters.common import expand_input_paths
@@ -51,6 +51,13 @@ def _normalize_chromosome(value: Any) -> str:
         text = text[3:]
     parsed = _parse_int(text)
     return str(parsed) if parsed is not None else text
+
+
+def _source_file_key(path: Path) -> str:
+    try:
+        return str(path.resolve())
+    except OSError:
+        return str(path)
 
 
 def _dedupe_keep_order(values: Iterable[str]) -> list[str]:
@@ -172,6 +179,8 @@ class DbVarStructuralVariantAdapter(DataAdapter):
         reference_json_path: str | Path | None = None,
         gene_annotation_gtf_path: str | Path | None = None,
         gene_annotation_index: GtfGeneAnnotationIndex | None = None,
+        resume_rows_by_file: Mapping[str, int] | None = None,
+        row_completion_callback: Callable[[str, int], None] | None = None,
         ensembl_client: EnsemblRestClient | None = None,
         ensembl_cache_path: str | Path | None = None,
         ensembl_timeout_seconds: float = 30.0,
@@ -193,6 +202,11 @@ class DbVarStructuralVariantAdapter(DataAdapter):
         self.progress_every = max(int(progress_every), 1)
         self.count_rows = bool(count_rows)
         self._gene_metadata_cache: dict[str, GeneMetadata] = {}
+        self.resume_rows_by_file = {
+            str(file_key): max(int(row_index), 0)
+            for file_key, row_index in dict(resume_rows_by_file or {}).items()
+        }
+        self.row_completion_callback = row_completion_callback
         self.report: dict[str, Any] = {}
         self._owns_gene_annotation_index = False
 
@@ -233,6 +247,7 @@ class DbVarStructuralVariantAdapter(DataAdapter):
             "rows_seen": 0,
             "rows_skipped_missing_region": 0,
             "rows_filtered_by_phenotype": 0,
+            "rows_skipped_by_resume": 0,
             "rows_missing_variant_type": 0,
             "rows_missing_phenotype": 0,
             "rows_missing_clinical_significance": 0,
@@ -251,9 +266,22 @@ class DbVarStructuralVariantAdapter(DataAdapter):
 
         started_at = time.perf_counter()
         file_row_index = 0
+        source_file_key = _source_file_key(source_path)
+        resume_row_index = self.resume_rows_by_file.get(source_file_key, 0)
+        if resume_row_index:
+            logger.info("Resuming %s from row %d", source_path, resume_row_index)
         for row in self._iter_rows(source_path):
             file_row_index += 1
             self.report["rows_seen"] += 1
+            if file_row_index <= resume_row_index:
+                self.report["rows_skipped_by_resume"] += 1
+                self._log_progress(
+                    source_path=source_path,
+                    file_row_index=file_row_index,
+                    total_rows=total_rows,
+                    started_at=started_at,
+                )
+                continue
 
             variant = self._normalize_variant_row(row)
             if variant is None:
@@ -289,6 +317,7 @@ class DbVarStructuralVariantAdapter(DataAdapter):
                     variant=variant,
                     overlap_payload=overlap_payload,
                     source_path=source_path,
+                    source_file_key=source_file_key,
                     source_row_index=file_row_index,
                     source_total_rows=total_rows,
                 )
@@ -307,6 +336,8 @@ class DbVarStructuralVariantAdapter(DataAdapter):
                 total_rows=total_rows,
                 started_at=started_at,
             )
+            if self.row_completion_callback is not None:
+                self.row_completion_callback(source_file_key, file_row_index)
 
         self._log_progress(
             source_path=source_path,
@@ -351,13 +382,14 @@ class DbVarStructuralVariantAdapter(DataAdapter):
             progress_label = f"{file_row_index}/?"
 
         logger.info(
-            "[SV] %s rows=%s rate=%.1f rows/s emitted=%d filtered=%d missing_region=%d "
+            "[SV] %s rows=%s rate=%.1f rows/s emitted=%d filtered=%d resumed_skip=%d missing_region=%d "
             "missing_type=%d missing_pheno=%d missing_sig=%d no_gene=%d",
             source_path.name,
             progress_label,
             rate,
             self.report["records_emitted"],
             self.report["rows_filtered_by_phenotype"],
+            self.report["rows_skipped_by_resume"],
             self.report["rows_skipped_missing_region"],
             self.report["rows_missing_variant_type"],
             self.report["rows_missing_phenotype"],
@@ -409,6 +441,7 @@ class DbVarStructuralVariantAdapter(DataAdapter):
         variant: NormalizedStructuralVariant,
         overlap_payload: Mapping[str, Any],
         source_path: Path,
+        source_file_key: str,
         source_row_index: int,
         source_total_rows: int,
     ) -> CanonicalRecord | None:
@@ -456,6 +489,7 @@ class DbVarStructuralVariantAdapter(DataAdapter):
                 "biotype": metadata.biotype,
                 "canonical_transcript": deepcopy(metadata.canonical_transcript),
                 "source_file": str(source_path),
+                "source_file_key": source_file_key,
                 "source_row_index": source_row_index,
                 "source_total_rows": source_total_rows or None,
             },

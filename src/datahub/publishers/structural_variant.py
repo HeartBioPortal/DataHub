@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from datahub.artifact_io import load_json_artifact
+from datahub.checkpoints import StructuralVariantCheckpoint, write_json_atomic
 from datahub.models import CanonicalRecord
 from datahub.output_contracts import OutputContractLoader
 from datahub.publishers.base import Publisher
@@ -143,6 +144,8 @@ class StructuralVariantLegacyPublisher(Publisher):
         merge_existing: bool = False,
         json_indent: int | None = 2,
         progress_every: int = 5_000,
+        checkpoint: StructuralVariantCheckpoint | None = None,
+        checkpoint_every_rows: int = 50_000,
     ) -> None:
         self.output_path = Path(output_path)
         self.report_path = Path(report_path) if report_path else None
@@ -153,8 +156,12 @@ class StructuralVariantLegacyPublisher(Publisher):
         self.merge_existing = merge_existing
         self.json_indent = json_indent
         self.progress_every = max(int(progress_every), 1)
+        self.checkpoint = checkpoint
+        self.checkpoint_every_rows = max(int(checkpoint_every_rows), 1)
         self.publish_report: dict[str, Any] = {}
         self.contract = OutputContractLoader().load(contract_path or "structural_variant_legacy")
+        self._active_payload: dict[str, Any] | None = None
+        self._latest_completed_rows: dict[str, int] = {}
 
     def publish(self, records: Iterable[CanonicalRecord]) -> None:
         payload: dict[str, Any]
@@ -165,39 +172,37 @@ class StructuralVariantLegacyPublisher(Publisher):
         seen_variant_identities = _seed_seen_variant_identities(payload)
         records_seen = 0
         records_skipped = 0
+        self._active_payload = payload
+        self._latest_completed_rows = {}
 
-        for record in records:
-            records_seen += 1
-            applied = self._apply_record(
-                payload=payload,
-                seen_variant_identities=seen_variant_identities,
-                record=record,
-            )
-            if not applied:
-                records_skipped += 1
+        try:
+            for record in records:
+                records_seen += 1
+                applied = self._apply_record(
+                    payload=payload,
+                    seen_variant_identities=seen_variant_identities,
+                    record=record,
+                )
+                if not applied:
+                    records_skipped += 1
+                    self._log_progress(
+                        records_seen=records_seen,
+                        genes_written=len(payload),
+                        record=record,
+                    )
+                    continue
+
                 self._log_progress(
                     records_seen=records_seen,
                     genes_written=len(payload),
                     record=record,
                 )
-                continue
-
-            self._log_progress(
-                records_seen=records_seen,
-                genes_written=len(payload),
-                record=record,
-            )
+        finally:
+            self._active_payload = None
 
         _sort_payload_variants_in_place(payload)
-
-        self.output_path.parent.mkdir(parents=True, exist_ok=True)
-        self.output_path.write_text(
-            json.dumps(
-                payload,
-                indent=self.json_indent,
-                sort_keys=True,
-            )
-        )
+        self._write_payload_snapshot(payload, sort_variants=False)
+        self._persist_final_checkpoint()
 
         self.publish_report = {
             "output_path": str(self.output_path),
@@ -212,8 +217,7 @@ class StructuralVariantLegacyPublisher(Publisher):
         }
 
         if self.report_path is not None:
-            self.report_path.parent.mkdir(parents=True, exist_ok=True)
-            self.report_path.write_text(json.dumps(self.publish_report, indent=2, sort_keys=True))
+            write_json_atomic(self.report_path, self.publish_report, indent=2, sort_keys=True)
 
         logger.info(
             "Wrote %d genes / %d variants to %s",
@@ -221,6 +225,38 @@ class StructuralVariantLegacyPublisher(Publisher):
             self.publish_report["variants_written"],
             self.output_path,
         )
+
+    def _write_payload_snapshot(self, payload: dict[str, Any], *, sort_variants: bool) -> None:
+        snapshot_payload = payload
+        if sort_variants:
+            snapshot_payload = deepcopy(payload)
+            _sort_payload_variants_in_place(snapshot_payload)
+        write_json_atomic(self.output_path, snapshot_payload, indent=self.json_indent, sort_keys=True)
+
+    def mark_source_row_completed(self, source_file_key: str, row_index: int) -> None:
+        if not source_file_key or row_index <= 0:
+            return
+        self._latest_completed_rows[source_file_key] = row_index
+        if self.checkpoint is None or self._active_payload is None:
+            return
+        if row_index % self.checkpoint_every_rows != 0:
+            return
+        self._write_payload_snapshot(self._active_payload, sort_variants=False)
+        self.checkpoint.mark_completed_row(
+            source_file=source_file_key,
+            row_index=row_index,
+            output_path=self.output_path,
+        )
+
+    def _persist_final_checkpoint(self) -> None:
+        if self.checkpoint is None:
+            return
+        for source_file_key, row_index in sorted(self._latest_completed_rows.items()):
+            self.checkpoint.mark_completed_row(
+                source_file=source_file_key,
+                row_index=row_index,
+                output_path=self.output_path,
+            )
 
     def _log_progress(
         self,
