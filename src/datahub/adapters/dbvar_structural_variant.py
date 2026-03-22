@@ -179,6 +179,7 @@ class DbVarStructuralVariantAdapter(DataAdapter):
         reference_json_path: str | Path | None = None,
         gene_annotation_gtf_path: str | Path | None = None,
         gene_annotation_index: GtfGeneAnnotationIndex | None = None,
+        enable_ensembl_overlap_fallback: bool | None = None,
         resume_rows_by_file: Mapping[str, int] | None = None,
         row_completion_callback: Callable[[str, int], None] | None = None,
         ensembl_client: EnsemblRestClient | None = None,
@@ -217,6 +218,10 @@ class DbVarStructuralVariantAdapter(DataAdapter):
             self._owns_gene_annotation_index = True
         else:
             self.gene_annotation_index = None
+        if enable_ensembl_overlap_fallback is None:
+            self.enable_ensembl_overlap_fallback = self.gene_annotation_index is None
+        else:
+            self.enable_ensembl_overlap_fallback = bool(enable_ensembl_overlap_fallback)
 
         if ensembl_client is None:
             self.ensembl_client = EnsemblRestClient(
@@ -379,7 +384,7 @@ class DbVarStructuralVariantAdapter(DataAdapter):
         if total_rows:
             progress_label = f"{file_row_index}/{total_rows} ({file_row_index / total_rows * 100.0:.1f}%)"
         else:
-            progress_label = f"{file_row_index}/?"
+            progress_label = f"{file_row_index}/? (row count disabled)"
 
         logger.info(
             "[SV] %s rows=%s rate=%.1f rows/s emitted=%d filtered=%d resumed_skip=%d missing_region=%d "
@@ -404,7 +409,7 @@ class DbVarStructuralVariantAdapter(DataAdapter):
                 start=variant.start,
                 end=variant.end,
             )
-            if overlap_payloads:
+            if overlap_payloads or not self.enable_ensembl_overlap_fallback:
                 return overlap_payloads
 
         return self.ensembl_client.overlap_region_genes(

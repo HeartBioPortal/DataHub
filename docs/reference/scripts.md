@@ -44,7 +44,7 @@ Important contract/config split:
 - output shape comes from `config/output_contracts/structural_variant_legacy.json`
 - gene metadata reuse is a separate seed input
 - merge behavior is a separate existing-output concern
-- local gene overlap can come from a pinned GTF, with Ensembl used only as fallback when needed
+- local gene overlap can come from a pinned GTF, with Ensembl overlap fallback disabled by default for speed
 - resume uses a row-level checkpoint plus periodic output snapshots, so reruns can continue from the last saved raw-row boundary
 
 Recommended repository-local invocation:
@@ -60,7 +60,6 @@ python scripts/run_structural_variant_ingestion.py \
   --report-path analyzed_data/dbvar/dbvar_structural_variants_nstd229.report.json \
   --cache-path analyzed_data/dbvar/dbvar_structural_variant_ensembl_cache.json \
   --checkpoint-every-rows 50000 \
-  --skip-row-count \
   --progress-every 5000
 ```
 
@@ -70,6 +69,8 @@ Resume notes:
 - rerun the same command to continue from the latest saved checkpoint
 - use `--reset-checkpoint` to force a clean restart
 - use `--no-resume` to ignore checkpoint state for a one-off fresh run
+- if you add `--skip-row-count`, progress percent is intentionally unavailable because the total row count is not precomputed
+- add `--enable-ensembl-overlap-fallback` only if you want no-hit rows double-checked against Ensembl
 
 ## MVP scripts
 

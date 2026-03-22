@@ -247,6 +247,45 @@ def test_dbvar_structural_variant_adapter_uses_local_gtf_annotations(tmp_path: P
     assert record.metadata["canonical_transcript"][0]["id"] == "ENST00000263377"
 
 
+def test_dbvar_structural_variant_adapter_skips_ensembl_overlap_when_local_gtf_has_no_hit(tmp_path: Path) -> None:
+    csv_path = tmp_path / "all_variants_for_nstd102.csv"
+    gtf_path = tmp_path / "gencode.test.annotation.gtf.gz"
+    _write_dbvar_csv(csv_path)
+
+    payload = "\n".join(
+        [
+            "##description: test",
+            '\t'.join(
+                [
+                    "3",
+                    "HAVANA",
+                    "gene",
+                    "100",
+                    "200",
+                    ".",
+                    "+",
+                    ".",
+                    'gene_id "ENSG00000999999.1"; gene_name "OTHER"; gene_type "protein_coding";',
+                ]
+            ),
+        ]
+    )
+    with gzip.open(gtf_path, "wt", encoding="utf-8") as handle:
+        handle.write(payload)
+
+    adapter = DbVarStructuralVariantAdapter(
+        input_paths=csv_path,
+        gene_annotation_gtf_path=gtf_path,
+        ensembl_client=_FailingEnsemblClient(),
+        count_rows=False,
+        progress_every=1,
+    )
+    records = list(adapter.read())
+
+    assert records == []
+    assert adapter.report["rows_without_overlapping_genes"] == 1
+
+
 def test_structural_variant_publisher_writes_legacy_payload(tmp_path: Path) -> None:
     output_path = tmp_path / "structural_variants.json"
     publisher = StructuralVariantLegacyPublisher(output_path=output_path, progress_every=1)

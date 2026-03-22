@@ -71,6 +71,14 @@ def parse_args() -> argparse.Namespace:
         help="Optional local GTF/GTF.GZ path for gene overlap and metadata lookup before Ensembl fallback.",
     )
     parser.add_argument(
+        "--enable-ensembl-overlap-fallback",
+        action="store_true",
+        help=(
+            "When a local GTF is provided, also call Ensembl overlap for rows with no local gene hit. "
+            "Disabled by default for faster local-GTF runs."
+        ),
+    )
+    parser.add_argument(
         "--phenotype-term",
         action="append",
         default=[],
@@ -203,6 +211,7 @@ def main() -> int:
             "input_paths": args.input,
             "metadata_seed_path": args.gene_metadata_seed or None,
             "gene_annotation_gtf_path": args.gene_annotation_gtf or None,
+            "enable_ensembl_overlap_fallback": args.enable_ensembl_overlap_fallback,
             "resume_rows_by_file": resume_rows_by_file,
             "ensembl_cache_path": args.cache_path or None,
             "ensembl_timeout_seconds": args.timeout_seconds,
