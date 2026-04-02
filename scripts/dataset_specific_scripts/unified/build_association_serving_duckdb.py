@@ -446,6 +446,26 @@ def _insert_rows(
         connection.executemany(sql, rows[start:start + max(batch_size, 1)])
 
 
+def _flush_rows(
+    connection: Any,
+    *,
+    table_name: str,
+    rows: list[tuple[Any, ...]],
+    batch_size: int,
+) -> int:
+    if not rows:
+        return 0
+    inserted = len(rows)
+    _insert_rows(
+        connection,
+        table_name=table_name,
+        rows=rows,
+        batch_size=batch_size,
+    )
+    rows.clear()
+    return inserted
+
+
 def _is_nan(value: Any) -> bool:
     return isinstance(value, float) and math.isnan(value)
 
@@ -562,6 +582,86 @@ def _load_sga_rows(
     return rows
 
 
+def _stream_payload_rows(
+    connection: Any,
+    *,
+    table_name: str,
+    dataset_types: list[str],
+    final_root: Path,
+    subdir: str,
+    include_genes: set[str] | None,
+    batch_size: int,
+    logger: logging.Logger,
+    path_resolver: PhenotypePathResolver | None,
+    export_runtime: Any | None,
+    log_label: str,
+) -> int:
+    buffered_rows: list[tuple[str, str, str, str, str]] = []
+    inserted_rows = 0
+
+    for dataset_type in dataset_types:
+        payload_root = final_root / subdir / dataset_type
+        if not payload_root.exists():
+            continue
+
+        files = _collect_gene_payload_files(
+            payload_root,
+            include_genes=include_genes,
+        )
+        logger.info(
+            "%s payload scan: dataset_type=%s files=%d root=%s",
+            log_label,
+            dataset_type,
+            len(files),
+            payload_root,
+        )
+
+        for index, (gene_id, payload_path) in enumerate(files, start=1):
+            buffered_rows.append(
+                (
+                    dataset_type,
+                    gene_id,
+                    gene_id.upper(),
+                    json.dumps(
+                        _load_payload(
+                            payload_path,
+                            dataset_type=dataset_type,
+                            path_resolver=path_resolver,
+                            export_runtime=export_runtime,
+                        ),
+                        separators=(",", ":"),
+                    ),
+                    str(payload_path),
+                )
+            )
+
+            if len(buffered_rows) >= max(batch_size, 1):
+                inserted_rows += _flush_rows(
+                    connection,
+                    table_name=table_name,
+                    rows=buffered_rows,
+                    batch_size=batch_size,
+                )
+
+            if index % 5000 == 0:
+                logger.info(
+                    "%s payload progress: dataset_type=%s processed=%d/%d inserted_total=%d",
+                    log_label,
+                    dataset_type,
+                    index,
+                    len(files),
+                    inserted_rows,
+                )
+
+    inserted_rows += _flush_rows(
+        connection,
+        table_name=table_name,
+        rows=buffered_rows,
+        batch_size=batch_size,
+    )
+    return inserted_rows
+
+
 def main() -> int:
     args = parse_args()
     logger = _setup_logger(args.log_level)
@@ -620,9 +720,6 @@ def main() -> int:
     connection = duckdb.connect(str(db_path))
     try:
         _create_tables(connection)
-
-        association_rows: list[tuple[str, str, str, str, str]] = []
-        overall_rows: list[tuple[str, str, str, str, str]] = []
         expression_rows = _load_expression_rows(
             expression_json_path,
             include_genes=include_genes,
@@ -632,82 +729,31 @@ def main() -> int:
             include_genes=include_genes,
             logger=logger,
         )
-
-        for dataset_type in dataset_types:
-            association_root = final_root / args.association_subdir / dataset_type
-            overall_root = final_root / args.overall_subdir / dataset_type
-
-            if association_root.exists():
-                files = _collect_gene_payload_files(
-                    association_root,
-                    include_genes=include_genes,
-                )
-                logger.info(
-                    "Association payload scan: dataset_type=%s files=%d root=%s",
-                    dataset_type,
-                    len(files),
-                    association_root,
-                )
-                for gene_id, payload_path in files:
-                    association_rows.append(
-                        (
-                            dataset_type,
-                            gene_id,
-                            gene_id.upper(),
-                            json.dumps(
-                                _load_payload(
-                                    payload_path,
-                                    dataset_type=dataset_type,
-                                    path_resolver=path_resolver,
-                                    export_runtime=manifest_catalog.base_runtime,
-                                ),
-                                separators=(",", ":"),
-                            ),
-                            str(payload_path),
-                        )
-                    )
-
-            if overall_root.exists():
-                files = _collect_gene_payload_files(
-                    overall_root,
-                    include_genes=include_genes,
-                )
-                logger.info(
-                    "Overall payload scan: dataset_type=%s files=%d root=%s",
-                    dataset_type,
-                    len(files),
-                    overall_root,
-                )
-                for gene_id, payload_path in files:
-                    overall_rows.append(
-                        (
-                            dataset_type,
-                            gene_id,
-                            gene_id.upper(),
-                            json.dumps(
-                                _load_payload(
-                                    payload_path,
-                                    dataset_type=dataset_type,
-                                    path_resolver=path_resolver,
-                                    export_runtime=manifest_catalog.base_runtime,
-                                ),
-                                separators=(",", ":"),
-                            ),
-                            str(payload_path),
-                        )
-                    )
-
-        _insert_rows(
+        association_row_count = _stream_payload_rows(
             connection,
             table_name="association_gene_payloads",
-            rows=association_rows,
+            dataset_types=dataset_types,
+            final_root=final_root,
+            subdir=args.association_subdir,
+            include_genes=include_genes,
             batch_size=args.batch_size,
+            logger=logger,
+            path_resolver=path_resolver,
+            export_runtime=manifest_catalog.base_runtime,
+            log_label="Association",
         )
-        _insert_rows(
+        overall_row_count = _stream_payload_rows(
             connection,
             table_name="overall_gene_payloads",
-            rows=overall_rows,
+            dataset_types=dataset_types,
+            final_root=final_root,
+            subdir=args.overall_subdir,
+            include_genes=include_genes,
             batch_size=args.batch_size,
+            logger=logger,
+            path_resolver=path_resolver,
+            export_runtime=manifest_catalog.base_runtime,
+            log_label="Overall",
         )
         _insert_rows(
             connection,
@@ -789,8 +835,8 @@ FULL OUTER JOIN (
                 manifest_catalog.base_runtime.manifest.version,
                 ",".join(dataset_types),
                 0 if include_genes is None else len(include_genes),
-                len(association_rows),
-                len(overall_rows),
+                association_row_count,
+                overall_row_count,
                 len(expression_rows),
                 len(sga_rows),
                 str(expression_json_path) if expression_json_path else "",
@@ -821,8 +867,8 @@ FULL OUTER JOIN (
             "export_manifest_version": manifest_catalog.base_runtime.manifest.version,
             "dataset_types": dataset_types,
             "filtered_gene_count": 0 if include_genes is None else len(include_genes),
-            "association_rows": len(association_rows),
-            "overall_rows": len(overall_rows),
+            "association_rows": association_row_count,
+            "overall_rows": overall_row_count,
             "expression_rows": len(expression_rows),
             "sga_rows": len(sga_rows),
             "catalog_rows": int(connection.execute("SELECT COUNT(*) FROM gene_catalog").fetchone()[0]),
