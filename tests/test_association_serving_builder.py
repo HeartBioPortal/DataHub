@@ -252,3 +252,88 @@ WHERE gene_id_normalized = 'ANK2'
         assert build_meta == ("association_export_v1", 1)
     finally:
         con.close()
+
+
+def test_builder_can_trust_already_canonical_published_payloads(tmp_path: Path) -> None:
+    if duckdb is None:
+        import pytest
+
+        pytest.skip("duckdb is not installed in this Python environment")
+
+    module = _load_builder_module()
+
+    output_root = tmp_path / "analyzed_data_unified"
+    final_root = output_root / "association" / "final"
+    assoc_cvd = [
+        {
+            "disease": ["cardiac_dysrhythmias", "atrial_fibrillation"],
+            "vc": [{"name": "INDEL", "value": 3}],
+            "msc": [{"name": "missense variant", "value": 3}],
+            "cs": [{"name": "likely benign", "value": 3}],
+            "ancestry": [],
+            "_datahub": {
+                "manifest_id": "association_export_v1",
+                "manifest_version": 1,
+            },
+        }
+    ]
+    overall_cvd = {
+        "data": {
+            "vc": {"INDEL": 3},
+            "msc": {"missense variant": 3},
+            "cs": {"likely benign": 3},
+            "ancestry": {},
+        },
+        "pvals": {},
+        "_datahub": {
+            "manifest_id": "association_export_v1",
+            "manifest_version": 1,
+        },
+    }
+
+    _write_json_gz(final_root / "association" / "CVD" / "ANK2.json.gz", assoc_cvd)
+    _write_json_gz(final_root / "overall" / "CVD" / "ANK2.json.gz", overall_cvd)
+
+    db_path = tmp_path / "association_serving_fast.duckdb"
+
+    old_argv = sys.argv[:]
+    try:
+        sys.argv = [
+            "build_association_serving_duckdb.py",
+            "--input-root",
+            str(output_root),
+            "--db-path",
+            str(db_path),
+            "--include-genes",
+            "ANK2",
+            "--trust-published-payloads",
+            "--log-level",
+            "ERROR",
+        ]
+        exit_code = module.main()
+    finally:
+        sys.argv = old_argv
+
+    assert exit_code == 0
+
+    con = duckdb.connect(str(db_path), read_only=True)
+    try:
+        assoc_row = con.execute(
+            """
+SELECT payload_json
+FROM association_gene_payloads
+WHERE dataset_type = 'CVD' AND gene_id_normalized = 'ANK2'
+"""
+        ).fetchone()
+        overall_row = con.execute(
+            """
+SELECT payload_json
+FROM overall_gene_payloads
+WHERE dataset_type = 'CVD' AND gene_id_normalized = 'ANK2'
+"""
+        ).fetchone()
+
+        assert json.loads(assoc_row[0]) == assoc_cvd
+        assert json.loads(overall_row[0]) == overall_cvd
+    finally:
+        con.close()

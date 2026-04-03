@@ -132,6 +132,8 @@ The serving builder can read the published outputs and create a compact DuckDB s
 
 For large full-dataset builds, the serving builder streams payload rows into DuckDB in batches rather than collecting the entire association corpus in Python memory first. This keeps the artifact build operationally feasible on HPC and medium-memory servers without changing the analyzed contract.
 
+If the published outputs were just regenerated from a clean canonical pipeline and no additional normalization is needed, the builder also supports a fast path through `--trust-published-payloads`. In that mode it stores published association/overall JSON text directly instead of reparsing and renormalizing every file. This is substantially faster, but it should only be used when those published outputs are already known to be canonical.
+
 ## Why publication is still needed even with DuckDB
 
 The point of the publication stage is not just file creation. It is the point where DataHub defines the analyzed contract. The serving artifact should preserve that contract, not replace the meaning of it.

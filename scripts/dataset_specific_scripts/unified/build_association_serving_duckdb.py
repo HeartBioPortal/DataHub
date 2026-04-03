@@ -118,6 +118,15 @@ def parse_args() -> argparse.Namespace:
         help="Insert batch size.",
     )
     parser.add_argument(
+        "--trust-published-payloads",
+        action="store_true",
+        help=(
+            "Skip per-file payload normalization and store published association/overall "
+            "JSON exactly as emitted. Use only when the published outputs are already "
+            "known to be canonical."
+        ),
+    )
+    parser.add_argument(
         "--log-level",
         default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
@@ -348,6 +357,13 @@ def _normalize_payload(
         return cloned
 
     return payload
+
+
+def _read_payload_text(path: Path) -> str:
+    if path.name.endswith(".json.gz"):
+        with gzip.open(path, "rt", encoding="utf-8") as stream:
+            return stream.read()
+    return path.read_text()
 
 
 def _create_tables(connection: Any) -> None:
@@ -595,6 +611,7 @@ def _stream_payload_rows(
     path_resolver: PhenotypePathResolver | None,
     export_runtime: Any | None,
     log_label: str,
+    trust_published_payloads: bool,
 ) -> int:
     buffered_rows: list[tuple[str, str, str, str, str]] = []
     inserted_rows = 0
@@ -617,20 +634,24 @@ def _stream_payload_rows(
         )
 
         for index, (gene_id, payload_path) in enumerate(files, start=1):
+            if trust_published_payloads:
+                payload_json = _read_payload_text(payload_path)
+            else:
+                payload_json = json.dumps(
+                    _load_payload(
+                        payload_path,
+                        dataset_type=dataset_type,
+                        path_resolver=path_resolver,
+                        export_runtime=export_runtime,
+                    ),
+                    separators=(",", ":"),
+                )
             buffered_rows.append(
                 (
                     dataset_type,
                     gene_id,
                     gene_id.upper(),
-                    json.dumps(
-                        _load_payload(
-                            payload_path,
-                            dataset_type=dataset_type,
-                            path_resolver=path_resolver,
-                            export_runtime=export_runtime,
-                        ),
-                        separators=(",", ":"),
-                    ),
+                    payload_json,
                     str(payload_path),
                 )
             )
@@ -716,6 +737,10 @@ def main() -> int:
         str(sga_root) if sga_root else "disabled",
         bool(args.replace),
     )
+    logger.info(
+        "Serving builder fast path: trust_published_payloads=%s",
+        bool(args.trust_published_payloads),
+    )
 
     connection = duckdb.connect(str(db_path))
     try:
@@ -741,6 +766,7 @@ def main() -> int:
             path_resolver=path_resolver,
             export_runtime=manifest_catalog.base_runtime,
             log_label="Association",
+            trust_published_payloads=bool(args.trust_published_payloads),
         )
         overall_row_count = _stream_payload_rows(
             connection,
@@ -754,6 +780,7 @@ def main() -> int:
             path_resolver=path_resolver,
             export_runtime=manifest_catalog.base_runtime,
             log_label="Overall",
+            trust_published_payloads=bool(args.trust_published_payloads),
         )
         _insert_rows(
             connection,
