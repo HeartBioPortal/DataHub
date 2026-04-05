@@ -1,0 +1,7 @@
+{
+  "analysis_id": "expression",
+  "version": 1,
+  "mode": "imported",
+  "description": "Normalize per-gene expression source data into compact secondary-analysis artifacts.",
+  "artifact_subdir": "expression"
+}

@@ -98,6 +98,23 @@ Manifest-driven preservation/derivation layer.
 
 **Philosophy:** analyzed export semantics should be explicit, configurable, and testable instead of hidden inside ad hoc publisher code.
 
+## `secondary_analyses/`
+
+Secondary-analysis generation and serving-update support.
+
+**Philosophy:** imported modalities and derived post-association analyses should share one explicit extension layer instead of becoming one-off builder flags or backend hacks.
+
+This package is responsible for:
+
+- manifest-driven secondary-analysis registration
+- artifact generation for imported and derived analyses
+- in-place updates to an existing serving DuckDB
+
+Current analyses:
+
+- `expression` as an imported secondary analysis
+- `sga` as a derived post-association analysis
+
 ## `pipeline.py`
 
 High-level pipeline composition.

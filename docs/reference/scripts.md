@@ -109,6 +109,23 @@ Important operational flags:
 
 Build a compact serving DuckDB from published outputs.
 
+### `scripts/dataset_specific_scripts/unified/run_secondary_analyses.py`
+
+Generate or apply secondary-analysis artifacts.
+
+Use this when:
+
+- you want to derive `sga` from the cleaned unified association DuckDB
+- you want to normalize `expression` into the standard secondary-analysis artifact layout
+- you want to update an existing serving DuckDB with secondary analyses without rebuilding association tables
+
+Subcommands:
+
+- `generate`
+  - create per-gene secondary artifacts under `final/<analysis>/genes/`
+- `apply`
+  - load those artifacts into an existing serving DB and refresh `gene_catalog`
+
 ### `scripts/dataset_specific_scripts/unified/run_unified_pipeline.py`
 
 Profile-driven orchestration for the unified pipeline across laptop/AWS/HPC.

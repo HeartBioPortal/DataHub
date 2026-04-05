@@ -1,0 +1,7 @@
+{
+  "analysis_id": "sga",
+  "version": 1,
+  "mode": "derived",
+  "description": "Derive shared genetic architecture payloads from the cleaned unified association point store.",
+  "artifact_subdir": "sga"
+}

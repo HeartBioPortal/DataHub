@@ -55,6 +55,7 @@ nav:
   - Pipelines:
       - Association Pipeline: pipelines/association.md
       - Unified DuckDB Pipeline: pipelines/unified.md
+      - Secondary Analyses: pipelines/secondary-analyses.md
       - Serving Artifacts: pipelines/serving.md
   - Extending DataHub:
       - New Source Onboarding: extending/new-source.md
