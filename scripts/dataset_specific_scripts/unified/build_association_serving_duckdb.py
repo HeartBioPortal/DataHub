@@ -445,6 +445,19 @@ CREATE TABLE build_metadata (
 )
 """
     )
+    connection.execute(
+        """
+CREATE TABLE secondary_analysis_metadata (
+    analysis_id VARCHAR,
+    analysis_version BIGINT,
+    analysis_mode VARCHAR,
+    built_at TIMESTAMP,
+    artifact_root VARCHAR,
+    row_count BIGINT,
+    metadata_json VARCHAR
+)
+"""
+    )
 
 
 def _insert_rows(

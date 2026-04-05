@@ -119,6 +119,10 @@ Use this when:
 - you want to normalize `expression` into the standard secondary-analysis artifact layout
 - you want to update an existing serving DuckDB with secondary analyses without rebuilding association tables
 
+Operational note:
+
+- the `sga` generator is designed for HPC-style runs and streams the unified association table gene-by-gene to avoid loading the full deduplicated working set into Python memory
+
 Subcommands:
 
 - `generate`

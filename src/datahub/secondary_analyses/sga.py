@@ -5,13 +5,14 @@ from __future__ import annotations
 import hashlib
 import json
 from collections import defaultdict
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
 from datahub.gene_ids import sql_has_gene_like_identifier
 
 from .artifacts import write_gene_payload_artifact, write_metadata
-from .base import SecondaryAnalysisManifest, SecondaryArtifactRow
+from .base import SecondaryAnalysisManifest
 
 
 def _identity_interval(variant_id: str) -> list[float]:
@@ -33,12 +34,13 @@ def _slug_sql(column_sql: str) -> str:
     )
 
 
-def _load_gene_variant_sets(
+def _stream_gene_variant_sets(
     connection: Any,
     *,
     source_table: str,
     include_genes: set[str] | None,
-) -> dict[str, dict[str, dict[str, set[str]]]]:
+    chunk_size: int = 100_000,
+) -> Iterable[tuple[str, dict[str, dict[str, set[str]]]]]:
     gene_filter_sql = ""
     params: list[str] = []
     if include_genes:
@@ -46,7 +48,7 @@ def _load_gene_variant_sets(
         gene_filter_sql = f" AND upper(trim(gene_id)) IN ({placeholders})"
         params.extend(sorted(include_genes))
 
-    rows = connection.execute(
+    cursor = connection.execute(
         f"""
 WITH cleaned AS (
     SELECT
@@ -63,27 +65,54 @@ WITH cleaned AS (
       AND upper(trim(dataset_type)) IN ('CVD', 'TRAIT')
       {gene_filter_sql}
 ),
+eligible_genes AS (
+    SELECT gene_id
+    FROM cleaned
+    GROUP BY gene_id
+    HAVING count(distinct dataset_type) = 2
+),
 deduped AS (
     SELECT DISTINCT
-        dataset_type,
-        gene_id,
-        variant_id,
-        phenotype
-    FROM cleaned
+        c.dataset_type,
+        c.gene_id,
+        c.variant_id,
+        c.phenotype
+    FROM cleaned c
+    INNER JOIN eligible_genes g
+      ON c.gene_id = g.gene_id
 )
 SELECT dataset_type, gene_id, phenotype, variant_id
 FROM deduped
 ORDER BY gene_id, dataset_type, phenotype, variant_id
 """,
         params,
-    ).fetchall()
-
-    by_gene: dict[str, dict[str, dict[str, set[str]]]] = defaultdict(
-        lambda: {"CVD": defaultdict(set), "TRAIT": defaultdict(set)}
     )
-    for dataset_type, gene_id, phenotype, variant_id in rows:
-        by_gene[str(gene_id)][str(dataset_type)][str(phenotype)].add(str(variant_id))
-    return by_gene
+
+    current_gene: str | None = None
+    current_grouped: dict[str, dict[str, set[str]]] = {
+        "CVD": defaultdict(set),
+        "TRAIT": defaultdict(set),
+    }
+
+    while True:
+        rows = cursor.fetchmany(chunk_size)
+        if not rows:
+            break
+        for dataset_type, gene_id, phenotype, variant_id in rows:
+            normalized_gene = str(gene_id)
+            if current_gene is None:
+                current_gene = normalized_gene
+            if normalized_gene != current_gene:
+                yield current_gene, current_grouped
+                current_gene = normalized_gene
+                current_grouped = {
+                    "CVD": defaultdict(set),
+                    "TRAIT": defaultdict(set),
+                }
+            current_grouped[str(dataset_type)][str(phenotype)].add(str(variant_id))
+
+    if current_gene is not None:
+        yield current_gene, current_grouped
 
 
 def _build_gene_payload(gene_id: str, grouped: dict[str, dict[str, set[str]]]) -> list[dict[str, Any]]:
@@ -128,7 +157,7 @@ def generate_sga_artifacts(
     output_root: str | Path,
     manifest: SecondaryAnalysisManifest,
     include_genes: set[str] | None = None,
-) -> list[SecondaryArtifactRow]:
+) -> int:
     try:
         import duckdb  # type: ignore
     except ImportError as exc:  # pragma: no cover - runtime guard
@@ -136,34 +165,25 @@ def generate_sga_artifacts(
 
     connection = duckdb.connect(str(db_path), read_only=True)
     try:
-        by_gene = _load_gene_variant_sets(
+        row_count = 0
+        for gene_id, grouped in _stream_gene_variant_sets(
             connection,
             source_table=source_table,
             include_genes=include_genes,
-        )
+        ):
+            payload = _build_gene_payload(gene_id, grouped)
+            if not payload:
+                continue
+            payload_json = json.dumps(payload, separators=(",", ":"))
+            write_gene_payload_artifact(
+                output_root=output_root,
+                manifest=manifest,
+                gene_id=gene_id,
+                payload_json=payload_json,
+            )
+            row_count += 1
     finally:
         connection.close()
-
-    rows: list[SecondaryArtifactRow] = []
-    for gene_id in sorted(by_gene.keys(), key=lambda item: item.upper()):
-        payload = _build_gene_payload(gene_id, by_gene[gene_id])
-        if not payload:
-            continue
-        payload_json = json.dumps(payload, separators=(",", ":"))
-        artifact_path = write_gene_payload_artifact(
-            output_root=output_root,
-            manifest=manifest,
-            gene_id=gene_id,
-            payload_json=payload_json,
-        )
-        rows.append(
-            SecondaryArtifactRow(
-                gene_id=gene_id,
-                gene_id_normalized=gene_id.upper(),
-                payload_json=payload_json,
-                source_path=str(artifact_path),
-            )
-        )
 
     write_metadata(
         output_root=output_root,
@@ -174,10 +194,10 @@ def generate_sga_artifacts(
             "mode": manifest.mode,
             "source_db_path": str(Path(db_path)),
             "source_table": source_table,
-            "row_count": len(rows),
+            "row_count": row_count,
             "filtered_gene_count": 0 if include_genes is None else len(include_genes),
             "semantics": "shared rsid identity across CVD/TRAIT phenotype pairs",
             "encoding": "rsid_identity_interval",
         },
     )
-    return rows
+    return row_count

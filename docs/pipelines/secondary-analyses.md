@@ -165,6 +165,8 @@ Typical pattern:
 - derive `sga` from the corrected unified DuckDB
 - optionally generate `expression` artifacts from an explicit source file
 
+For large SGA runs, the generator streams the cleaned association point store in gene order instead of materializing the full deduplicated result set in Python memory. This keeps memory bounded to one gene's phenotype/variant working set at a time and is the intended HPC execution mode.
+
 ### Apply on AWS
 
 Use:

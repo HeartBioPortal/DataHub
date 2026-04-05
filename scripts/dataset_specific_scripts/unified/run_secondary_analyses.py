@@ -140,6 +140,12 @@ def _parse_gene_filter(args: argparse.Namespace) -> set[str] | None:
     return genes or None
 
 
+def _row_count(result: object) -> int:
+    if isinstance(result, int):
+        return result
+    return len(result)  # type: ignore[arg-type]
+
+
 def _remove_existing_artifacts(output_root: Path, artifact_subdir: str) -> None:
     target = output_root / "final" / artifact_subdir
     if target.exists():
@@ -161,7 +167,7 @@ def _run_generate(args: argparse.Namespace) -> int:
         if analysis_id == "expression":
             if not args.expression_json_path:
                 raise ValueError("expression generation requires --expression-json-path")
-            rows = generate_expression_artifacts(
+            result = generate_expression_artifacts(
                 expression_json_path=args.expression_json_path,
                 output_root=output_root,
                 manifest=manifest,
@@ -170,7 +176,7 @@ def _run_generate(args: argparse.Namespace) -> int:
         elif analysis_id == "sga":
             if not args.association_db_path:
                 raise ValueError("sga generation requires --association-db-path")
-            rows = generate_sga_artifacts(
+            result = generate_sga_artifacts(
                 db_path=args.association_db_path,
                 source_table=args.association_table,
                 output_root=output_root,
@@ -180,11 +186,12 @@ def _run_generate(args: argparse.Namespace) -> int:
         else:
             raise ValueError(f"Unsupported secondary analysis: {analysis_id}")
 
-        summaries[analysis_id] = len(rows)
+        count = _row_count(result)
+        summaries[analysis_id] = count
         logger.info(
             "Secondary analysis generated: analysis=%s rows=%d output_root=%s",
             analysis_id,
-            len(rows),
+            count,
             output_root,
         )
 
