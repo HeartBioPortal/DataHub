@@ -34,6 +34,8 @@ It currently contains tables such as:
 - `build_metadata`
 - `secondary_analysis_metadata`
 
+![Association serving DuckDB schema](../assets/association_serving_duckdb_schema.svg)
+
 ## Important design rule
 
 The serving builder is downstream of publication.
