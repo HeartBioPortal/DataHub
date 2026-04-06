@@ -167,6 +167,15 @@ Typical pattern:
 
 For large SGA runs, the generator streams the cleaned association point store in gene order instead of materializing the full deduplicated result set in Python memory. This keeps memory bounded to one gene's phenotype/variant working set at a time and is the intended HPC execution mode.
 
+Very large SGA runs should also be split into deterministic gene partitions:
+
+- `--unit-partitions N`
+- `--unit-partition-index I`
+
+Each partition writes disjoint per-gene artifacts under the same `final/sga/genes/` directory and writes partition-specific metadata such as `metadata.part000of032.json`.
+
+Do not use `--replace` inside parallel partition jobs. If the SGA artifact tree needs to be cleared, remove `final/sga/` once before submitting the partitioned Slurm jobs.
+
 ### Apply on AWS
 
 Use:

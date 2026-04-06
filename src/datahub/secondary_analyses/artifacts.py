@@ -37,8 +37,9 @@ def write_metadata(
     output_root: str | Path,
     manifest: SecondaryAnalysisManifest,
     payload: dict[str, object],
+    filename: str = "metadata.json",
 ) -> Path:
-    path = metadata_path(output_root, manifest)
+    path = Path(output_root) / "final" / manifest.artifact_subdir / filename
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True))
     return path

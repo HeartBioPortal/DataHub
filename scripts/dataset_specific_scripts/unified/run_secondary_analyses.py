@@ -62,6 +62,21 @@ def parse_args() -> argparse.Namespace:
         help="Delete existing artifact directories for the requested analyses before regenerating.",
     )
     generate.add_argument(
+        "--unit-partitions",
+        type=int,
+        default=1,
+        help=(
+            "Number of deterministic gene partitions for derived analyses. "
+            "Use with --unit-partition-index to split large SGA runs across Slurm jobs."
+        ),
+    )
+    generate.add_argument(
+        "--unit-partition-index",
+        type=int,
+        default=0,
+        help="Zero-based partition index for this secondary-analysis generation job.",
+    )
+    generate.add_argument(
         "--secondary-manifests-dir",
         default=None,
         help="Optional custom secondary-analysis manifest directory.",
@@ -182,6 +197,8 @@ def _run_generate(args: argparse.Namespace) -> int:
                 output_root=output_root,
                 manifest=manifest,
                 include_genes=include_genes,
+                unit_partitions=args.unit_partitions,
+                unit_partition_index=args.unit_partition_index,
             )
         else:
             raise ValueError(f"Unsupported secondary analysis: {analysis_id}")

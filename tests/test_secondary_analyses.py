@@ -214,21 +214,26 @@ CREATE TABLE mvp_association_points (
 
     old_argv = sys.argv[:]
     try:
-        sys.argv = [
-            "run_secondary_analyses.py",
-            "generate",
-            "--analyses",
-            "sga",
-            "--output-root",
-            str(secondary_root),
-            "--association-db-path",
-            str(association_db),
-            "--association-table",
-            "mvp_association_points",
-            "--log-level",
-            "ERROR",
-        ]
-        assert module.main() == 0
+        for partition_index in range(2):
+            sys.argv = [
+                "run_secondary_analyses.py",
+                "generate",
+                "--analyses",
+                "sga",
+                "--output-root",
+                str(secondary_root),
+                "--association-db-path",
+                str(association_db),
+                "--association-table",
+                "mvp_association_points",
+                "--unit-partitions",
+                "2",
+                "--unit-partition-index",
+                str(partition_index),
+                "--log-level",
+                "ERROR",
+            ]
+            assert module.main() == 0
 
         sys.argv = [
             "run_secondary_analyses.py",
@@ -247,6 +252,7 @@ CREATE TABLE mvp_association_points (
         sys.argv = old_argv
 
     artifact_path = secondary_root / "final" / "sga" / "genes" / "ANK2.json.gz"
+    assert len(list((secondary_root / "final" / "sga").glob("metadata.part*of*.json"))) == 2
     with gzip.open(artifact_path, "rt", encoding="utf-8") as stream:
         payload = json.loads(stream.read())
     assert [item["name"] for item in payload] == [

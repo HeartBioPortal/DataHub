@@ -111,7 +111,24 @@ FULL OUTER JOIN (
 def _metadata_json(artifact_root: Path, manifest: SecondaryAnalysisManifest) -> str:
     path = artifact_root.parent / "metadata.json"
     if not path.exists():
-        return "{}"
+        part_paths = sorted(artifact_root.parent.glob("metadata.part*of*.json"))
+        if not part_paths:
+            return "{}"
+        parts: list[dict[str, object]] = []
+        for part_path in part_paths:
+            try:
+                parts.append(json.loads(part_path.read_text()))
+            except Exception:
+                continue
+        return json.dumps(
+            {
+                "analysis_id": manifest.analysis_id,
+                "version": manifest.version,
+                "partition_metadata_count": len(parts),
+                "partitions": parts,
+            },
+            separators=(",", ":"),
+        )
     try:
         return json.dumps(json.loads(path.read_text()), separators=(",", ":"))
     except Exception:

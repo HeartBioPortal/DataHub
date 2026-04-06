@@ -39,6 +39,8 @@ def _stream_gene_variant_sets(
     *,
     source_table: str,
     include_genes: set[str] | None,
+    unit_partitions: int = 1,
+    unit_partition_index: int = 0,
     chunk_size: int = 100_000,
 ) -> Iterable[tuple[str, dict[str, dict[str, set[str]]]]]:
     gene_filter_sql = ""
@@ -47,6 +49,18 @@ def _stream_gene_variant_sets(
         placeholders = ",".join("?" for _ in sorted(include_genes))
         gene_filter_sql = f" AND upper(trim(gene_id)) IN ({placeholders})"
         params.extend(sorted(include_genes))
+
+    partitions = max(int(unit_partitions), 1)
+    partition_index = int(unit_partition_index)
+    if partition_index < 0 or partition_index >= partitions:
+        raise ValueError(
+            f"unit_partition_index must be in [0, {partitions - 1}], got {partition_index}"
+        )
+    partition_filter_sql = ""
+    if partitions > 1:
+        partition_filter_sql = (
+            f" AND (hash(upper(trim(gene_id))) % {partitions}) = {partition_index}"
+        )
 
     cursor = connection.execute(
         f"""
@@ -64,6 +78,7 @@ WITH cleaned AS (
       AND coalesce(trim(phenotype), '') <> ''
       AND upper(trim(dataset_type)) IN ('CVD', 'TRAIT')
       {gene_filter_sql}
+      {partition_filter_sql}
 ),
 eligible_genes AS (
     SELECT gene_id
@@ -157,6 +172,8 @@ def generate_sga_artifacts(
     output_root: str | Path,
     manifest: SecondaryAnalysisManifest,
     include_genes: set[str] | None = None,
+    unit_partitions: int = 1,
+    unit_partition_index: int = 0,
 ) -> int:
     try:
         import duckdb  # type: ignore
@@ -170,6 +187,8 @@ def generate_sga_artifacts(
             connection,
             source_table=source_table,
             include_genes=include_genes,
+            unit_partitions=unit_partitions,
+            unit_partition_index=unit_partition_index,
         ):
             payload = _build_gene_payload(gene_id, grouped)
             if not payload:
@@ -185,9 +204,18 @@ def generate_sga_artifacts(
     finally:
         connection.close()
 
+    metadata_filename = "metadata.json"
+    if int(unit_partitions) > 1:
+        width = max(3, len(str(int(unit_partitions) - 1)))
+        metadata_filename = (
+            f"metadata.part{int(unit_partition_index):0{width}d}"
+            f"of{int(unit_partitions):0{width}d}.json"
+        )
+
     write_metadata(
         output_root=output_root,
         manifest=manifest,
+        filename=metadata_filename,
         payload={
             "analysis_id": manifest.analysis_id,
             "version": manifest.version,
@@ -196,6 +224,8 @@ def generate_sga_artifacts(
             "source_table": source_table,
             "row_count": row_count,
             "filtered_gene_count": 0 if include_genes is None else len(include_genes),
+            "unit_partitions": int(unit_partitions),
+            "unit_partition_index": int(unit_partition_index),
             "semantics": "shared rsid identity across CVD/TRAIT phenotype pairs",
             "encoding": "rsid_identity_interval",
         },
