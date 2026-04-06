@@ -2,8 +2,11 @@
   <title id="title">HeartBioPortal association serving DuckDB schema</title>
   <desc id="desc">Schema diagram showing association, overall, expression, SGA, gene catalog, and metadata tables in the compact HeartBioPortal serving DuckDB.</desc>
   <defs>
-    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
-      <path d="M2,2 L10,6 L2,10 Z" fill="#be123c"/>
+    <marker id="arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto" markerUnits="strokeWidth">
+      <path d="M1,1 L8,4.5 L1,8 Z" fill="#be123c"/>
+    </marker>
+    <marker id="arrowMuted" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto" markerUnits="strokeWidth">
+      <path d="M1,1 L8,4.5 L1,8 Z" fill="#fb7185"/>
     </marker>
     <filter id="cardShadow" x="-20%" y="-20%" width="140%" height="140%">
       <feDropShadow dx="0" dy="10" stdDeviation="9" flood-color="#0f172a" flood-opacity="0.12"/>
@@ -23,8 +26,8 @@
       .column { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace; font-size: 15px; fill: #1f2937; }
       .columnMuted { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace; font-size: 14px; fill: #64748b; }
       .note { font-family: Helvetica, Arial, sans-serif; font-size: 14px; fill: #475569; }
-      .flow { fill: none; stroke: #be123c; stroke-width: 3; marker-end: url(#arrow); }
-      .flowMuted { fill: none; stroke: #fb7185; stroke-width: 2; stroke-dasharray: 7 6; marker-end: url(#arrow); }
+      .flow { fill: none; stroke: #be123c; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; marker-end: url(#arrow); }
+      .flowMuted { fill: none; stroke: #fb7185; stroke-width: 2.25; stroke-dasharray: 7 7; stroke-linecap: round; stroke-linejoin: round; marker-end: url(#arrowMuted); }
       .sourceBox { fill: #fff1f2; stroke: #fb7185; stroke-width: 2; }
       .sourceText { font-family: Helvetica, Arial, sans-serif; font-size: 16px; font-weight: 700; fill: #881337; }
       .badge { fill: #ffe4e6; stroke: #fb7185; stroke-width: 1.5; }
@@ -37,124 +40,123 @@
   <text class="title" x="70" y="76">Association Serving DuckDB Schema</text>
   <text class="subtitle" x="70" y="112">Compact runtime artifact used by the backend provider. Primary association tables are built once; secondary analyses can be attached later in place.</text>
 
-  <rect class="sourceBox" x="70" y="158" width="300" height="70" rx="18"/>
-  <text class="sourceText" x="96" y="188">Published association outputs</text>
-  <text class="note" x="96" y="211">association/final JSON or JSON.GZ</text>
+  <rect class="sourceBox" x="70" y="150" width="320" height="70" rx="18"/>
+  <text class="sourceText" x="96" y="181">Published association outputs</text>
+  <text class="note" x="96" y="204">association/final JSON or JSON.GZ</text>
 
-  <rect class="sourceBox" x="1220" y="158" width="310" height="70" rx="18"/>
-  <text class="sourceText" x="1248" y="188">Secondary artifacts</text>
-  <text class="note" x="1248" y="211">expression + SGA per-gene JSON.GZ</text>
+  <rect class="sourceBox" x="1210" y="150" width="320" height="70" rx="18"/>
+  <text class="sourceText" x="1238" y="181">Secondary artifacts</text>
+  <text class="note" x="1238" y="204">expression + SGA per-gene JSON.GZ</text>
 
-  <text class="section-label" x="70" y="290">Primary Serving Tables</text>
-  <text class="section-label" x="1220" y="290">Secondary Serving Tables</text>
-  <text class="section-label" x="625" y="290">Catalog / Availability Index</text>
+  <rect class="badge" x="70" y="250" width="420" height="36" rx="18"/>
+  <text class="badgeText" x="94" y="273">base build: build_association_serving_duckdb.py</text>
+
+  <rect class="badge" x="1110" y="250" width="420" height="36" rx="18"/>
+  <text class="badgeText" x="1134" y="273">incremental update: run_secondary_analyses.py apply</text>
+
+  <text class="section-label" x="70" y="326">Primary Serving Tables</text>
+  <text class="section-label" x="1220" y="326">Secondary Serving Tables</text>
+  <text class="section-label" x="625" y="326">Catalog / Availability Index</text>
 
   <g id="association-table">
-    <rect class="table" x="70" y="320" width="430" height="270" rx="18"/>
-    <rect class="header" x="70" y="320" width="430" height="52" rx="18"/>
-    <path d="M70 354 H500 V372 H70 Z" fill="url(#headerRose)"/>
-    <text class="headerText" x="94" y="353">association_gene_payloads</text>
-    <text class="column" x="96" y="405">dataset_type VARCHAR</text>
-    <text class="column" x="96" y="432">gene_id VARCHAR</text>
-    <text class="column" x="96" y="459">gene_id_normalized VARCHAR</text>
-    <text class="column" x="96" y="486">payload_json VARCHAR</text>
-    <text class="column" x="96" y="513">source_path VARCHAR</text>
-    <text class="columnMuted" x="96" y="553">index: dataset_type, gene_id_normalized</text>
+    <rect class="table" x="70" y="350" width="430" height="270" rx="18"/>
+    <rect class="header" x="70" y="350" width="430" height="52" rx="18"/>
+    <path d="M70 384 H500 V402 H70 Z" fill="url(#headerRose)"/>
+    <text class="headerText" x="94" y="383">association_gene_payloads</text>
+    <text class="column" x="96" y="435">dataset_type VARCHAR</text>
+    <text class="column" x="96" y="462">gene_id VARCHAR</text>
+    <text class="column" x="96" y="489">gene_id_normalized VARCHAR</text>
+    <text class="column" x="96" y="516">payload_json VARCHAR</text>
+    <text class="column" x="96" y="543">source_path VARCHAR</text>
+    <text class="columnMuted" x="96" y="583">index: dataset_type, gene_id_normalized</text>
   </g>
 
   <g id="overall-table">
-    <rect class="table" x="70" y="660" width="430" height="270" rx="18"/>
-    <rect class="header" x="70" y="660" width="430" height="52" rx="18"/>
-    <path d="M70 694 H500 V712 H70 Z" fill="url(#headerRose)"/>
-    <text class="headerText" x="94" y="693">overall_gene_payloads</text>
-    <text class="column" x="96" y="745">dataset_type VARCHAR</text>
-    <text class="column" x="96" y="772">gene_id VARCHAR</text>
-    <text class="column" x="96" y="799">gene_id_normalized VARCHAR</text>
-    <text class="column" x="96" y="826">payload_json VARCHAR</text>
-    <text class="column" x="96" y="853">source_path VARCHAR</text>
-    <text class="columnMuted" x="96" y="893">index: dataset_type, gene_id_normalized</text>
+    <rect class="table" x="70" y="670" width="430" height="270" rx="18"/>
+    <rect class="header" x="70" y="670" width="430" height="52" rx="18"/>
+    <path d="M70 704 H500 V722 H70 Z" fill="url(#headerRose)"/>
+    <text class="headerText" x="94" y="703">overall_gene_payloads</text>
+    <text class="column" x="96" y="755">dataset_type VARCHAR</text>
+    <text class="column" x="96" y="782">gene_id VARCHAR</text>
+    <text class="column" x="96" y="809">gene_id_normalized VARCHAR</text>
+    <text class="column" x="96" y="836">payload_json VARCHAR</text>
+    <text class="column" x="96" y="863">source_path VARCHAR</text>
+    <text class="columnMuted" x="96" y="903">index: dataset_type, gene_id_normalized</text>
   </g>
 
   <g id="catalog-table">
-    <rect class="table" x="585" y="342" width="470" height="500" rx="18"/>
-    <rect class="header" x="585" y="342" width="470" height="52" rx="18"/>
-    <path d="M585 376 H1055 V394 H585 Z" fill="url(#headerRose)"/>
-    <text class="headerText" x="612" y="375">gene_catalog</text>
-    <text class="column" x="616" y="427">gene_id VARCHAR</text>
-    <text class="column" x="616" y="454">gene_id_normalized VARCHAR</text>
-    <text class="column" x="616" y="481">has_cvd BOOLEAN</text>
-    <text class="column" x="616" y="508">has_trait BOOLEAN</text>
-    <text class="column" x="616" y="535">has_cvd_association BOOLEAN</text>
-    <text class="column" x="616" y="562">has_trait_association BOOLEAN</text>
-    <text class="column" x="616" y="589">has_cvd_overall BOOLEAN</text>
-    <text class="column" x="616" y="616">has_trait_overall BOOLEAN</text>
-    <text class="column" x="616" y="643">has_expression BOOLEAN</text>
-    <text class="column" x="616" y="670">has_sga BOOLEAN</text>
-    <text class="columnMuted" x="616" y="720">derived from primary + secondary tables</text>
-    <text class="columnMuted" x="616" y="747">index: gene_id_normalized</text>
-    <rect class="badge" x="616" y="776" width="210" height="34" rx="17"/>
-    <text class="badgeText" x="638" y="798">backend gene lookup index</text>
+    <rect class="table" x="585" y="382" width="470" height="500" rx="18"/>
+    <rect class="header" x="585" y="382" width="470" height="52" rx="18"/>
+    <path d="M585 416 H1055 V434 H585 Z" fill="url(#headerRose)"/>
+    <text class="headerText" x="612" y="415">gene_catalog</text>
+    <text class="column" x="616" y="467">gene_id VARCHAR</text>
+    <text class="column" x="616" y="494">gene_id_normalized VARCHAR</text>
+    <text class="column" x="616" y="521">has_cvd BOOLEAN</text>
+    <text class="column" x="616" y="548">has_trait BOOLEAN</text>
+    <text class="column" x="616" y="575">has_cvd_association BOOLEAN</text>
+    <text class="column" x="616" y="602">has_trait_association BOOLEAN</text>
+    <text class="column" x="616" y="629">has_cvd_overall BOOLEAN</text>
+    <text class="column" x="616" y="656">has_trait_overall BOOLEAN</text>
+    <text class="column" x="616" y="683">has_expression BOOLEAN</text>
+    <text class="column" x="616" y="710">has_sga BOOLEAN</text>
+    <text class="columnMuted" x="616" y="760">derived from primary + secondary tables</text>
+    <text class="columnMuted" x="616" y="787">index: gene_id_normalized</text>
+    <rect class="badge" x="616" y="816" width="210" height="34" rx="17"/>
+    <text class="badgeText" x="638" y="838">backend gene lookup index</text>
   </g>
 
   <g id="expression-table">
-    <rect class="table" x="1130" y="320" width="400" height="250" rx="18"/>
-    <rect class="header" x="1130" y="320" width="400" height="52" rx="18"/>
-    <path d="M1130 354 H1530 V372 H1130 Z" fill="url(#headerRose)"/>
-    <text class="headerText" x="1156" y="353">expression_gene_payloads</text>
-    <text class="column" x="1158" y="405">gene_id VARCHAR</text>
-    <text class="column" x="1158" y="432">gene_id_normalized VARCHAR</text>
-    <text class="column" x="1158" y="459">payload_json VARCHAR</text>
-    <text class="column" x="1158" y="486">source_path VARCHAR</text>
-    <text class="columnMuted" x="1158" y="526">index: gene_id_normalized</text>
+    <rect class="table" x="1130" y="350" width="400" height="250" rx="18"/>
+    <rect class="header" x="1130" y="350" width="400" height="52" rx="18"/>
+    <path d="M1130 384 H1530 V402 H1130 Z" fill="url(#headerRose)"/>
+    <text class="headerText" x="1156" y="383">expression_gene_payloads</text>
+    <text class="column" x="1158" y="435">gene_id VARCHAR</text>
+    <text class="column" x="1158" y="462">gene_id_normalized VARCHAR</text>
+    <text class="column" x="1158" y="489">payload_json VARCHAR</text>
+    <text class="column" x="1158" y="516">source_path VARCHAR</text>
+    <text class="columnMuted" x="1158" y="556">index: gene_id_normalized</text>
   </g>
 
   <g id="sga-table">
-    <rect class="table" x="1130" y="650" width="400" height="250" rx="18"/>
-    <rect class="header" x="1130" y="650" width="400" height="52" rx="18"/>
-    <path d="M1130 684 H1530 V702 H1130 Z" fill="url(#headerRose)"/>
-    <text class="headerText" x="1156" y="683">sga_gene_payloads</text>
-    <text class="column" x="1158" y="735">gene_id VARCHAR</text>
-    <text class="column" x="1158" y="762">gene_id_normalized VARCHAR</text>
-    <text class="column" x="1158" y="789">payload_json VARCHAR</text>
-    <text class="column" x="1158" y="816">source_path VARCHAR</text>
-    <text class="columnMuted" x="1158" y="856">index: gene_id_normalized</text>
+    <rect class="table" x="1130" y="670" width="400" height="250" rx="18"/>
+    <rect class="header" x="1130" y="670" width="400" height="52" rx="18"/>
+    <path d="M1130 704 H1530 V722 H1130 Z" fill="url(#headerRose)"/>
+    <text class="headerText" x="1156" y="703">sga_gene_payloads</text>
+    <text class="column" x="1158" y="755">gene_id VARCHAR</text>
+    <text class="column" x="1158" y="782">gene_id_normalized VARCHAR</text>
+    <text class="column" x="1158" y="809">payload_json VARCHAR</text>
+    <text class="column" x="1158" y="836">source_path VARCHAR</text>
+    <text class="columnMuted" x="1158" y="876">index: gene_id_normalized</text>
   </g>
 
+  <path class="flow" d="M230 220 V306 H285 V350"/>
+  <path class="flow" d="M230 220 V306 H42 V805 H70"/>
+  <path class="flow" d="M500 485 C540 485, 545 520, 585 520"/>
+  <path class="flow" d="M500 805 C545 805, 540 675, 585 675"/>
+
+  <path class="flowMuted" d="M1370 220 V306 H1330 V350"/>
+  <path class="flowMuted" d="M1370 220 V306 H1560 V795 H1530"/>
+  <path class="flow" d="M1130 475 C1090 475, 1090 575, 1055 575"/>
+  <path class="flow" d="M1130 795 C1090 795, 1090 675, 1055 675"/>
+
+  <text class="note" x="70" y="958">Primary tables are generated from published association artifacts. Secondary tables can be replaced later without rebuilding association payloads.</text>
+  <text class="note" x="70" y="978">Payload columns store compact JSON strings; backend provider deserializes them per requested gene.</text>
+
   <g id="build-metadata">
-    <rect class="table" x="70" y="982" width="690" height="94" rx="18"/>
-    <rect class="header" x="70" y="982" width="245" height="94" rx="18"/>
-    <text class="headerText" x="96" y="1035">build_metadata</text>
-    <text class="column" x="340" y="1014">built_at, source_root, export_manifest_id/version</text>
-    <text class="column" x="340" y="1041">association_row_count, overall_row_count</text>
-    <text class="columnMuted" x="340" y="1065">records base serving artifact construction</text>
+    <rect class="table" x="70" y="1000" width="690" height="94" rx="18"/>
+    <rect class="header" x="70" y="1000" width="245" height="94" rx="18"/>
+    <text class="headerText" x="96" y="1053">build_metadata</text>
+    <text class="column" x="340" y="1032">built_at, source_root, export_manifest_id/version</text>
+    <text class="column" x="340" y="1059">association_row_count, overall_row_count</text>
+    <text class="columnMuted" x="340" y="1083">records base serving artifact construction</text>
   </g>
 
   <g id="secondary-metadata">
-    <rect class="table" x="840" y="982" width="690" height="94" rx="18"/>
-    <rect class="header" x="840" y="982" width="310" height="94" rx="18"/>
-    <text class="headerText" x="866" y="1035">secondary_analysis_metadata</text>
-    <text class="column" x="1174" y="1014">analysis_id, version, mode, artifact_root</text>
-    <text class="column" x="1174" y="1041">row_count, metadata_json</text>
-    <text class="columnMuted" x="1174" y="1065">records incremental expression/SGA updates</text>
+    <rect class="table" x="840" y="1000" width="690" height="94" rx="18"/>
+    <rect class="header" x="840" y="1000" width="310" height="94" rx="18"/>
+    <text class="headerText" x="866" y="1053">secondary_analysis_metadata</text>
+    <text class="column" x="1174" y="1032">analysis_id, version, mode, artifact_root</text>
+    <text class="column" x="1174" y="1059">row_count, metadata_json</text>
+    <text class="columnMuted" x="1174" y="1083">records incremental expression/SGA updates</text>
   </g>
-
-  <path class="flow" d="M370 193 C475 193, 455 455, 70 455"/>
-  <path class="flow" d="M370 193 C475 193, 455 795, 70 795"/>
-  <path class="flow" d="M500 455 C545 455, 545 520, 585 520"/>
-  <path class="flow" d="M500 795 C545 795, 545 620, 585 620"/>
-  <path class="flowMuted" d="M1220 193 C1110 193, 1080 425, 1130 425"/>
-  <path class="flowMuted" d="M1220 193 C1110 193, 1080 755, 1130 755"/>
-  <path class="flow" d="M1130 445 C1085 445, 1100 650, 1055 650"/>
-  <path class="flow" d="M1130 775 C1085 775, 1100 670, 1055 670"/>
-  <path class="flowMuted" d="M820 842 C820 900, 430 920, 415 982"/>
-  <path class="flowMuted" d="M1055 760 C1160 820, 1200 920, 1185 982"/>
-
-  <rect class="badge" x="70" y="248" width="380" height="34" rx="17"/>
-  <text class="badgeText" x="92" y="270">base build: build_association_serving_duckdb.py</text>
-
-  <rect class="badge" x="1118" y="248" width="412" height="34" rx="17"/>
-  <text class="badgeText" x="1140" y="270">incremental update: run_secondary_analyses.py apply</text>
-
-  <text class="note" x="70" y="944">Primary tables are generated from published association artifacts. Secondary tables can be replaced later without rebuilding association payloads.</text>
-  <text class="note" x="70" y="964">Payload columns store compact JSON strings; backend provider deserializes them per requested gene.</text>
 </svg>
