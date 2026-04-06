@@ -77,6 +77,22 @@ def parse_args() -> argparse.Namespace:
         help="Zero-based partition index for this secondary-analysis generation job.",
     )
     generate.add_argument(
+        "--duckdb-threads",
+        type=int,
+        default=0,
+        help="DuckDB thread count for derived analyses. 0 keeps DuckDB default.",
+    )
+    generate.add_argument(
+        "--duckdb-memory-limit",
+        default=None,
+        help="Optional DuckDB memory limit for derived analyses, for example 24GB.",
+    )
+    generate.add_argument(
+        "--duckdb-temp-directory",
+        default=None,
+        help="Optional DuckDB temp spill directory for derived analyses.",
+    )
+    generate.add_argument(
         "--secondary-manifests-dir",
         default=None,
         help="Optional custom secondary-analysis manifest directory.",
@@ -199,6 +215,9 @@ def _run_generate(args: argparse.Namespace) -> int:
                 include_genes=include_genes,
                 unit_partitions=args.unit_partitions,
                 unit_partition_index=args.unit_partition_index,
+                duckdb_threads=args.duckdb_threads,
+                duckdb_memory_limit=args.duckdb_memory_limit,
+                duckdb_temp_directory=args.duckdb_temp_directory,
             )
         else:
             raise ValueError(f"Unsupported secondary analysis: {analysis_id}")

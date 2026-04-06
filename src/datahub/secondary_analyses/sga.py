@@ -174,6 +174,9 @@ def generate_sga_artifacts(
     include_genes: set[str] | None = None,
     unit_partitions: int = 1,
     unit_partition_index: int = 0,
+    duckdb_threads: int = 0,
+    duckdb_memory_limit: str | None = None,
+    duckdb_temp_directory: str | Path | None = None,
 ) -> int:
     try:
         import duckdb  # type: ignore
@@ -182,6 +185,18 @@ def generate_sga_artifacts(
 
     connection = duckdb.connect(str(db_path), read_only=True)
     try:
+        if int(duckdb_threads) > 0:
+            connection.execute(f"PRAGMA threads={int(duckdb_threads)}")
+        if duckdb_memory_limit:
+            safe_memory = str(duckdb_memory_limit).strip().replace("'", "")
+            if safe_memory:
+                connection.execute(f"SET memory_limit='{safe_memory}'")
+        if duckdb_temp_directory:
+            temp_dir = Path(duckdb_temp_directory)
+            temp_dir.mkdir(parents=True, exist_ok=True)
+            safe_temp = str(temp_dir).replace("'", "")
+            connection.execute(f"SET temp_directory='{safe_temp}'")
+
         row_count = 0
         for gene_id, grouped in _stream_gene_variant_sets(
             connection,
@@ -226,6 +241,9 @@ def generate_sga_artifacts(
             "filtered_gene_count": 0 if include_genes is None else len(include_genes),
             "unit_partitions": int(unit_partitions),
             "unit_partition_index": int(unit_partition_index),
+            "duckdb_threads": int(duckdb_threads),
+            "duckdb_memory_limit": str(duckdb_memory_limit or ""),
+            "duckdb_temp_directory": str(duckdb_temp_directory or ""),
             "semantics": "shared rsid identity across CVD/TRAIT phenotype pairs",
             "encoding": "rsid_identity_interval",
         },

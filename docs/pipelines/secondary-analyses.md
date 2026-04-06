@@ -171,10 +171,14 @@ Very large SGA runs should also be split into deterministic gene partitions:
 
 - `--unit-partitions N`
 - `--unit-partition-index I`
+- `--duckdb-memory-limit`
+- `--duckdb-temp-directory`
 
 Each partition writes disjoint per-gene artifacts under the same `final/sga/genes/` directory and writes partition-specific metadata such as `metadata.part000of032.json`.
 
 Do not use `--replace` inside parallel partition jobs. If the SGA artifact tree needs to be cleared, remove `final/sga/` once before submitting the partitioned Slurm jobs.
+
+On HPC systems, set the DuckDB memory limit lower than the Slurm memory allocation and point `--duckdb-temp-directory` at scratch storage so DuckDB can spill rather than being killed by the scheduler.
 
 ### Apply on AWS
 
