@@ -25,6 +25,8 @@
       .headerText { font-family: Helvetica, Arial, sans-serif; font-size: 18px; font-weight: 700; fill: #ffffff; }
       .column { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace; font-size: 15px; fill: #1f2937; }
       .columnMuted { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace; font-size: 14px; fill: #64748b; }
+      .columnSmall { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace; font-size: 13px; fill: #1f2937; }
+      .columnMutedSmall { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace; font-size: 12.5px; fill: #64748b; }
       .note { font-family: Helvetica, Arial, sans-serif; font-size: 14px; fill: #475569; }
       .flow { fill: none; stroke: #be123c; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; marker-end: url(#arrow); }
       .flowMuted { fill: none; stroke: #fb7185; stroke-width: 2.25; stroke-dasharray: 7 7; stroke-linecap: round; stroke-linejoin: round; marker-end: url(#arrowMuted); }
@@ -131,13 +133,13 @@
 
   <path class="flow" d="M230 220 V306 H285 V350"/>
   <path class="flow" d="M230 220 V306 H42 V805 H70"/>
-  <path class="flow" d="M500 485 C540 485, 545 520, 585 520"/>
-  <path class="flow" d="M500 805 C545 805, 540 675, 585 675"/>
+  <path class="flow" d="M500 485 H545 V520 H585"/>
+  <path class="flow" d="M500 805 H545 V675 H585"/>
 
   <path class="flowMuted" d="M1370 220 V306 H1330 V350"/>
   <path class="flowMuted" d="M1370 220 V306 H1560 V795 H1530"/>
-  <path class="flow" d="M1130 475 C1090 475, 1090 575, 1055 575"/>
-  <path class="flow" d="M1130 795 C1090 795, 1090 675, 1055 675"/>
+  <path class="flow" d="M1130 475 H1095 V575 H1055"/>
+  <path class="flow" d="M1130 795 H1095 V675 H1055"/>
 
   <text class="note" x="70" y="958">Primary tables are generated from published association artifacts. Secondary tables can be replaced later without rebuilding association payloads.</text>
   <text class="note" x="70" y="978">Payload columns store compact JSON strings; backend provider deserializes them per requested gene.</text>
@@ -146,17 +148,19 @@
     <rect class="table" x="70" y="1000" width="690" height="94" rx="18"/>
     <rect class="header" x="70" y="1000" width="245" height="94" rx="18"/>
     <text class="headerText" x="96" y="1053">build_metadata</text>
-    <text class="column" x="340" y="1032">built_at, source_root, export_manifest_id/version</text>
-    <text class="column" x="340" y="1059">association_row_count, overall_row_count</text>
-    <text class="columnMuted" x="340" y="1083">records base serving artifact construction</text>
+    <text class="columnSmall" x="340" y="1027">built_at, source_root</text>
+    <text class="columnSmall" x="340" y="1050">export_manifest_id, export_manifest_version</text>
+    <text class="columnSmall" x="340" y="1073">association_row_count, overall_row_count</text>
+    <text class="columnMutedSmall" x="340" y="1089">records base serving artifact construction</text>
   </g>
 
   <g id="secondary-metadata">
     <rect class="table" x="840" y="1000" width="690" height="94" rx="18"/>
     <rect class="header" x="840" y="1000" width="310" height="94" rx="18"/>
     <text class="headerText" x="866" y="1053">secondary_analysis_metadata</text>
-    <text class="column" x="1174" y="1032">analysis_id, version, mode, artifact_root</text>
-    <text class="column" x="1174" y="1059">row_count, metadata_json</text>
-    <text class="columnMuted" x="1174" y="1083">records incremental expression/SGA updates</text>
+    <text class="columnSmall" x="1174" y="1027">analysis_id, version, mode</text>
+    <text class="columnSmall" x="1174" y="1050">artifact_root, row_count</text>
+    <text class="columnSmall" x="1174" y="1073">metadata_json</text>
+    <text class="columnMutedSmall" x="1174" y="1089">records expression/SGA updates</text>
   </g>
 </svg>
