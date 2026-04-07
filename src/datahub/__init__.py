@@ -43,6 +43,19 @@ from .prep import (
 from .profiles import DatasetProfile, DatasetProfileLoader
 from .registry import AdapterPluginSpec, AdapterRegistry, build_default_adapter_registry
 from .publishers import StructuralVariantLegacyPublisher
+from .working_duckdb import (
+    ANALYSIS_READY_ASSOCIATION_TABLE,
+    SOURCE_NORMALIZED_ASSOCIATION_TABLE,
+    SchemaDriftResult,
+    compare_schema,
+    compare_schema_candidate_groups,
+    ensure_working_schema,
+    expected_column_groups_from_prep_profile,
+    inspect_csv_schema,
+    load_source_normalized_association_csv,
+    materialize_analysis_ready_association_from_points,
+    register_raw_release,
+)
 from .sources import (
     ClinVarSourceConnector,
     DbVarSourceConnector,
@@ -107,8 +120,19 @@ __all__ = [
     "SourceRegistry",
     "SourceConnectorPluginSpec",
     "StructuralVariantLegacyPublisher",
+    "ANALYSIS_READY_ASSOCIATION_TABLE",
+    "SOURCE_NORMALIZED_ASSOCIATION_TABLE",
+    "SchemaDriftResult",
     "build_association_contract",
+    "compare_schema",
+    "compare_schema_candidate_groups",
+    "ensure_working_schema",
+    "expected_column_groups_from_prep_profile",
     "ExportHelperRegistry",
+    "inspect_csv_schema",
+    "load_source_normalized_association_csv",
+    "materialize_analysis_ready_association_from_points",
+    "register_raw_release",
     "build_default_export_helper_registry",
     "build_default_adapter_registry",
     "build_default_source_registry",

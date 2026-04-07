@@ -92,6 +92,47 @@ Export prepared raw MVP rows for audit or downstream merge workflows.
 
 Ingest legacy raw CVD/trait files into the shared DuckDB points table.
 
+### `scripts/dataset_specific_scripts/unified/manage_working_duckdb.py`
+
+Manage the first concrete implementation of the target DataHub lifecycle model inside a working DuckDB.
+
+Use this when:
+
+- you want to initialize the lifecycle tables in a working DuckDB
+- you want to register a source-native raw release and inventory its source columns
+- you want schema drift reports before running analysis
+- you want to load prepared association CSVs into `source_normalized_association`
+- you want to materialize `analysis_ready_association` from the current points table during migration
+
+Subcommands:
+
+- `init`
+  - creates `raw_release_registry`, `raw_file_inventory`, `schema_drift_reports`, `source_normalized_association`, and `analysis_ready_association`
+- `register-raw-release`
+  - inventories raw files, stores ordered columns and schema fingerprints, and writes a drift verdict
+  - when `--prep-profile` is provided, field-candidate aliases are treated as alternatives rather than requiring every alias column to exist
+- `load-source-normalized-association`
+  - loads a prepared association CSV into the source-normalized zone
+- `materialize-analysis-ready-association`
+  - materializes the current `mvp_association_points` table into the analysis-ready zone for migration/audit
+
+Example:
+
+```bash
+python3 scripts/dataset_specific_scripts/unified/manage_working_duckdb.py init \
+  --db-path /data/hbp/datamart/datahub_working.duckdb
+
+python3 scripts/dataset_specific_scripts/unified/manage_working_duckdb.py register-raw-release \
+  --db-path /data/hbp/datamart/datahub_working.duckdb \
+  --source-id legacy_cvd_raw \
+  --release-id legacy_v1 \
+  --modality association \
+  --input-path "/path/to/legacy_raw/cvd/*.txt" \
+  --prep-profile legacy_cvd_raw \
+  --skip-checksum \
+  --fail-on-breaking-drift
+```
+
 ### `scripts/dataset_specific_scripts/unified/publish_unified_from_duckdb.py`
 
 Publish legacy-compatible analyzed outputs from unified DuckDB points, with checkpointing and partition support.

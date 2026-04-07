@@ -18,6 +18,33 @@ It intentionally keeps a compact, reusable core:
 - ancestry values
 - structured metadata
 
+## Working DuckDB lifecycle tables
+
+The target DataHub lifecycle uses one physical working DuckDB with separate logical zones.
+
+The first implemented tables are:
+
+- `raw_release_registry`
+  - one row per source-native raw release
+  - stores source, release, modality, URI/license notes, and metadata
+- `raw_file_inventory`
+  - one row per raw file in a release
+  - stores ordered source columns, schema fingerprint, file size, optional checksum, and detected delimiter
+- `schema_drift_reports`
+  - one row per inspected file
+  - records whether a source release is compatible, compatible with additions, breaking, or unchecked
+- `source_normalized_association`
+  - stable HBP association input rows with source/release/row/file provenance
+  - does not perform source priority, final ontology mapping, or variant-centric counting
+- `analysis_ready_association`
+  - HBP analysis-facing association evidence
+  - normalizes identifiers and carries fields required by publication/secondary analysis workflows
+
+The naming is intentional:
+
+- `source_normalized_*` means "raw source translated into stable HBP columns"
+- `analysis_ready_*` means "scientifically interpretable evidence ready for HBP analysis"
+
 ## Variant identity semantics
 
 For association publication, `variant_id` is the scientific identity used for deduplication and counting.
