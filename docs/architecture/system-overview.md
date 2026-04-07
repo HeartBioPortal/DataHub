@@ -16,17 +16,19 @@ raw sources / exported files / APIs
 
 ## Target lifecycle model
 
-The long-term target is for DataHub to own the full HBP data lifecycle: ingesting or scraping source data, preserving raw releases, preparing source rows into stable modality schemas, building canonical analysis tables, publishing analyzed artifacts, and producing serving databases for the backend.
+The long-term target is for DataHub to own the full HBP data lifecycle: ingesting or scraping source data, preserving source-native raw releases, translating source rows into stable HBP input schemas, building analysis-ready evidence tables, publishing analyzed artifacts, and producing serving databases for the backend.
 
 ![DataHub target data lifecycle](../assets/datahub_data_lifecycle_target.svg)
 
-### Prepared tables vs canonical ingest
+### Source-normalized vs analysis-ready tables
 
-The **prepared table layer** is source-adjacent. It answers: "How do we express this source release in a stable HBP input schema?" Prepared rows should retain source identity, release identity, source row identity, file provenance, and source-specific leftovers such as `raw_payload_json` or `metadata_json`. This layer should not make final cross-source scientific decisions.
+These stages can live in the same physical working DuckDB. They should remain logically separate because they answer different questions.
 
-The **canonical ingest layer** is analysis-facing. It answers: "How should HBP reason scientifically about this evidence across sources?" This is where DataHub normalizes identifiers, phenotype paths, chart axes, ancestry labels, provenance semantics, and the keys needed for source-priority and variant-centric counting.
+The **source-normalized** layer is source-adjacent. It answers: "How do we express this source release in a stable HBP input schema?" Source-normalized rows should retain source identity, release identity, source row identity, file provenance, and source-specific leftovers such as `raw_payload_json` or `metadata_json`. This layer should not make final cross-source scientific decisions.
 
-Raw releases can therefore remain source-native and versioned, while prepared and canonical layers provide the stable interfaces needed to run HBP analysis in batches.
+The **analysis-ready** layer is science-facing. It answers: "How should HBP reason scientifically about this evidence across sources?" This is where DataHub normalizes identifiers, phenotype paths, chart axes, ancestry labels, provenance semantics, and the keys needed for source-priority and variant-centric counting.
+
+Raw releases can therefore remain source-native and versioned, while the working DuckDB provides stable logical stages needed to run HBP analysis in batches.
 
 ## Main architectural layers
 
