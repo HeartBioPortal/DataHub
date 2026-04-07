@@ -14,6 +14,20 @@ raw sources / exported files / APIs
   -> backend and web application
 ```
 
+## Target lifecycle model
+
+The long-term target is for DataHub to own the full HBP data lifecycle: ingesting or scraping source data, preserving raw releases, preparing source rows into stable modality schemas, building canonical analysis tables, publishing analyzed artifacts, and producing serving databases for the backend.
+
+![DataHub target data lifecycle](../assets/datahub_data_lifecycle_target.svg)
+
+### Prepared tables vs canonical ingest
+
+The **prepared table layer** is source-adjacent. It answers: "How do we express this source release in a stable HBP input schema?" Prepared rows should retain source identity, release identity, source row identity, file provenance, and source-specific leftovers such as `raw_payload_json` or `metadata_json`. This layer should not make final cross-source scientific decisions.
+
+The **canonical ingest layer** is analysis-facing. It answers: "How should HBP reason scientifically about this evidence across sources?" This is where DataHub normalizes identifiers, phenotype paths, chart axes, ancestry labels, provenance semantics, and the keys needed for source-priority and variant-centric counting.
+
+Raw releases can therefore remain source-native and versioned, while prepared and canonical layers provide the stable interfaces needed to run HBP analysis in batches.
+
 ## Main architectural layers
 
 ### 1. Source-facing layer
