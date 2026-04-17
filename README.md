@@ -85,7 +85,7 @@ Editable installs also expose console commands such as:
 - `analyzed_data/`: curated analyzed artifacts and merge/metadata seed payloads organized by source ID
 - `scripts/`: operational entrypoints for preparation, ingest, publish, and orchestration
 - `tests/`: focused coverage for adapters, manifests, publishers, runners, and serving builders
-- `docs/`: contributor-facing documentation and docs-site content
+- `docs/`: contributor-facing documentation published at `https://heartbioportal.github.io/DataHub/`
 
 Config JSON files are validated by JSON Schemas in `config/schemas/`.
 

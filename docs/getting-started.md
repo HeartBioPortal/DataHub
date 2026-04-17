@@ -23,6 +23,17 @@ python -m pytest
 Use `python -m pytest` rather than a bare `pytest` when you want to be certain
 the active virtual environment is the one running tests and subprocess checks.
 
+## Local docs preview
+
+The documentation site is built with MkDocs and Material for MkDocs. After the
+editable install above, preview it with:
+
+```bash
+mkdocs serve
+```
+
+Then open the local MkDocs address printed in the terminal.
+
 ## What to read first
 
 1. `README.md`

@@ -57,4 +57,6 @@ future integration targets.
 
 ## Documentation website
 
-This repository is configured to support a docs website using MkDocs and GitHub Pages. See [Docs Site](docs-site.md) for the local preview and deployment flow.
+This repository is configured as a MkDocs site published by GitHub Pages from
+the GitHub Actions workflow in `.github/workflows/docs.yml`. For local preview
+commands, see [Getting Started](getting-started.md).

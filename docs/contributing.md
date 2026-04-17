@@ -49,6 +49,13 @@ That includes:
 - provenance behavior
 - publication/serving contract changes
 
+## Documentation site deployment
+
+The published documentation is the project site at
+`https://heartbioportal.github.io/DataHub/`. The GitHub Actions workflow in
+`.github/workflows/docs.yml` builds and deploys it from `main`; in repository
+settings, GitHub Pages should use **GitHub Actions** as the source.
+
 ## Documentation standard for algorithm changes
 
 When a change modifies scientific or analytical behavior, the code change is not complete until the documentation answers these questions:
