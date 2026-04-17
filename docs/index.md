@@ -1,6 +1,6 @@
 # HeartBioPortal DataHub
 
-![Generated visual for HeartBioPortal DataHub](assets/visuals/overview.svg){ .doc-visual }
+![Generated cinematic overview of cardiovascular genomics data flowing into HeartBioPortal DataHub](assets/hero/overview-datahub.png){ .overview-hero }
 
 HeartBioPortal DataHub is the cardiovascular data engineering and publication layer behind HeartBioPortal. It exists to solve one problem cleanly: different biomedical sources all describe related biology, but they do so with different schemas, different semantics, different quality guarantees, and different operational constraints. DataHub provides the structure that turns those incompatible inputs into coherent, reproducible analyzed artifacts.
 
@@ -36,6 +36,8 @@ Use the documentation based on what you need:
 - **Keep legacy compatibility without freezing the architecture**
 
 ## High-level flow
+
+![Generated visual for HeartBioPortal DataHub](assets/visuals/overview.svg){ .doc-visual }
 
 ```text
 raw files / source APIs
