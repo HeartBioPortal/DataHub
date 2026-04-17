@@ -14,6 +14,13 @@ Define field policies and validation contracts.
 
 **Philosophy:** data quality expectations should be explicit, declarative, and testable.
 
+## `config_schemas.py`
+
+Validates repository JSON config against schemas in `config/schemas/`.
+
+**Philosophy:** malformed config should fail before ingestion, publication, or
+HPC submission begins.
+
 ## `prep/`
 
 Handles raw preparation for irregular association sources.
@@ -55,6 +62,20 @@ Holds enrichment and source-priority concepts.
 Canonical storage backends.
 
 **Philosophy:** keep working analytical storage queryable and reproducible.
+
+## `unified/`
+
+Shared helpers for unified DuckDB operational workflows.
+
+**Philosophy:** runtime behavior such as DuckDB temp directories and memory
+settings should be centralized, while CLI scripts remain orchestration shells.
+
+## `artifact_qa.py`
+
+Release QA report helpers.
+
+**Philosophy:** artifact handoffs should include machine-readable counts,
+checksums, and source-catalog status rather than relying on ad hoc notes.
 
 ## `publishers/`
 

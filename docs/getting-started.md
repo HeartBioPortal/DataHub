@@ -6,7 +6,7 @@
 - `pip`
 - Git
 - Git LFS if you plan to work with large tracked artifacts
-- `duckdb` support via `requirements.txt`
+- `duckdb` support via `pyproject.toml` or `requirements.txt`
 
 ## Local setup
 
@@ -16,9 +16,12 @@ cd DataHub
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
-pip install -r requirements.txt
-pytest
+pip install -e ".[test,docs]"
+python -m pytest
 ```
+
+Use `python -m pytest` rather than a bare `pytest` when you want to be certain
+the active virtual environment is the one running tests and subprocess checks.
 
 ## What to read first
 
@@ -55,17 +58,41 @@ python3 scripts/prepare_association_raw.py \
 ### Run configurable source-driven ingestion
 
 ```bash
-python3 scripts/run_ingestion.py --config path/to/ingestion.json
+datahub-run-ingestion --config path/to/ingestion.json
 ```
 
 ### Run the unified profile-driven pipeline
 
 ```bash
-python3 scripts/dataset_specific_scripts/unified/run_unified_pipeline.py \
+datahub-run-unified-pipeline \
   --profile local_laptop \
   --step all \
   --log-level INFO
 ```
+
+`--step all` initializes the working DuckDB lifecycle tables first, then runs
+MVP ingest, legacy ingest, and unified publish. Direct DuckDB-heavy CLIs default
+their spill directory to a local-safe `<db-dir>/_duckdb_tmp` path; runtime
+profiles can still point production/HPC runs at scratch storage.
+
+### Validate config files
+
+```bash
+python -c "from datahub.config_schemas import validate_default_config_tree, format_config_validation_issues; issues = validate_default_config_tree(); print(format_config_validation_issues(issues) if issues else 'config ok')"
+```
+
+### Generate an artifact QA report
+
+```bash
+datahub-report-artifact-qa \
+  --published-root /path/to/analyzed_data_unified \
+  --serving-db-path /path/to/association_serving.duckdb \
+  --working-db-path /path/to/datahub_working.duckdb \
+  --output-json /path/to/datahub_qa_report.json
+```
+
+The report summarizes source catalog status, published payload counts and sample
+checksums, working DuckDB tables, and serving DuckDB table counts.
 
 ## Recommended mental model
 

@@ -2,6 +2,10 @@
 
 ## General entrypoints
 
+Editable installs expose console commands for the main entrypoints. For
+example, `datahub-run-ingestion` is the console-command equivalent of
+`scripts/run_ingestion.py`.
+
 ### `scripts/prepare_association_raw.py`
 
 Prepare irregular raw association inputs using a prep profile.
@@ -63,6 +67,26 @@ python scripts/run_structural_variant_ingestion.py \
   --progress-every 5000
 ```
 
+### `scripts/report_artifact_qa.py`
+
+Build a JSON release QA report for published outputs and DuckDB artifacts.
+
+Use this when:
+
+- you need row counts and checksums for a DataHub release
+- you want to verify source-catalog integration status alongside artifacts
+- you want a compact handoff report after building the serving DB
+
+Example:
+
+```bash
+datahub-report-artifact-qa \
+  --published-root /data/hbp/analyzed_data_unified \
+  --working-db-path /data/hbp/datamart/mvp_fast.duckdb \
+  --serving-db-path /data/hbp/datamart/association_serving.duckdb \
+  --output-json /data/hbp/state/datahub_qa_report.json
+```
+
 Resume notes:
 
 - checkpoint defaults to `analyzed_data/dbvar/dbvar_structural_variants_nstd229.json.checkpoint.json`
@@ -77,6 +101,10 @@ Resume notes:
 ### `scripts/dataset_specific_scripts/mvp/ingest_mvp_duckdb_fast.py`
 
 Fast, resumable MVP ingest into DuckDB points.
+
+Direct use defaults DuckDB temp spill files to `<db-dir>/_duckdb_tmp` so laptop
+and test runs do not require `/data`. Runtime profiles can still pass a
+production scratch path through `paths.temp_directory`.
 
 ### `scripts/dataset_specific_scripts/mvp/run_mvp_pipeline.py`
 
@@ -176,6 +204,10 @@ Subcommands:
 ### `scripts/dataset_specific_scripts/unified/run_unified_pipeline.py`
 
 Profile-driven orchestration for the unified pipeline across laptop/AWS/HPC.
+
+`--step all` runs `working_init`, `mvp_ingest`, `legacy_ingest`, and `publish`.
+The `working_init` step initializes the target lifecycle tables in the working
+DuckDB before the current points-table ingest/publish stages run.
 
 ## Script philosophy
 

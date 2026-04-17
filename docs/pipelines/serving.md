@@ -36,6 +36,17 @@ It currently contains tables such as:
 
 ![Association serving DuckDB schema](../assets/association_serving_duckdb_schema.svg)
 
+## Serving contract
+
+The serving DuckDB contract is declared in:
+
+- `config/output_contracts/association_serving_duckdb.json`
+
+The contract names the primary runtime tables, required columns, query
+expectations, and compatibility notes. The most important rule is that serving
+payload JSON preserves published semantics; it does not reinterpret association
+or overall payloads.
+
 ## Important design rule
 
 The serving builder is downstream of publication.
@@ -69,6 +80,18 @@ This distinguishes:
 
 - base serving artifact construction
 - later in-place attachment of secondary analyses such as expression and SGA
+
+The serving builder can also write a DataHub QA report after the DB is built:
+
+```bash
+datahub-build-serving-duckdb \
+  --input-root /data/hbp/analyzed_data_unified \
+  --db-path /data/hbp/datamart/association_serving.duckdb \
+  --qa-report-json /data/hbp/state/association_serving.qa.json
+```
+
+That report includes row counts for serving tables, the serving DB checksum,
+published payload counts, and source-catalog integration status.
 
 ## Why this is better than Redis-only bulk load
 

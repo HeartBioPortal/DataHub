@@ -60,6 +60,9 @@ nav:
   - Extending DataHub:
       - New Source Onboarding: extending/new-source.md
       - Export Manifest Framework: extending/export-manifests.md
+  - Runbooks:
+      - Local Smoke Test: runbooks/local-smoke-test.md
+      - Release Checklist: runbooks/release-checklist.md
   - Reference:
       - Module Guide: reference/module-guide.md
       - Scripts Guide: reference/scripts.md

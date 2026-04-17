@@ -24,6 +24,13 @@ Define:
 - modalities / dataset types
 - access mode
 - source metadata and defaults
+- `integration_status`
+
+Use `catalog_only` when the source belongs in the curated HBP roadmap but does
+not yet have an ingestible adapter. Use `integrated` only when a DataHub
+connector/adapter can create canonical records for that source.
+
+Source manifests are validated by `config/schemas/source_manifest.schema.json`.
 
 ### 2. Decide whether a prep profile is needed
 
@@ -56,6 +63,9 @@ At minimum, test:
 - field mapping
 - ancestry behavior if relevant
 - metadata/provenance preservation if relevant
+
+Also add or update schema-validation tests if the source introduces new manifest
+fields or a new config family.
 
 ## When not to add a new canonical field
 

@@ -40,6 +40,11 @@ The first implemented tables are:
   - HBP analysis-facing association evidence
   - normalizes identifiers and carries fields required by publication/secondary analysis workflows
 
+The unified profile runner initializes these lifecycle tables through
+`working_init` before the current ingest and publish steps when `--step all` is
+used. This keeps the lifecycle model on the normal execution path while the
+points-table migration continues.
+
 The naming is intentional:
 
 - `source_normalized_*` means "raw source translated into stable HBP columns"

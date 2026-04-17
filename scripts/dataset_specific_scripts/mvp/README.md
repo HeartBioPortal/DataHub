@@ -19,6 +19,9 @@ scripts/dataset_specific_scripts/mvp/ingest_mvp_duckdb_fast.py \
 This mode is much faster because parsing, normalization, dataset-type mapping,
 and per-file dedup happen in DuckDB SQL (vectorized), not Python row loops.
 
+If `--temp-directory` is omitted, the script uses `<db-dir>/_duckdb_tmp` rather
+than a production `/data` path. Pass an explicit scratch path for AWS/HPC runs.
+
 Resume behavior:
 
 - Checkpoint defaults to `<db-path>.mvp_fast_checkpoint.json`.

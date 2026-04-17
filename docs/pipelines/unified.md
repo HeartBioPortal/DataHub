@@ -13,12 +13,26 @@ The repository previously had a more fragmented story where different datasets o
 
 ## Main scripts
 
+- `scripts/dataset_specific_scripts/unified/manage_working_duckdb.py`
 - `scripts/dataset_specific_scripts/mvp/ingest_mvp_duckdb_fast.py`
 - `scripts/dataset_specific_scripts/unified/ingest_legacy_raw_duckdb.py`
 - `scripts/dataset_specific_scripts/unified/publish_unified_from_duckdb.py`
 - `scripts/dataset_specific_scripts/unified/run_unified_pipeline.py`
+- `scripts/report_artifact_qa.py`
 
 ## Stages
+
+### Working DuckDB lifecycle init
+
+The profile-driven runner includes a `working_init` step before ingest and
+publish when `--step all` is used. This initializes the lifecycle tables for
+raw release registration, source-normalized association rows, schema drift
+reports, and analysis-ready association rows in the configured working DuckDB.
+
+This makes the target lifecycle model part of the normal path rather than a
+separate migration-only utility. Existing ingest and publish steps continue to
+use the shared association points table while the source-normalized and
+analysis-ready zones mature.
 
 ### MVP ingest
 
@@ -85,6 +99,21 @@ If a preflight validation fails, the script raises immediately instead of lettin
 
 A compact serving DuckDB can then be built from published outputs.
 
+### Artifact QA report
+
+After publishing or serving builds, generate a release QA report:
+
+```bash
+datahub-report-artifact-qa \
+  --published-root /data/hbp/analyzed_data_unified \
+  --working-db-path /data/hbp/datamart/mvp_fast.duckdb \
+  --serving-db-path /data/hbp/datamart/association_serving.duckdb \
+  --output-json /data/hbp/state/datahub_qa_report.json
+```
+
+The report records source catalog status, published payload counts and sample
+checksums, working DuckDB table counts, and serving DuckDB table counts.
+
 ## Runtime profiles
 
 The unified pipeline should normally be launched through runtime profiles in `config/runtime_profiles/unified_pipeline_profiles.json`.
@@ -93,6 +122,10 @@ These profiles separate:
 
 - scientific/data flow logic
 - environment-specific execution details
+
+Direct DuckDB-heavy CLIs use `<db-dir>/_duckdb_tmp` as the default spill path
+for laptop-safe behavior. Runtime profiles should still set `paths.temp_directory`
+to a production scratch path on AWS or HPC.
 
 This is a major design choice. Laptop/AWS/HPC should not require different scientific code paths.
 

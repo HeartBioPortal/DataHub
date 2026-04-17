@@ -31,6 +31,12 @@ Typical contents:
 - modalities and dataset types
 - access metadata
 - default parameters
+- `integration_status`, either `integrated` or `catalog_only`
+
+`integrated` sources have a registered DataHub connector/adapter and can be
+used by ingestion flows. `catalog_only` sources are curated backlog entries:
+they document priority, modality, URLs, and provenance tags, but they are not
+yet ingestible without a new adapter.
 
 ## `config/runtime_profiles/`
 
@@ -55,6 +61,26 @@ Typical contents:
 - additive publish fields
 - serving preservation rules
 - source overrides
+
+## `config/schemas/`
+
+Defines JSON Schemas for the config families above.
+
+Current schemas cover:
+
+- source manifests
+- dataset profiles
+- preparation profiles
+- runtime profile catalogs
+- association export manifests and source overrides
+- output contracts
+- secondary-analysis manifests
+
+Validate the default tree with:
+
+```bash
+python -c "from datahub.config_schemas import validate_default_config_tree, format_config_validation_issues; issues = validate_default_config_tree(); print(format_config_validation_issues(issues) if issues else 'config ok')"
+```
 
 ## `config/phenotype_tree.json`
 

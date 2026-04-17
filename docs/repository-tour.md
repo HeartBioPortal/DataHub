@@ -11,6 +11,8 @@ DataHub/
   scripts/
   src/datahub/
   tests/
+  config/schemas/
+  pyproject.toml
   README.md
   requirements.txt
   requirements-docs.txt
@@ -28,6 +30,7 @@ This directory is the declarative heart of the repository.
 - `config/sources/`: source manifests and metadata for onboarded or catalogued sources
 - `config/runtime_profiles/`: execution profiles for laptop/AWS/HPC orchestration
 - `config/export_manifests/`: analyzed export rules for preservation and derivation between unified data and published artifacts
+- `config/schemas/`: JSON Schemas used to validate config families before runs
 - `config/phenotype_tree.json`: canonical phenotype hierarchy used for grouping and path resolution
 
 ## `src/datahub/`
@@ -52,6 +55,9 @@ This is the reusable library layer.
 - `ancestry.py`: ancestry normalization and provenance helpers
 - `export_manifest.py`, `export_helpers.py`: manifest-driven preservation/derivation layer between unified data and analyzed outputs
 - `pipeline.py`: high-level orchestration for adapter -> validate -> storage -> publish
+- `config_schemas.py`: JSON Schema validation helpers for repository config
+- `artifact_qa.py`: release QA summaries for source catalog, published outputs, and DuckDB artifacts
+- `unified/`: shared runtime helpers used by unified DuckDB operational scripts
 
 ## `scripts/`
 
@@ -62,6 +68,7 @@ These are operational entrypoints.
 - `build_legacy_association.py`
 - `prepare_association_raw.py`
 - `run_ingestion.py`
+- `report_artifact_qa.py`
 
 ### Dataset-specific operational flows
 
@@ -91,3 +98,5 @@ If you are making a change, identify the layer first.
 - New validation rule: `config/profiles/` or `src/datahub/config.py`
 - New analyzed payload field: `config/export_manifests/` plus publisher/build logic
 - Runtime environment issue: `config/runtime_profiles/` or orchestration scripts
+- Config validation issue: `config/schemas/` plus `src/datahub/config_schemas.py`
+- Release verification issue: `src/datahub/artifact_qa.py` or `scripts/report_artifact_qa.py`

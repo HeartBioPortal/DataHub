@@ -14,7 +14,7 @@ The repository now includes:
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements-docs.txt
+pip install -e ".[docs]"
 mkdocs serve
 ```
 

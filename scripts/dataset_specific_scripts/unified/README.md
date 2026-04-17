@@ -108,6 +108,21 @@ Python runtime note:
 - For HPC modules, add pre-step commands with `--slurm-setup-command` (repeatable),
   for example `--slurm-setup-command "module load python/3.11"`.
 
+DuckDB temp note:
+
+- Direct CLI use defaults to `<db-dir>/_duckdb_tmp` so laptop/test runs do not require `/data`.
+- Production profiles should keep `paths.temp_directory` pointed at scratch storage.
+
+## 0) Initialize working DuckDB lifecycle tables
+
+```bash
+datahub-manage-working-duckdb init \
+  --db-path /data/hbp/datamart/mvp_fast.duckdb
+```
+
+`datahub-run-unified-pipeline --step all` runs this `working_init` step before
+MVP ingest, legacy ingest, and publish.
+
 ## 1) Ingest MVP points (already done in your case)
 
 ```bash

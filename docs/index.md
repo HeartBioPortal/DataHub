@@ -23,6 +23,7 @@ Use the documentation based on what you need:
 - Data engineer: read [System Overview](architecture/system-overview.md), [Configuration Surfaces](architecture/configuration.md), and [Unified DuckDB Pipeline](pipelines/unified.md)
 - Scientist trying to understand the artifact model: read [Data Model](architecture/data-model.md), [Association Pipeline](pipelines/association.md), and [Serving Artifacts](pipelines/serving.md)
 - Someone extending the platform: read [New Source Onboarding](extending/new-source.md) and [Export Manifest Framework](extending/export-manifests.md)
+- Someone preparing a run: use [Local Smoke Test](runbooks/local-smoke-test.md) or [Release Checklist](runbooks/release-checklist.md)
 
 ## Core design commitments
 
@@ -49,6 +50,10 @@ raw files / source APIs
 - **Legacy-compatible association build**: direct publish from prepared/legacy inputs
 - **MVP dataset-specific pipeline**: canonical ingest plus legacy-compatible publish
 - **Unified DuckDB-first pipeline**: merged MVP + legacy points, source-priority dedup, publish from DuckDB, optional serving artifact build
+
+The source catalog distinguishes `integrated` sources, which can create
+canonical records today, from `catalog_only` sources, which document curated
+future integration targets.
 
 ## Documentation website
 

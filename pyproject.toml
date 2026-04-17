@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "heartbioportal-datahub"
+version = "0.1.0"
+description = "HeartBioPortal data integration, publication, and serving artifact tooling."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [
+  { name = "HeartBioPortal" }
+]
+dependencies = [
+  "duckdb",
+  "jsonschema",
+  "jsonschema2md",
+  "pandas",
+  "PyGithub",
+  "requests",
+]
+
+[project.optional-dependencies]
+test = [
+  "pytest",
+]
+docs = [
+  "mkdocs>=1.6",
+  "mkdocs-material>=9.5",
+  "pymdown-extensions>=10.0",
+]
+
+[project.scripts]
+datahub-build-legacy-association = "datahub.cli._script_bridge:build_legacy_association"
+datahub-build-serving-duckdb = "datahub.cli._script_bridge:build_serving_duckdb"
+datahub-ingest-legacy-raw-duckdb = "datahub.cli._script_bridge:ingest_legacy_raw_duckdb"
+datahub-ingest-mvp-duckdb-fast = "datahub.cli._script_bridge:ingest_mvp_duckdb_fast"
+datahub-manage-working-duckdb = "datahub.cli._script_bridge:manage_working_duckdb"
+datahub-prepare-association-raw = "datahub.cli._script_bridge:prepare_association_raw"
+datahub-publish-unified-from-duckdb = "datahub.cli._script_bridge:publish_unified_from_duckdb"
+datahub-report-artifact-qa = "datahub.cli._script_bridge:report_artifact_qa"
+datahub-run-ingestion = "datahub.cli._script_bridge:run_ingestion"
+datahub-run-secondary-analyses = "datahub.cli._script_bridge:run_secondary_analyses"
+datahub-run-structural-variant-ingestion = "datahub.cli._script_bridge:run_structural_variant_ingestion"
+datahub-run-unified-pipeline = "datahub.cli._script_bridge:run_unified_pipeline"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

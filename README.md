@@ -16,7 +16,7 @@ Local docs preview:
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements-docs.txt
+pip install -e ".[docs]"
 mkdocs serve
 ```
 
@@ -34,9 +34,12 @@ cd DataHub
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
-pip install -r requirements.txt
-pytest
+pip install -e ".[test]"
+python -m pytest
 ```
+
+For script-only environments, `requirements.txt` is still available. The
+package metadata in `pyproject.toml` is the canonical development install path.
 
 ## Runtime Dependencies
 
@@ -47,12 +50,13 @@ pip install -r requirements.txt
 Current runtime requirements:
 
 - `jsonschema`
-- `pytest`
 - `jsonschema2md`
 - `PyGithub`
 - `pandas`
 - `duckdb`
 - `requests`
+
+Test dependencies live under the `test` optional extra in `pyproject.toml`.
 
 ## Primary Entry Points
 
@@ -62,6 +66,16 @@ Current runtime requirements:
 - `scripts/run_structural_variant_ingestion.py`
 - `scripts/dataset_specific_scripts/mvp/run_mvp_pipeline.py`
 - `scripts/dataset_specific_scripts/unified/run_unified_pipeline.py`
+- `scripts/report_artifact_qa.py`
+
+Editable installs also expose console commands such as:
+
+- `datahub-run-ingestion`
+- `datahub-run-unified-pipeline`
+- `datahub-ingest-mvp-duckdb-fast`
+- `datahub-publish-unified-from-duckdb`
+- `datahub-build-serving-duckdb`
+- `datahub-report-artifact-qa`
 
 ## Main Repository Areas
 
@@ -72,6 +86,8 @@ Current runtime requirements:
 - `scripts/`: operational entrypoints for preparation, ingest, publish, and orchestration
 - `tests/`: focused coverage for adapters, manifests, publishers, runners, and serving builders
 - `docs/`: contributor-facing documentation and docs-site content
+
+Config JSON files are validated by JSON Schemas in `config/schemas/`.
 
 ## Design Principles
 
