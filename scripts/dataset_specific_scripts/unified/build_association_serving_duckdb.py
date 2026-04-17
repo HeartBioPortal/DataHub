@@ -23,6 +23,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from datahub.axis_normalization import normalize_counter_items, normalize_counter_mapping
+from datahub.artifact_qa import build_artifact_qa_report, write_artifact_qa_report
 from datahub.export_manifest import AssociationExportManifestCatalog
 from datahub.phenotype_paths import PhenotypePathResolver
 
@@ -131,6 +132,11 @@ def parse_args() -> argparse.Namespace:
         default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
         help="Log level.",
+    )
+    parser.add_argument(
+        "--qa-report-json",
+        default=None,
+        help="Optional path for a post-build DataHub artifact QA report.",
     )
     return parser.parse_args()
 
@@ -755,6 +761,7 @@ def main() -> int:
         bool(args.trust_published_payloads),
     )
 
+    summary: dict[str, Any] = {}
     connection = duckdb.connect(str(db_path))
     try:
         _create_tables(connection)
@@ -913,11 +920,19 @@ FULL OUTER JOIN (
             "sga_rows": len(sga_rows),
             "catalog_rows": int(connection.execute("SELECT COUNT(*) FROM gene_catalog").fetchone()[0]),
         }
-        logger.info("Association serving build complete: %s", summary)
-        print(json.dumps(summary, indent=2))
     finally:
         connection.close()
 
+    if args.qa_report_json:
+        report = build_artifact_qa_report(
+            published_root=final_root,
+            serving_db_path=db_path,
+        )
+        write_artifact_qa_report(report, args.qa_report_json)
+        summary["qa_report_json"] = str(args.qa_report_json)
+
+    logger.info("Association serving build complete: %s", summary)
+    print(json.dumps(summary, indent=2))
     return 0
 
 

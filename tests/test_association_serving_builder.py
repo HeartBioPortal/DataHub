@@ -132,6 +132,7 @@ def test_builder_creates_compact_serving_db_from_published_outputs(tmp_path: Pat
     )
 
     db_path = tmp_path / "association_serving.duckdb"
+    qa_report_path = tmp_path / "association_serving.qa.json"
 
     old_argv = sys.argv[:]
     try:
@@ -149,6 +150,8 @@ def test_builder_creates_compact_serving_db_from_published_outputs(tmp_path: Pat
             str(expression_path),
             "--sga-root",
             str(sga_root),
+            "--qa-report-json",
+            str(qa_report_path),
             "--log-level",
             "ERROR",
         ]
@@ -158,6 +161,9 @@ def test_builder_creates_compact_serving_db_from_published_outputs(tmp_path: Pat
 
     assert exit_code == 0
     assert db_path.exists()
+    assert qa_report_path.exists()
+    qa_report = json.loads(qa_report_path.read_text())
+    assert qa_report["serving_duckdb"]["tables"]["gene_catalog"] == 1
 
     con = duckdb.connect(str(db_path), read_only=True)
     try:

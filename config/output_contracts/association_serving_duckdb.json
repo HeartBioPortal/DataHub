@@ -1,0 +1,42 @@
+{
+  "name": "association_serving_duckdb",
+  "description": "Compact DuckDB serving artifact contract for published association and secondary-analysis payloads.",
+  "version": 1,
+  "tables": {
+    "association_gene_payloads": {
+      "primary_key": ["dataset_type", "gene_id"],
+      "required_columns": ["dataset_type", "gene_id", "payload_json"],
+      "semantics": "Per-gene association payloads preserving published association entry semantics."
+    },
+    "overall_gene_payloads": {
+      "primary_key": ["dataset_type", "gene_id"],
+      "required_columns": ["dataset_type", "gene_id", "payload_json"],
+      "semantics": "Per-gene overall payloads preserving published axis and ancestry summaries."
+    },
+    "gene_catalog": {
+      "primary_key": ["dataset_type", "gene_id"],
+      "required_columns": ["dataset_type", "gene_id", "has_association", "has_overall"],
+      "semantics": "Backend discovery table for available per-gene payload families."
+    },
+    "build_metadata": {
+      "primary_key": ["key"],
+      "required_columns": ["key", "value"],
+      "semantics": "Build-time metadata including export manifest identity and artifact provenance."
+    },
+    "secondary_analysis_metadata": {
+      "primary_key": ["analysis_id"],
+      "required_columns": ["analysis_id", "artifact_root", "row_count", "metadata_json"],
+      "semantics": "Incremental secondary-analysis attachment metadata."
+    }
+  },
+  "query_contract": {
+    "association_by_gene": "SELECT payload_json FROM association_gene_payloads WHERE dataset_type = ? AND gene_id = ?",
+    "overall_by_gene": "SELECT payload_json FROM overall_gene_payloads WHERE dataset_type = ? AND gene_id = ?",
+    "gene_catalog_by_dataset": "SELECT * FROM gene_catalog WHERE dataset_type = ?"
+  },
+  "compatibility_notes": [
+    "Serving payload JSON must preserve semantics from the published association artifacts.",
+    "Secondary-analysis tables may be updated independently without rebuilding association payload tables.",
+    "Redis-compatible caches are downstream consumers, not independent scientific transformation layers."
+  ]
+}

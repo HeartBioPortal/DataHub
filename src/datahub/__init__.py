@@ -12,6 +12,7 @@ from .apis import (
     RestApiClient,
 )
 from .annotations import GtfGeneAnnotationIndex, GtfGeneRecord, GtfTranscriptRecord
+from .artifact_qa import build_artifact_qa_report, write_artifact_qa_report
 from .checkpoints import StructuralVariantCheckpoint, write_json_atomic
 from .config import (
     ASSOCIATION_AXIS_FIELDS,
@@ -21,6 +22,13 @@ from .config import (
     MissingFieldStrategy,
     SourcePriority,
     build_association_contract,
+)
+from .config_schemas import (
+    ConfigSchemaFamily,
+    ConfigValidationIssue,
+    format_config_validation_issues,
+    validate_config_file,
+    validate_default_config_tree,
 )
 from .artifact_io import load_json_artifact, open_text_artifact
 from .export_helpers import ExportHelperRegistry, build_default_export_helper_registry
@@ -85,6 +93,8 @@ __all__ = [
     "GtfTranscriptRecord",
     "StructuralVariantCheckpoint",
     "write_json_atomic",
+    "build_artifact_qa_report",
+    "write_artifact_qa_report",
     "AssociationExportManifest",
     "AssociationExportManifestCatalog",
     "AssociationExportManifestLoader",
@@ -106,6 +116,8 @@ __all__ = [
     "FieldPolicy",
     "MissingFieldStrategy",
     "SourcePriority",
+    "ConfigSchemaFamily",
+    "ConfigValidationIssue",
     "AdapterRegistry",
     "AdapterPluginSpec",
     "SourceAccessMode",
@@ -128,11 +140,14 @@ __all__ = [
     "compare_schema_candidate_groups",
     "ensure_working_schema",
     "expected_column_groups_from_prep_profile",
+    "format_config_validation_issues",
     "ExportHelperRegistry",
     "inspect_csv_schema",
     "load_source_normalized_association_csv",
     "materialize_analysis_ready_association_from_points",
     "register_raw_release",
+    "validate_config_file",
+    "validate_default_config_tree",
     "build_default_export_helper_registry",
     "build_default_adapter_registry",
     "build_default_source_registry",
