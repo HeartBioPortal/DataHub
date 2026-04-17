@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://heartbioportal.org/schemas/datahub/source_manifest.schema.json",
+  "title": "DataHub source manifest",
+  "type": "object",
+  "required": [
+    "source_id",
+    "display_name",
+    "description",
+    "adapter_name",
+    "dataset_types",
+    "modalities",
+    "access_mode",
+    "data_category",
+    "integration_status"
+  ],
+  "properties": {
+    "source_id": { "type": "string", "minLength": 1 },
+    "display_name": { "type": "string", "minLength": 1 },
+    "description": { "type": "string" },
+    "adapter_name": { "type": "string", "minLength": 1 },
+    "dataset_types": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "modalities": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "access_mode": { "enum": ["api", "download", "scrape", "hybrid"] },
+    "homepage_url": { "type": ["string", "null"] },
+    "api_base_url": { "type": ["string", "null"] },
+    "bulk_download_url": { "type": ["string", "null"] },
+    "license_name": { "type": ["string", "null"] },
+    "update_frequency": { "type": ["string", "null"] },
+    "priority_tier": { "type": "integer", "minimum": 1 },
+    "provenance_tags": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "data_category": { "type": "string", "minLength": 1 },
+    "integration_status": { "enum": ["integrated", "catalog_only"] },
+    "default_params": { "type": "object" }
+  },
+  "additionalProperties": true
+}

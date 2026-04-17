@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://heartbioportal.org/schemas/datahub/export_manifest.schema.json",
+  "title": "DataHub association export manifest",
+  "type": "object",
+  "required": [],
+  "properties": {
+    "manifest_id": { "type": "string", "minLength": 1 },
+    "version": { "type": "integer", "minimum": 1 },
+    "dataset_types": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "promoted_fields": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "metadata_fields": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "source", "target"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "source": { "type": "string", "minLength": 1 },
+          "target": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": true
+      }
+    },
+    "derived_fields": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "helper", "scope", "target"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "helper": { "type": "string", "minLength": 1 },
+          "scope": { "enum": ["axis", "entry", "overall"] },
+          "target": { "type": "string", "minLength": 1 },
+          "params": { "type": "object" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "publish_fields": { "type": "object" },
+    "serving_fields": { "type": "object" },
+    "source_overrides": { "type": "object" }
+  },
+  "additionalProperties": true
+}

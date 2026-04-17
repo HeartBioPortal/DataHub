@@ -36,6 +36,8 @@ class SourceManifest:
     update_frequency: str | None = None
     priority_tier: int = 3
     provenance_tags: tuple[str, ...] = ()
+    data_category: str | None = None
+    integration_status: str = "integrated"
     default_params: Mapping[str, Any] = field(default_factory=dict)
 
     def merged_params(self, overrides: Mapping[str, Any] | None = None) -> dict[str, Any]:
@@ -74,6 +76,16 @@ class SourceManifestLoader:
         for source_id in self.list_sources():
             manifests[source_id] = self.load(source_id)
         return manifests
+
+    def load_by_integration_status(self, status: str) -> dict[str, SourceManifest]:
+        """Load manifests with the requested integration status."""
+
+        requested = str(status).strip().lower()
+        return {
+            source_id: manifest
+            for source_id, manifest in self.load_all().items()
+            if manifest.integration_status == requested
+        }
 
     def _resolve_path(self, source_id_or_path: str | Path) -> Path:
         requested = Path(source_id_or_path)
@@ -126,6 +138,11 @@ class SourceManifestLoader:
             for value in payload.get("provenance_tags", [])
             if str(value).strip()
         )
+        integration_status = str(payload.get("integration_status", "integrated")).strip().lower()
+        if integration_status not in {"integrated", "catalog_only"}:
+            raise ValueError(
+                f"Manifest {source_id} integration_status must be integrated or catalog_only"
+            )
 
         return SourceManifest(
             source_id=source_id,
@@ -142,6 +159,8 @@ class SourceManifestLoader:
             update_frequency=self._clean_optional(payload.get("update_frequency")),
             priority_tier=priority_tier,
             provenance_tags=provenance_tags,
+            data_category=self._clean_optional(payload.get("data_category")),
+            integration_status=integration_status,
             default_params=default_params,
         )
 

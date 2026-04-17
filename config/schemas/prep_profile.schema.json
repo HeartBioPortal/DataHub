@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://heartbioportal.org/schemas/datahub/prep_profile.schema.json",
+  "title": "DataHub raw preparation profile",
+  "type": "object",
+  "required": ["name", "field_candidates"],
+  "properties": {
+    "name": { "type": "string", "minLength": 1 },
+    "dataset_type": { "type": "string" },
+    "source_name": { "type": "string" },
+    "field_candidates": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "string", "minLength": 1 }
+      }
+    },
+    "ancestry_fields": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "defaults": { "type": "object" }
+  },
+  "additionalProperties": true
+}

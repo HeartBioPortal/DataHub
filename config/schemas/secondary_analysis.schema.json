@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://heartbioportal.org/schemas/datahub/secondary_analysis.schema.json",
+  "title": "DataHub secondary analysis manifest",
+  "type": "object",
+  "required": ["analysis_id", "version", "artifact_subdir"],
+  "properties": {
+    "analysis_id": { "type": "string", "minLength": 1 },
+    "version": { "type": "integer", "minimum": 1 },
+    "description": { "type": "string" },
+    "artifact_subdir": { "type": "string", "minLength": 1 }
+  },
+  "additionalProperties": true
+}

@@ -25,6 +25,17 @@ def test_source_manifest_loader_lists_expected_default_manifests() -> None:
     assert "dbvar" in available
 
 
+def test_source_manifest_loader_distinguishes_catalog_and_integrated_sources() -> None:
+    loader = SourceManifestLoader()
+    integrated = loader.load_by_integration_status("integrated")
+    catalog_only = loader.load_by_integration_status("catalog_only")
+
+    assert {"gwas_catalog", "ensembl_variation", "clinvar", "dbvar"}.issubset(integrated)
+    assert "open_targets" in catalog_only
+    assert catalog_only["open_targets"].adapter_name == "external_source_adapter"
+    assert catalog_only["open_targets"].integration_status == "catalog_only"
+
+
 def test_source_registry_creates_adapter_from_source_manifest(tmp_path: Path) -> None:
     csv_path = tmp_path / "gwas.csv"
     with csv_path.open("w", newline="") as stream:

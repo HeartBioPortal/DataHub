@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://heartbioportal.org/schemas/datahub/runtime_profiles.schema.json",
+  "title": "DataHub runtime profile catalog",
+  "type": "object",
+  "required": ["profiles"],
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "profiles": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": ["scheduler", "paths"],
+        "properties": {
+          "scheduler": { "enum": ["local", "slurm"] },
+          "python_executable": { "type": "string" },
+          "paths": {
+            "type": "object",
+            "required": [
+              "mvp_input_path",
+              "legacy_cvd_input_path",
+              "legacy_trait_input_path",
+              "db_path",
+              "output_root"
+            ],
+            "additionalProperties": true
+          },
+          "defaults": { "type": "object" },
+          "mvp_ingest": { "type": "object" },
+          "legacy_ingest": { "type": "object" },
+          "publish": { "type": "object" },
+          "slurm": { "type": "object" }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}
