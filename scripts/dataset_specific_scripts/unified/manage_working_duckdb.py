@@ -126,6 +126,7 @@ def _expected_column_groups_from_args(args: argparse.Namespace) -> list[tuple[st
 
 def main() -> int:
     args = parse_args()
+    Path(args.db_path).parent.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect(args.db_path)
     try:
         if args.command == "init":

@@ -1,6 +1,7 @@
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 
@@ -86,7 +87,7 @@ def test_unified_runner_dry_run_resolves_profile_and_overrides(tmp_path: Path) -
 
     result = subprocess.run(
         [
-            "python3",
+            sys.executable,
             "scripts/dataset_specific_scripts/unified/run_unified_pipeline.py",
             "--profiles-json",
             str(profiles_path),
@@ -115,6 +116,38 @@ def test_unified_runner_dry_run_resolves_profile_and_overrides(tmp_path: Path) -
     assert str(tmp_path / "mvp.duckdb") in command
 
 
+def test_unified_runner_all_steps_include_working_init(tmp_path: Path) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    profiles_path = tmp_path / "profiles.json"
+    _write_profiles_json(profiles_path)
+
+    env = dict(os.environ)
+    env["DATAHUB_TEST_ROOT"] = str(tmp_path)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/dataset_specific_scripts/unified/run_unified_pipeline.py",
+            "--profiles-json",
+            str(profiles_path),
+            "--profile",
+            "test_local",
+            "--dry-run",
+            "--log-level",
+            "WARNING",
+        ],
+        cwd=repo_root,
+        text=True,
+        capture_output=True,
+        check=True,
+        env=env,
+    )
+    payload = json.loads(result.stdout)
+
+    assert payload["steps"] == ["working_init", "mvp_ingest", "legacy_ingest", "publish"]
+    assert "manage_working_duckdb.py init" in payload["commands"]["working_init"]
+
+
 def test_unified_runner_slurm_plan_without_submission(tmp_path: Path) -> None:
     repo_root = Path(__file__).resolve().parents[1]
     profiles_path = tmp_path / "profiles.json"
@@ -122,7 +155,7 @@ def test_unified_runner_slurm_plan_without_submission(tmp_path: Path) -> None:
 
     result = subprocess.run(
         [
-            "python3",
+            sys.executable,
             "scripts/dataset_specific_scripts/unified/run_unified_pipeline.py",
             "--profiles-json",
             str(profiles_path),

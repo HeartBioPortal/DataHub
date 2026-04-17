@@ -19,7 +19,7 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
-_ALL_STEPS = ("mvp_ingest", "legacy_ingest", "publish")
+_ALL_STEPS = ("working_init", "mvp_ingest", "legacy_ingest", "publish")
 _UNRESOLVED_ENV_PATTERN = re.compile(r"\$(?:[A-Za-z_][A-Za-z0-9_]*|\{[^}]+\})")
 
 
@@ -256,6 +256,31 @@ def _publish_checkpoint_path(paths: dict[str, Any]) -> str:
 def _publish_state_dir(paths: dict[str, Any]) -> str:
     state_root = Path(_require_path(paths, "state_root"))
     return str(state_root / "unified_publish_state")
+
+
+def _build_working_init_command(profile: dict[str, Any], args: argparse.Namespace) -> list[str]:
+    paths = profile.get("paths", {})
+    cfg = profile.get("working_init", {})
+    python_executable = str(
+        args.python_executable
+        or profile.get("python_executable")
+        or sys.executable
+        or "python3"
+    )
+
+    return [
+        python_executable,
+        str(
+            REPO_ROOT
+            / "scripts"
+            / "dataset_specific_scripts"
+            / "unified"
+            / "manage_working_duckdb.py"
+        ),
+        "init",
+        "--db-path",
+        str(cfg.get("db_path", _require_path(paths, "db_path"))),
+    ]
 
 
 def _build_mvp_ingest_command(profile: dict[str, Any], args: argparse.Namespace) -> list[str]:
@@ -522,6 +547,7 @@ def _build_publish_command(profile: dict[str, Any], args: argparse.Namespace) ->
 
 def _build_steps(profile: dict[str, Any], args: argparse.Namespace, step_names: list[str]) -> list[PipelineStep]:
     builders = {
+        "working_init": _build_working_init_command,
         "mvp_ingest": _build_mvp_ingest_command,
         "legacy_ingest": _build_legacy_ingest_command,
         "publish": _build_publish_command,
