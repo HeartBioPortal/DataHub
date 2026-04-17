@@ -1,5 +1,7 @@
 # System Overview
 
+![Generated visual for System Overview](../assets/visuals/system-overview.svg){ .doc-visual }
+
 ## End-to-end structure
 
 ```text

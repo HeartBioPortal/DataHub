@@ -1,5 +1,7 @@
 # Getting Started
 
+![Generated visual for Getting Started](assets/visuals/getting-started.svg){ .doc-visual }
+
 ## Prerequisites
 
 - Python 3.11+ recommended

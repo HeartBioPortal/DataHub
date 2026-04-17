@@ -1,5 +1,7 @@
 # Serving Artifacts
 
+![Generated visual for Serving Artifacts](../assets/visuals/serving-artifacts.svg){ .doc-visual }
+
 ## Why serving artifacts exist
 
 The raw or unified working DuckDB is not the same thing as a runtime-serving artifact.

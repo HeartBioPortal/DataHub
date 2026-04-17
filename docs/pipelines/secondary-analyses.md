@@ -1,5 +1,7 @@
 # Secondary Analyses
 
+![Generated visual for Secondary Analyses](../assets/visuals/secondary-analyses.svg){ .doc-visual }
+
 This page documents the secondary-analysis layer that sits downstream of the primary association pipeline.
 
 ## Why this layer exists

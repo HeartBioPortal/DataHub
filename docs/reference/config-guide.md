@@ -1,5 +1,7 @@
 # Config Guide
 
+![Generated visual for Config Guide](../assets/visuals/config-guide.svg){ .doc-visual }
+
 ## `config/prep_profiles/`
 
 Defines raw-column arbitration for legacy/raw association sources.

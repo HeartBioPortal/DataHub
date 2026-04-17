@@ -1,5 +1,7 @@
 # New Source Onboarding
 
+![Generated visual for New Source Onboarding](../assets/visuals/new-source-onboarding.svg){ .doc-visual }
+
 ## Goal
 
 When adding a new source, the objective is not just “make the data parse.” The objective is:

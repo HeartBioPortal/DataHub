@@ -1,5 +1,7 @@
 # Configuration Surfaces
 
+![Generated visual for Configuration Surfaces](../assets/visuals/configuration-surfaces.svg){ .doc-visual }
+
 DataHub has multiple configuration families because different problems require different declarations.
 
 ## 1. Prep profiles

@@ -1,5 +1,7 @@
 # Repository Tour
 
+![Generated visual for Repository Tour](assets/visuals/repository-tour.svg){ .doc-visual }
+
 This page is the practical map of the repository.
 
 ## Top-level structure

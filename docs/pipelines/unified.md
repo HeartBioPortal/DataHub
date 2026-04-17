@@ -1,5 +1,7 @@
 # Unified DuckDB Pipeline
 
+![Generated visual for Unified DuckDB Pipeline](../assets/visuals/unified-duckdb-pipeline.svg){ .doc-visual }
+
 The unified pipeline is the main large-scale integration path for merged MVP and legacy association data.
 
 ## Why this pipeline exists

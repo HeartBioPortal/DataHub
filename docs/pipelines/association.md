@@ -1,5 +1,7 @@
 # Association Pipeline
 
+![Generated visual for Association Pipeline](../assets/visuals/association-pipeline.svg){ .doc-visual }
+
 This page covers the association-oriented path that produces legacy-compatible analyzed outputs.
 
 ## Inputs

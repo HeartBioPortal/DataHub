@@ -1,5 +1,7 @@
 # Architecture Philosophy
 
+![Generated visual for Architecture Philosophy](../assets/visuals/architecture-philosophy.svg){ .doc-visual }
+
 This page explains why DataHub is structured the way it is.
 
 ## The core problem

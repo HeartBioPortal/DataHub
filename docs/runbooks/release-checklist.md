@@ -1,5 +1,7 @@
 # Release Checklist
 
+![Generated visual for Release Checklist](../assets/visuals/release-checklist.svg){ .doc-visual }
+
 Use this checklist before handing DataHub artifacts to the backend or copying
 them between HPC, AWS, and production-serving environments.
 

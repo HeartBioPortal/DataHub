@@ -1,5 +1,7 @@
 # Module Guide
 
+![Generated visual for Module Guide](../assets/visuals/module-guide.svg){ .doc-visual }
+
 This page explains the purpose and design philosophy of each major `src/datahub/` area.
 
 ## `models.py`

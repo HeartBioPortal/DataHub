@@ -1,5 +1,7 @@
 # Data Model
 
+![Generated visual for Data Model](../assets/visuals/data-model.svg){ .doc-visual }
+
 ## Canonical record
 
 The central in-memory object is `CanonicalRecord` in `src/datahub/models.py`.

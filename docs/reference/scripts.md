@@ -1,5 +1,7 @@
 # Scripts Guide
 
+![Generated visual for Scripts Guide](../assets/visuals/scripts-guide.svg){ .doc-visual }
+
 ## General entrypoints
 
 Editable installs expose console commands for the main entrypoints. For

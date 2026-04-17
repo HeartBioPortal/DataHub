@@ -1,5 +1,7 @@
 # Contributing
 
+![Generated visual for Contributing](assets/visuals/contributing.svg){ .doc-visual }
+
 ## Contribution standard
 
 The repository should remain understandable to outside contributors. That means changes should be explicit, scoped, and testable.

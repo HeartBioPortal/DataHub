@@ -1,5 +1,7 @@
 # Local Smoke Test
 
+![Generated visual for Local Smoke Test](../assets/visuals/local-smoke-test.svg){ .doc-visual }
+
 Use this runbook when you want to verify a fresh checkout or a small local
 change without running a production-sized pipeline.
 

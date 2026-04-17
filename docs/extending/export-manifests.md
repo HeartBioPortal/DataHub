@@ -1,5 +1,7 @@
 # Export Manifest Framework
 
+![Generated visual for Export Manifest Framework](../assets/visuals/export-manifest-framework.svg){ .doc-visual }
+
 The export manifest framework defines what moves from unified/canonical data into analyzed outputs.
 
 ## Why this layer exists
