@@ -1,6 +1,7 @@
 import csv
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -44,7 +45,7 @@ def _write_mvp_csv(path: Path, *, rsid: str, ancestry: str, af: float, pval: flo
 
 def _run_fast_ingest(repo_root: Path, args: list[str]) -> dict[str, object]:
     result = subprocess.run(
-        ["python3", "scripts/dataset_specific_scripts/mvp/ingest_mvp_duckdb_fast.py", *args],
+        [sys.executable, "scripts/dataset_specific_scripts/mvp/ingest_mvp_duckdb_fast.py", *args],
         cwd=repo_root,
         text=True,
         capture_output=True,

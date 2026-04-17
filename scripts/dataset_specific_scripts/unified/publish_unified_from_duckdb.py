@@ -33,6 +33,7 @@ from datahub.publishers import (  # noqa: E402
     LegacyRedisPublisher,
     PhenotypeRollupPublisher,
 )
+from datahub.unified.runtime import configure_duckdb_runtime  # noqa: E402
 
 
 @dataclass(frozen=True)
@@ -375,8 +376,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--temp-directory",
-        default="/data/hbp/datamart/duckdb_tmp",
-        help="DuckDB temp spill directory.",
+        default=None,
+        help=(
+            "DuckDB temp spill directory. Defaults to a local-safe "
+            "<db-dir>/_duckdb_tmp path; use 'none' to keep DuckDB default."
+        ),
     )
     parser.add_argument(
         "--max-temp-directory-size",
@@ -514,33 +518,25 @@ def _gene_shard_expression(*, total_shards: int, dataset_alias: str = "p") -> st
 
 
 def _ensure_db_runtime(connection: Any, args: argparse.Namespace, logger: logging.Logger) -> None:
-    if args.threads > 0:
-        connection.execute(f"PRAGMA threads={int(args.threads)}")
-    if args.memory_limit:
-        mem = str(args.memory_limit).strip().replace("'", "")
-        if mem:
-            connection.execute(f"SET memory_limit='{mem}'")
-    if not args.preserve_insertion_order:
-        connection.execute("SET preserve_insertion_order=false")
-    if args.temp_directory:
-        temp_dir = Path(args.temp_directory)
-        temp_dir.mkdir(parents=True, exist_ok=True)
-        safe_temp = str(temp_dir).replace("'", "")
-        connection.execute(f"SET temp_directory='{safe_temp}'")
-    if args.max_temp_directory_size:
-        size_value = str(args.max_temp_directory_size).strip().replace("'", "")
-        if size_value:
-            connection.execute(f"PRAGMA max_temp_directory_size='{size_value}'")
-    if args.duckdb_progress_bar:
-        try:
-            connection.execute("SET enable_progress_bar = true")
-            try:
-                connection.execute("SET enable_progress_bar_print = true")
-            except Exception:
-                pass
-            logger.info("DuckDB internal progress bar enabled.")
-        except Exception as exc:
-            logger.warning("Could not enable DuckDB progress bar: %s", exc)
+    settings = configure_duckdb_runtime(
+        connection,
+        threads=args.threads,
+        memory_limit=args.memory_limit,
+        preserve_insertion_order=args.preserve_insertion_order,
+        temp_directory=args.temp_directory,
+        temp_anchor_path=args.db_path,
+        max_temp_directory_size=args.max_temp_directory_size,
+        progress_bar=args.duckdb_progress_bar,
+        logger=logger,
+    )
+    logger.info(
+        "DuckDB runtime settings: threads=%s memory_limit=%s preserve_insertion_order=%s temp_directory=%s max_temp_directory_size=%s",
+        str(args.threads if args.threads > 0 else "default"),
+        str(settings.memory_limit or "default"),
+        str(args.preserve_insertion_order),
+        str(settings.temp_directory or "default"),
+        str(settings.max_temp_directory_size or "default"),
+    )
 
 
 def _base_source_where_clause(*, dataset_types: set[str] | None) -> tuple[str, list[str]]:

@@ -1,6 +1,7 @@
 import csv
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 
@@ -36,7 +37,7 @@ def _write_mvp_csv(path: Path, *, rsid: str, af: float) -> None:
 
 def _run_mvp_script(repo_root: Path, *, args: list[str]) -> dict[str, object]:
     result = subprocess.run(
-        ["python3", "scripts/dataset_specific_scripts/mvp/run_mvp_pipeline.py", *args],
+        [sys.executable, "scripts/dataset_specific_scripts/mvp/run_mvp_pipeline.py", *args],
         cwd=repo_root,
         text=True,
         capture_output=True,

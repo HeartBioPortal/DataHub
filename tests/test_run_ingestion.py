@@ -1,6 +1,7 @@
 import csv
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 
@@ -54,7 +55,7 @@ def test_run_ingestion_script_executes_pipeline(tmp_path: Path) -> None:
     )
 
     result = subprocess.run(
-        ["scripts/run_ingestion.py", "--config", str(config_path)],
+        [sys.executable, "scripts/run_ingestion.py", "--config", str(config_path)],
         cwd=repo_root,
         text=True,
         capture_output=True,
@@ -100,7 +101,7 @@ def test_run_ingestion_script_executes_with_source_config(tmp_path: Path) -> Non
     )
 
     result = subprocess.run(
-        ["scripts/run_ingestion.py", "--config", str(config_path)],
+        [sys.executable, "scripts/run_ingestion.py", "--config", str(config_path)],
         cwd=repo_root,
         text=True,
         capture_output=True,
@@ -150,7 +151,7 @@ def test_run_ingestion_supports_rollup_publisher(tmp_path: Path) -> None:
     )
 
     subprocess.run(
-        ["scripts/run_ingestion.py", "--config", str(config_path)],
+        [sys.executable, "scripts/run_ingestion.py", "--config", str(config_path)],
         cwd=repo_root,
         text=True,
         capture_output=True,

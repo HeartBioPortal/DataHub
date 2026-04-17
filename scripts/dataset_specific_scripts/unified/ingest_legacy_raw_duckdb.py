@@ -25,6 +25,7 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from datahub.adapters import PhenotypeMapper  # noqa: E402
 from datahub.gene_ids import sql_has_gene_like_identifier  # noqa: E402
+from datahub.unified.runtime import configure_duckdb_runtime  # noqa: E402
 
 
 ANCESTRY_COLUMNS: tuple[tuple[str, str, str], ...] = (
@@ -219,8 +220,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--temp-directory",
-        default="/data/hbp/datamart/duckdb_tmp",
-        help="DuckDB temp spill directory.",
+        default=None,
+        help=(
+            "DuckDB temp spill directory. Defaults to a local-safe "
+            "<db-dir>/_duckdb_tmp path; use 'none' to keep DuckDB default."
+        ),
     )
     parser.add_argument(
         "--preserve-insertion-order",
@@ -724,37 +728,23 @@ def main() -> int:
     db_path = Path(args.db_path)
     db_path.parent.mkdir(parents=True, exist_ok=True)
     connection = duckdb.connect(str(db_path))
-
-    if args.threads > 0:
-        connection.execute(f"PRAGMA threads={int(args.threads)}")
-    if args.memory_limit:
-        mem = str(args.memory_limit).strip().replace("'", "")
-        if mem:
-            connection.execute(f"SET memory_limit='{mem}'")
-    if not args.preserve_insertion_order:
-        connection.execute("SET preserve_insertion_order=false")
-    if args.temp_directory:
-        temp_dir = Path(args.temp_directory)
-        temp_dir.mkdir(parents=True, exist_ok=True)
-        safe_temp = str(temp_dir).replace("'", "")
-        connection.execute(f"SET temp_directory='{safe_temp}'")
-    if args.duckdb_progress_bar:
-        try:
-            connection.execute("SET enable_progress_bar = true")
-            try:
-                connection.execute("SET enable_progress_bar_print = true")
-            except Exception:
-                pass
-            logger.info("DuckDB internal progress bar enabled.")
-        except Exception as exc:
-            logger.warning("Could not enable DuckDB progress bar: %s", exc)
+    runtime_settings = configure_duckdb_runtime(
+        connection,
+        threads=args.threads,
+        memory_limit=args.memory_limit,
+        preserve_insertion_order=args.preserve_insertion_order,
+        temp_directory=args.temp_directory,
+        temp_anchor_path=db_path,
+        progress_bar=args.duckdb_progress_bar,
+        logger=logger,
+    )
 
     logger.info(
         "DuckDB runtime settings: threads=%s memory_limit=%s preserve_insertion_order=%s temp_directory=%s",
         str(args.threads if args.threads > 0 else "default"),
         str(args.memory_limit or "default"),
         str(args.preserve_insertion_order),
-        str(args.temp_directory or "default"),
+        str(runtime_settings.temp_directory or "default"),
     )
     logger.info(
         "CSV runtime settings: strict_mode=%s ignore_errors=%s null_padding=%s",
