@@ -37,8 +37,6 @@ Use the documentation based on what you need:
 
 ## High-level flow
 
-![Generated visual for HeartBioPortal DataHub](assets/visuals/overview.svg){ .doc-visual }
-
 ```text
 raw files / source APIs
   -> preparation profiles
