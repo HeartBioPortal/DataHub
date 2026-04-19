@@ -27,13 +27,7 @@ def _load_upgrade_module():
     return module
 
 
-def test_upgrade_adds_summary_tables_in_place(tmp_path: Path) -> None:
-    if duckdb is None:
-        import pytest
-
-        pytest.skip("duckdb is not installed in this Python environment")
-
-    db_path = tmp_path / "association_serving.duckdb"
+def _create_base_tables(db_path: Path) -> None:
     con = duckdb.connect(str(db_path))
     try:
         con.execute(
@@ -58,36 +52,43 @@ CREATE TABLE overall_gene_payloads (
 )
 """
         )
+    finally:
+        con.close()
+
+
+def _insert_gene(db_path: Path, gene: str, *, value: int = 1) -> None:
+    con = duckdb.connect(str(db_path))
+    try:
         con.execute(
             "INSERT INTO association_gene_payloads VALUES (?, ?, ?, ?, ?)",
             [
                 "CVD",
-                "TTN",
-                "TTN",
+                gene,
+                gene,
                 json.dumps(
                     [
                         {
                             "disease": ["cardiomyopathy"],
-                            "vc": {"SNP": 10},
+                            "vc": {"SNP": value},
                             "msc": {"missense_variant": 2},
                             "cs": {"benign": 1},
                             "ancestry": {"European": {"rs1": 0.1}},
                         }
                     ]
                 ),
-                "/tmp/TTN.json.gz",
+                f"/tmp/{gene}.json.gz",
             ],
         )
         con.execute(
             "INSERT INTO overall_gene_payloads VALUES (?, ?, ?, ?, ?)",
             [
                 "CVD",
-                "TTN",
-                "TTN",
+                gene,
+                gene,
                 json.dumps(
                     {
                         "data": {
-                            "vc": {"SNP": 10},
+                            "vc": {"SNP": value},
                             "msc": {"missense_variant": 2},
                             "cs": {"benign": 1},
                             "ancestry": {"European": {"rs1": 0.1}},
@@ -95,13 +96,14 @@ CREATE TABLE overall_gene_payloads (
                         "pvals": {"p<5E-8": 3},
                     }
                 ),
-                "/tmp/TTN.json.gz",
+                f"/tmp/{gene}.json.gz",
             ],
         )
     finally:
         con.close()
 
-    module = _load_upgrade_module()
+
+def _run_upgrade(module, db_path: Path, *args: str) -> int:
     old_argv = sys.argv[:]
     try:
         sys.argv = [
@@ -110,12 +112,25 @@ CREATE TABLE overall_gene_payloads (
             str(db_path),
             "--log-level",
             "ERROR",
+            *args,
         ]
-        exit_code = module.main()
+        return module.main()
     finally:
         sys.argv = old_argv
 
-    assert exit_code == 0
+
+def test_upgrade_adds_summary_tables_in_place(tmp_path: Path) -> None:
+    if duckdb is None:
+        import pytest
+
+        pytest.skip("duckdb is not installed in this Python environment")
+
+    db_path = tmp_path / "association_serving.duckdb"
+    _create_base_tables(db_path)
+    _insert_gene(db_path, "TTN", value=10)
+
+    module = _load_upgrade_module()
+    assert _run_upgrade(module, db_path) == 0
 
     con = duckdb.connect(str(db_path), read_only=True)
     try:
@@ -147,5 +162,38 @@ CREATE TABLE overall_gene_payloads (
             },
             "pvals": {"p<5E-8": 3},
         }
+    finally:
+        con.close()
+
+
+def test_upgrade_can_resume_after_row_limited_run(tmp_path: Path) -> None:
+    if duckdb is None:
+        import pytest
+
+        pytest.skip("duckdb is not installed in this Python environment")
+
+    db_path = tmp_path / "association_serving.duckdb"
+    _create_base_tables(db_path)
+    for gene in ("ANK2", "TTN"):
+        _insert_gene(db_path, gene)
+
+    module = _load_upgrade_module()
+    assert _run_upgrade(module, db_path, "--max-rows", "1", "--batch-size", "1") == 0
+
+    con = duckdb.connect(str(db_path), read_only=True)
+    try:
+        assert con.execute("SELECT COUNT(*) FROM association_summary_payloads").fetchone()[0] == 1
+        assert con.execute("SELECT COUNT(*) FROM overall_summary_payloads").fetchone()[0] == 1
+        assert con.execute("SELECT COUNT(*) FROM serving_summary_metadata").fetchone()[0] == 0
+    finally:
+        con.close()
+
+    assert _run_upgrade(module, db_path, "--batch-size", "1") == 0
+
+    con = duckdb.connect(str(db_path), read_only=True)
+    try:
+        assert con.execute("SELECT COUNT(*) FROM association_summary_payloads").fetchone()[0] == 2
+        assert con.execute("SELECT COUNT(*) FROM overall_summary_payloads").fetchone()[0] == 2
+        assert con.execute("SELECT COUNT(*) FROM serving_summary_metadata").fetchone()[0] == 1
     finally:
         con.close()
