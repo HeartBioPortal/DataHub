@@ -63,10 +63,15 @@ Existing serving DBs can be upgraded in place with:
 python3 scripts/dataset_specific_scripts/unified/upgrade_association_serving_duckdb.py \
   --db-path /data/DataHub/datamart/association_serving.duckdb \
   --batch-size 50 \
+  --payload-source auto \
   --progress-interval 500
 ```
 
-The upgrade is incremental and safe to rerun.
+The upgrade is incremental and safe to rerun. By default, `--payload-source auto`
+prefers the `source_path` JSON/JSON.GZ payload files recorded in the serving DB
+and falls back to the existing DuckDB `payload_json` column when a source file is
+not available. This keeps in-place upgrades memory-safe without forcing every
+summary row to be read back from the very large serving DB blob column.
 
 ## Important design rule
 

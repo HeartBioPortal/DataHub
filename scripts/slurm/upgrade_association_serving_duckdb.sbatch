@@ -18,6 +18,7 @@ BATCH_SIZE="${BATCH_SIZE:-1}"
 PROGRESS_INTERVAL="${PROGRESS_INTERVAL:-100}"
 SLOW_PAYLOAD_SECONDS="${SLOW_PAYLOAD_SECONDS:-30}"
 UNIT_PARTITIONS="${UNIT_PARTITIONS:-1}"
+PAYLOAD_SOURCE="${PAYLOAD_SOURCE:-auto}"
 DUCKDB_MEMORY_LIMIT="${DUCKDB_MEMORY_LIMIT:-120GB}"
 DUCKDB_TEMP_DIRECTORY="${DUCKDB_TEMP_DIRECTORY:-/N/scratch/$USER/hbp/datamart/duckdb_tmp}"
 
@@ -43,6 +44,7 @@ for partition_index in $(seq 0 $((UNIT_PARTITIONS - 1))); do
     --batch-size "$BATCH_SIZE" \
     --progress-interval "$PROGRESS_INTERVAL" \
     --slow-payload-seconds "$SLOW_PAYLOAD_SECONDS" \
+    --payload-source "$PAYLOAD_SOURCE" \
     --unit-partitions "$UNIT_PARTITIONS" \
     --unit-partition-index "$partition_index" \
     --duckdb-threads "${SLURM_CPUS_PER_TASK:-4}" \

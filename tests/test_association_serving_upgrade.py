@@ -1,4 +1,5 @@
 import importlib.util
+import gzip
 import json
 import sys
 from pathlib import Path
@@ -56,7 +57,15 @@ CREATE TABLE overall_gene_payloads (
         con.close()
 
 
-def _insert_gene(db_path: Path, gene: str, *, value: int = 1) -> None:
+def _insert_gene(
+    db_path: Path,
+    gene: str,
+    *,
+    value: int = 1,
+    source_path: Path | None = None,
+) -> None:
+    association_source_path = str(source_path) if source_path is not None else f"/tmp/{gene}.json.gz"
+    overall_source_path = str(source_path) if source_path is not None else f"/tmp/{gene}.json.gz"
     con = duckdb.connect(str(db_path))
     try:
         con.execute(
@@ -76,7 +85,7 @@ def _insert_gene(db_path: Path, gene: str, *, value: int = 1) -> None:
                         }
                     ]
                 ),
-                f"/tmp/{gene}.json.gz",
+                association_source_path,
             ],
         )
         con.execute(
@@ -96,11 +105,16 @@ def _insert_gene(db_path: Path, gene: str, *, value: int = 1) -> None:
                         "pvals": {"p<5E-8": 3},
                     }
                 ),
-                f"/tmp/{gene}.json.gz",
+                overall_source_path,
             ],
         )
     finally:
         con.close()
+
+
+def _write_gz_json(path: Path, payload: object) -> None:
+    with gzip.open(path, "wt", encoding="utf-8") as handle:
+        json.dump(payload, handle)
 
 
 def _run_upgrade(module, db_path: Path, *args: str) -> int:
@@ -197,3 +211,63 @@ def test_upgrade_can_resume_after_row_limited_run(tmp_path: Path) -> None:
         assert con.execute("SELECT COUNT(*) FROM serving_summary_metadata").fetchone()[0] == 1
     finally:
         con.close()
+
+
+def test_upgrade_prefers_source_path_payloads(tmp_path: Path) -> None:
+    if duckdb is None:
+        import pytest
+
+        pytest.skip("duckdb is not installed in this Python environment")
+
+    db_path = tmp_path / "association_serving.duckdb"
+    payload_path = tmp_path / "TTN.json.gz"
+    _write_gz_json(
+        payload_path,
+        [
+            {
+                "disease": ["cardiomyopathy"],
+                "vc": {"SNP": 99},
+                "msc": {"missense_variant": 3},
+                "cs": {"pathogenic": 2},
+                "ancestry": {"European": {"rs1": 0.1}},
+            }
+        ],
+    )
+    _create_base_tables(db_path)
+    _insert_gene(db_path, "TTN", value=10, source_path=payload_path)
+
+    module = _load_upgrade_module()
+    assert _run_upgrade(module, db_path, "--tables", "association") == 0
+
+    con = duckdb.connect(str(db_path), read_only=True)
+    try:
+        association_summary = json.loads(
+            con.execute("SELECT payload_json FROM association_summary_payloads").fetchone()[0]
+        )
+        assert association_summary == [
+            {
+                "disease": ["cardiomyopathy"],
+                "vc": {"SNP": 99},
+                "msc": {"missense_variant": 3},
+                "cs": {"pathogenic": 2},
+            }
+        ]
+    finally:
+        con.close()
+
+
+def test_upgrade_source_path_mode_fails_when_payload_file_missing(tmp_path: Path) -> None:
+    if duckdb is None:
+        import pytest
+
+        pytest.skip("duckdb is not installed in this Python environment")
+
+    db_path = tmp_path / "association_serving.duckdb"
+    _create_base_tables(db_path)
+    _insert_gene(db_path, "TTN", source_path=tmp_path / "missing.json.gz")
+
+    module = _load_upgrade_module()
+    import pytest
+
+    with pytest.raises(FileNotFoundError):
+        _run_upgrade(module, db_path, "--tables", "association", "--payload-source", "source-path")

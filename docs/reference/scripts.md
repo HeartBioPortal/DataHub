@@ -204,6 +204,7 @@ Example:
 python3 scripts/dataset_specific_scripts/unified/upgrade_association_serving_duckdb.py \
   --db-path /data/DataHub/datamart/association_serving.duckdb \
   --batch-size 1 \
+  --payload-source auto \
   --progress-interval 100 \
   --slow-payload-seconds 30 \
   --log-level INFO
@@ -214,6 +215,18 @@ The command is incremental. If interrupted, rerun it without
 Use `--max-rows 10` for a quick smoke test before allowing the full run to
 continue.
 
+Payload source modes:
+
+- `auto`: prefer the recorded `source_path` JSON/JSON.GZ files and fall back to
+  DuckDB `payload_json`
+- `source-path`: require source files and fail fast if any payload file is
+  missing
+- `duckdb`: read payloads only from the existing serving DB
+
+`auto` is the recommended mode for Big Red upgrades because reading each full
+payload back from a 400+ GB DuckDB VARCHAR column can be much slower than
+streaming the original published JSON.GZ files.
+
 For Big Red 200 / Slurm runs, use the bundled batch script. It processes
 partition shards sequentially in one job because DuckDB should not have
 multiple concurrent writers to the same database file:
@@ -221,7 +234,7 @@ multiple concurrent writers to the same database file:
 ```bash
 cd /geode2/home/u050/kvand/BigRed200/DataHub
 
-sbatch --export=ALL,DATAHUB_ROOT=/geode2/home/u050/kvand/BigRed200/DataHub,DB_PATH=/N/scratch/kvand/hbp/datamart/association_serving.duckdb,UNIT_PARTITIONS=16,BATCH_SIZE=1,DUCKDB_MEMORY_LIMIT=120GB,DUCKDB_TEMP_DIRECTORY=/N/scratch/kvand/hbp/datamart/duckdb_tmp \
+sbatch --export=ALL,DATAHUB_ROOT=/geode2/home/u050/kvand/BigRed200/DataHub,DB_PATH=/N/scratch/kvand/hbp/datamart/association_serving.duckdb,UNIT_PARTITIONS=16,BATCH_SIZE=1,PAYLOAD_SOURCE=auto,DUCKDB_MEMORY_LIMIT=120GB,DUCKDB_TEMP_DIRECTORY=/N/scratch/kvand/hbp/datamart/duckdb_tmp \
   scripts/slurm/upgrade_association_serving_duckdb.sbatch
 ```
 

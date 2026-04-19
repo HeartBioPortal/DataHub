@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import logging
 import sys
@@ -83,6 +84,15 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=30.0,
         help="Log any single payload that takes at least this many seconds to summarize.",
+    )
+    parser.add_argument(
+        "--payload-source",
+        default="auto",
+        choices=["auto", "source-path", "duckdb"],
+        help=(
+            "Where to read full payloads from. auto prefers source_path JSON/JSON.GZ "
+            "files when present and falls back to DuckDB payload_json."
+        ),
     )
     parser.add_argument(
         "--log-level",
@@ -299,6 +309,53 @@ LIMIT 1
     return str(row[0])
 
 
+def _read_payload_text_from_path(source_path: str | None) -> str | None:
+    if not source_path:
+        return None
+    path_text = str(source_path).strip()
+    if not path_text or ";" in path_text:
+        return None
+    path = Path(path_text)
+    if not path.exists() or not path.is_file():
+        return None
+    if path.suffix == ".gz" or path.name.endswith(".json.gz"):
+        with gzip.open(path, "rt", encoding="utf-8") as handle:
+            return handle.read()
+    return path.read_text(encoding="utf-8")
+
+
+def _load_payload_json(
+    connection: Any,
+    *,
+    source_table: str,
+    dataset_type: str,
+    gene_id_normalized: str,
+    source_path: str | None,
+    payload_source: str,
+) -> tuple[str, str]:
+    if payload_source in {"auto", "source-path"}:
+        payload_json = _read_payload_text_from_path(source_path)
+        if payload_json is not None:
+            return payload_json, "source_path"
+        if payload_source == "source-path":
+            raise FileNotFoundError(
+                f"Payload source_path is not readable for {source_table} "
+                f"{dataset_type}/{gene_id_normalized}: {source_path}"
+            )
+
+    payload_json = _fetch_payload_json(
+        connection,
+        source_table=source_table,
+        dataset_type=dataset_type,
+        gene_id_normalized=gene_id_normalized,
+    )
+    if payload_json is None:
+        raise RuntimeError(
+            f"Missing payload_json for {source_table} {dataset_type}/{gene_id_normalized}"
+        )
+    return payload_json, "duckdb"
+
+
 def _upgrade_table(
     connection: Any,
     *,
@@ -310,6 +367,7 @@ def _upgrade_table(
     unit_partition_index: int,
     progress_interval: int,
     slow_payload_seconds: float,
+    payload_source: str,
     logger: logging.Logger,
 ) -> int:
     source_table = _safe_identifier(source_table)
@@ -333,83 +391,91 @@ def _upgrade_table(
     if pending == 0:
         return 0
 
+    pending_limit = min(pending, max_rows) if max_rows > 0 else pending
+    keys = _fetch_pending_keys(
+        connection,
+        source_table=source_table,
+        summary_table=summary_table,
+        limit=pending_limit,
+        unit_partitions=unit_partitions,
+        unit_partition_index=unit_partition_index,
+    )
     write_cursor = connection.cursor()
     inserted = 0
     insert_sql = f"INSERT INTO {summary_table} VALUES (?, ?, ?, ?, ?)"
     next_log = progress_interval if progress_interval > 0 else 0
+    payload_source_counts = {"source_path": 0, "duckdb": 0}
+    summary_rows = []
 
-    while True:
-        remaining = max_rows - inserted if max_rows > 0 else max(batch_size, 1)
-        if max_rows > 0 and remaining <= 0:
-            break
-        key_limit = min(max(batch_size, 1), remaining) if max_rows > 0 else max(batch_size, 1)
-        keys = _fetch_pending_keys(
+    for dataset_type, gene_id, gene_id_normalized, source_path in keys:
+        payload_started = time.perf_counter()
+        payload_json, loaded_from = _load_payload_json(
             connection,
             source_table=source_table,
-            summary_table=summary_table,
-            limit=key_limit,
-            unit_partitions=unit_partitions,
-            unit_partition_index=unit_partition_index,
+            dataset_type=str(dataset_type),
+            gene_id_normalized=str(gene_id_normalized),
+            source_path=str(source_path or ""),
+            payload_source=payload_source,
         )
-        if not keys:
-            break
+        payload_source_counts[loaded_from] += 1
+        payload = json.loads(str(payload_json))
+        summary_payload = shape_summary_for_table(
+            payload,
+            source_table=source_table,
+            dataset_type=str(dataset_type),
+        )
+        summary_rows.append(
+            (
+                str(dataset_type),
+                str(gene_id),
+                str(gene_id_normalized),
+                json.dumps(summary_payload, separators=(",", ":")),
+                str(source_path or ""),
+            )
+        )
+        del payload
+        del payload_json
+        del summary_payload
+        payload_elapsed = time.perf_counter() - payload_started
+        if slow_payload_seconds > 0 and payload_elapsed >= slow_payload_seconds:
+            logger.info(
+                "Slow payload summarized: source=%s dataset_type=%s gene=%s elapsed=%.2fs loaded_from=%s source_path=%s",
+                source_table,
+                dataset_type,
+                gene_id_normalized,
+                payload_elapsed,
+                loaded_from,
+                source_path,
+            )
 
-        summary_rows = []
-        for dataset_type, gene_id, gene_id_normalized, source_path in keys:
-            payload_started = time.perf_counter()
-            payload_json = _fetch_payload_json(
-                connection,
-                source_table=source_table,
-                dataset_type=str(dataset_type),
-                gene_id_normalized=str(gene_id_normalized),
-            )
-            if payload_json is None:
-                raise RuntimeError(
-                    f"Missing payload_json for {source_table} "
-                    f"{dataset_type}/{gene_id_normalized}"
-                )
-            payload = json.loads(str(payload_json))
-            summary_payload = shape_summary_for_table(
-                payload,
-                source_table=source_table,
-                dataset_type=str(dataset_type),
-            )
-            summary_rows.append(
-                (
-                    str(dataset_type),
-                    str(gene_id),
-                    str(gene_id_normalized),
-                    json.dumps(summary_payload, separators=(",", ":")),
-                    str(source_path or ""),
-                )
-            )
-            del payload
-            del payload_json
-            del summary_payload
-            payload_elapsed = time.perf_counter() - payload_started
-            if slow_payload_seconds > 0 and payload_elapsed >= slow_payload_seconds:
+        if len(summary_rows) >= max(batch_size, 1):
+            write_cursor.executemany(insert_sql, summary_rows)
+            inserted += len(summary_rows)
+            summary_rows.clear()
+            if next_log and inserted >= next_log:
                 logger.info(
-                    "Slow payload summarized: source=%s dataset_type=%s gene=%s elapsed=%.2fs source_path=%s",
+                    "Summary upgrade progress: source=%s inserted=%d/%d source_path_reads=%d duckdb_reads=%d",
                     source_table,
-                    dataset_type,
-                    gene_id_normalized,
-                    payload_elapsed,
-                    source_path,
+                    inserted,
+                    pending,
+                    payload_source_counts["source_path"],
+                    payload_source_counts["duckdb"],
                 )
+                while inserted >= next_log:
+                    next_log += progress_interval
 
-        if not summary_rows:
-            break
+    if summary_rows:
         write_cursor.executemany(insert_sql, summary_rows)
         inserted += len(summary_rows)
         if next_log and inserted >= next_log:
             logger.info(
-                "Summary upgrade progress: source=%s inserted=%d/%d",
+                "Summary upgrade progress: source=%s inserted=%d/%d source_path_reads=%d duckdb_reads=%d",
                 source_table,
                 inserted,
                 pending,
+                payload_source_counts["source_path"],
+                payload_source_counts["duckdb"],
             )
-            while inserted >= next_log:
-                next_log += progress_interval
 
     _create_index(
         connection,
@@ -417,10 +483,12 @@ def _upgrade_table(
         index_name=f"idx_{summary_table}_gene",
     )
     logger.info(
-        "Summary upgrade complete: source=%s summary=%s inserted=%d",
+        "Summary upgrade complete: source=%s summary=%s inserted=%d source_path_reads=%d duckdb_reads=%d",
         source_table,
         summary_table,
         inserted,
+        payload_source_counts["source_path"],
+        payload_source_counts["duckdb"],
     )
     return inserted
 
@@ -497,6 +565,7 @@ def main() -> int:
                 unit_partition_index=args.unit_partition_index,
                 progress_interval=args.progress_interval,
                 slow_payload_seconds=args.slow_payload_seconds,
+                payload_source=args.payload_source,
                 logger=logger,
             )
 
