@@ -30,6 +30,8 @@ It currently contains tables such as:
 
 - `association_gene_payloads`
 - `overall_gene_payloads`
+- `association_summary_payloads`
+- `overall_summary_payloads`
 - `expression_gene_payloads`
 - `sga_gene_payloads`
 - `gene_catalog`
@@ -48,6 +50,23 @@ The contract names the primary runtime tables, required columns, query
 expectations, and compatibility notes. The most important rule is that serving
 payload JSON preserves published semantics; it does not reinterpret association
 or overall payloads.
+
+The summary tables are an API performance layer. They are derived from the full
+published payloads by removing detail-heavy fields such as ancestry while
+preserving the chart-count fields needed by the initial search view (`vc`,
+`msc`, `cs`, and `pvals`). This keeps `/api/search_summary/` fast for very large
+genes while leaving full payload tables available for detail endpoints.
+
+Existing serving DBs can be upgraded in place with:
+
+```bash
+python3 scripts/dataset_specific_scripts/unified/upgrade_association_serving_duckdb.py \
+  --db-path /data/DataHub/datamart/association_serving.duckdb \
+  --batch-size 50 \
+  --progress-interval 500
+```
+
+The upgrade is incremental and safe to rerun.
 
 ## Important design rule
 

@@ -169,9 +169,12 @@ def test_builder_creates_compact_serving_db_from_published_outputs(tmp_path: Pat
     try:
         assert con.execute("SELECT COUNT(*) FROM association_gene_payloads").fetchone()[0] == 2
         assert con.execute("SELECT COUNT(*) FROM overall_gene_payloads").fetchone()[0] == 2
+        assert con.execute("SELECT COUNT(*) FROM association_summary_payloads").fetchone()[0] == 2
+        assert con.execute("SELECT COUNT(*) FROM overall_summary_payloads").fetchone()[0] == 2
         assert con.execute("SELECT COUNT(*) FROM expression_gene_payloads").fetchone()[0] == 1
         assert con.execute("SELECT COUNT(*) FROM sga_gene_payloads").fetchone()[0] == 1
         assert con.execute("SELECT COUNT(*) FROM gene_catalog").fetchone()[0] == 1
+        assert con.execute("SELECT COUNT(*) FROM serving_summary_metadata").fetchone()[0] == 1
 
         row = con.execute(
             """
@@ -219,6 +222,52 @@ WHERE dataset_type = 'CVD' AND gene_id_normalized = 'ANK2'
             "manifest_id": "association_export_v1",
             "manifest_version": 1,
         }
+
+        association_summary_row = con.execute(
+            """
+SELECT payload_json
+FROM association_summary_payloads
+WHERE dataset_type = 'CVD' AND gene_id_normalized = 'ANK2'
+"""
+        ).fetchone()
+        association_summary = json.loads(association_summary_row[0])
+        assert association_summary == [
+            {
+                "disease": ["cardiac_dysrhythmias", "atrial_fibrillation"],
+                "vc": [{"name": "INDEL", "value": 3}],
+                "msc": [{"name": "missense variant", "value": 3}],
+                "cs": [{"name": "likely benign", "value": 3}],
+                "_datahub": {
+                    "manifest_id": "association_export_v1",
+                    "manifest_version": 1,
+                    "provenance": {
+                        "sources": ["legacy_cvd_raw", "million_veteran_program"],
+                        "source_counts": {
+                            "legacy_cvd_raw": 2,
+                            "million_veteran_program": 1,
+                        },
+                        "source_families": ["legacy_raw", "mvp"],
+                        "source_file_count": 2,
+                    },
+                },
+            }
+        ]
+        assert "ancestry" not in association_summary[0]
+
+        overall_summary_row = con.execute(
+            """
+SELECT payload_json
+FROM overall_summary_payloads
+WHERE dataset_type = 'CVD' AND gene_id_normalized = 'ANK2'
+"""
+        ).fetchone()
+        overall_summary = json.loads(overall_summary_row[0])
+        assert overall_summary["data"] == {
+            "vc": {"INDEL": 3},
+            "msc": {"missense variant": 3},
+            "cs": {"likely benign": 3},
+        }
+        assert "ancestry" not in overall_summary["data"]
 
         catalog = con.execute(
             """

@@ -1,7 +1,7 @@
 {
   "name": "association_serving_duckdb",
   "description": "Compact DuckDB serving artifact contract for published association and secondary-analysis payloads.",
-  "version": 1,
+  "version": 2,
   "tables": {
     "association_gene_payloads": {
       "primary_key": ["dataset_type", "gene_id"],
@@ -13,6 +13,16 @@
       "required_columns": ["dataset_type", "gene_id", "payload_json"],
       "semantics": "Per-gene overall payloads preserving published axis and ancestry summaries."
     },
+    "association_summary_payloads": {
+      "primary_key": ["dataset_type", "gene_id"],
+      "required_columns": ["dataset_type", "gene_id", "payload_json"],
+      "semantics": "Lightweight per-gene association payloads for /search_summary/; excludes ancestry/detail-heavy fields."
+    },
+    "overall_summary_payloads": {
+      "primary_key": ["dataset_type", "gene_id"],
+      "required_columns": ["dataset_type", "gene_id", "payload_json"],
+      "semantics": "Lightweight per-gene overall payloads for /search_summary/; excludes ancestry/detail-heavy fields."
+    },
     "gene_catalog": {
       "primary_key": ["dataset_type", "gene_id"],
       "required_columns": ["dataset_type", "gene_id", "has_association", "has_overall"],
@@ -23,6 +33,11 @@
       "required_columns": ["key", "value"],
       "semantics": "Build-time metadata including export manifest identity and artifact provenance."
     },
+    "serving_summary_metadata": {
+      "primary_key": ["built_at"],
+      "required_columns": ["built_at", "association_summary_row_count", "overall_summary_row_count", "source"],
+      "semantics": "Completion marker for lightweight summary tables. Runtime code should only use summary tables after this table is populated."
+    },
     "secondary_analysis_metadata": {
       "primary_key": ["analysis_id"],
       "required_columns": ["analysis_id", "artifact_root", "row_count", "metadata_json"],
@@ -32,6 +47,8 @@
   "query_contract": {
     "association_by_gene": "SELECT payload_json FROM association_gene_payloads WHERE dataset_type = ? AND gene_id = ?",
     "overall_by_gene": "SELECT payload_json FROM overall_gene_payloads WHERE dataset_type = ? AND gene_id = ?",
+    "association_summary_by_gene": "SELECT payload_json FROM association_summary_payloads WHERE dataset_type = ? AND gene_id = ?",
+    "overall_summary_by_gene": "SELECT payload_json FROM overall_summary_payloads WHERE dataset_type = ? AND gene_id = ?",
     "gene_catalog_by_dataset": "SELECT * FROM gene_catalog WHERE dataset_type = ?"
   },
   "compatibility_notes": [

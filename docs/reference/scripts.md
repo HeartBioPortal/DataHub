@@ -180,6 +180,37 @@ Important operational flags:
 
 Build a compact serving DuckDB from published outputs.
 
+The builder writes both compatibility payload tables and API-shaped summary
+tables:
+
+- `association_gene_payloads` / `overall_gene_payloads`
+  - full published payloads used for detail views and compatibility
+- `association_summary_payloads` / `overall_summary_payloads`
+  - lightweight chart-summary payloads used by `/api/search_summary/`
+
+### `scripts/dataset_specific_scripts/unified/upgrade_association_serving_duckdb.py`
+
+Add summary tables to an existing serving DuckDB in place.
+
+Use this when:
+
+- the full association pipeline has already finished
+- a production serving DB already exists and is too large to copy or rebuild
+- `/api/search_summary/` must stop reading giant full `payload_json` blobs
+
+Example:
+
+```bash
+python3 scripts/dataset_specific_scripts/unified/upgrade_association_serving_duckdb.py \
+  --db-path /data/DataHub/datamart/association_serving.duckdb \
+  --batch-size 50 \
+  --progress-interval 500 \
+  --log-level INFO
+```
+
+The command is incremental. If interrupted, rerun it without
+`--replace-summary-tables` and it will skip summary rows that already exist.
+
 ### `scripts/dataset_specific_scripts/unified/run_secondary_analyses.py`
 
 Generate or apply secondary-analysis artifacts.

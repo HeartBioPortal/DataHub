@@ -26,6 +26,7 @@ from datahub.axis_normalization import normalize_counter_items, normalize_counte
 from datahub.artifact_qa import build_artifact_qa_report, write_artifact_qa_report
 from datahub.export_manifest import AssociationExportManifestCatalog
 from datahub.phenotype_paths import PhenotypePathResolver
+from datahub.serving_summary import shape_summary_for_table
 
 
 def parse_args() -> argparse.Namespace:
@@ -397,6 +398,28 @@ CREATE TABLE overall_gene_payloads (
     )
     connection.execute(
         """
+CREATE TABLE association_summary_payloads (
+    dataset_type VARCHAR,
+    gene_id VARCHAR,
+    gene_id_normalized VARCHAR,
+    payload_json VARCHAR,
+    source_path VARCHAR
+)
+"""
+    )
+    connection.execute(
+        """
+CREATE TABLE overall_summary_payloads (
+    dataset_type VARCHAR,
+    gene_id VARCHAR,
+    gene_id_normalized VARCHAR,
+    payload_json VARCHAR,
+    source_path VARCHAR
+)
+"""
+    )
+    connection.execute(
+        """
 CREATE TABLE gene_catalog (
     gene_id VARCHAR,
     gene_id_normalized VARCHAR,
@@ -448,6 +471,16 @@ CREATE TABLE build_metadata (
     sga_row_count BIGINT,
     expression_source_path VARCHAR,
     sga_source_root VARCHAR
+)
+"""
+    )
+    connection.execute(
+        """
+CREATE TABLE serving_summary_metadata (
+    built_at TIMESTAMP,
+    association_summary_row_count BIGINT,
+    overall_summary_row_count BIGINT,
+    source VARCHAR
 )
 """
     )
@@ -621,6 +654,7 @@ def _stream_payload_rows(
     connection: Any,
     *,
     table_name: str,
+    summary_table_name: str,
     dataset_types: list[str],
     final_root: Path,
     subdir: str,
@@ -633,6 +667,7 @@ def _stream_payload_rows(
     trust_published_payloads: bool,
 ) -> int:
     buffered_rows: list[tuple[str, str, str, str, str]] = []
+    buffered_summary_rows: list[tuple[str, str, str, str, str]] = []
     inserted_rows = 0
 
     for dataset_type in dataset_types:
@@ -655,16 +690,26 @@ def _stream_payload_rows(
         for index, (gene_id, payload_path) in enumerate(files, start=1):
             if trust_published_payloads:
                 payload_json = _read_payload_text(payload_path)
+                payload = json.loads(payload_json)
             else:
+                payload = _load_payload(
+                    payload_path,
+                    dataset_type=dataset_type,
+                    path_resolver=path_resolver,
+                    export_runtime=export_runtime,
+                )
                 payload_json = json.dumps(
-                    _load_payload(
-                        payload_path,
-                        dataset_type=dataset_type,
-                        path_resolver=path_resolver,
-                        export_runtime=export_runtime,
-                    ),
+                    payload,
                     separators=(",", ":"),
                 )
+            summary_payload_json = json.dumps(
+                shape_summary_for_table(
+                    payload,
+                    source_table=table_name,
+                    dataset_type=dataset_type,
+                ),
+                separators=(",", ":"),
+            )
             buffered_rows.append(
                 (
                     dataset_type,
@@ -674,12 +719,27 @@ def _stream_payload_rows(
                     str(payload_path),
                 )
             )
+            buffered_summary_rows.append(
+                (
+                    dataset_type,
+                    gene_id,
+                    gene_id.upper(),
+                    summary_payload_json,
+                    str(payload_path),
+                )
+            )
 
             if len(buffered_rows) >= max(batch_size, 1):
                 inserted_rows += _flush_rows(
                     connection,
                     table_name=table_name,
                     rows=buffered_rows,
+                    batch_size=batch_size,
+                )
+                _flush_rows(
+                    connection,
+                    table_name=summary_table_name,
+                    rows=buffered_summary_rows,
                     batch_size=batch_size,
                 )
 
@@ -697,6 +757,12 @@ def _stream_payload_rows(
         connection,
         table_name=table_name,
         rows=buffered_rows,
+        batch_size=batch_size,
+    )
+    _flush_rows(
+        connection,
+        table_name=summary_table_name,
+        rows=buffered_summary_rows,
         batch_size=batch_size,
     )
     return inserted_rows
@@ -777,6 +843,7 @@ def main() -> int:
         association_row_count = _stream_payload_rows(
             connection,
             table_name="association_gene_payloads",
+            summary_table_name="association_summary_payloads",
             dataset_types=dataset_types,
             final_root=final_root,
             subdir=args.association_subdir,
@@ -791,6 +858,7 @@ def main() -> int:
         overall_row_count = _stream_payload_rows(
             connection,
             table_name="overall_gene_payloads",
+            summary_table_name="overall_summary_payloads",
             dataset_types=dataset_types,
             final_root=final_root,
             subdir=args.overall_subdir,
@@ -890,12 +958,28 @@ FULL OUTER JOIN (
                 str(sga_root) if sga_root else "",
             ],
         )
+        connection.execute(
+            """
+INSERT INTO serving_summary_metadata
+SELECT
+    current_timestamp,
+    (SELECT count(*) FROM association_summary_payloads),
+    (SELECT count(*) FROM overall_summary_payloads),
+    'build_association_serving_duckdb.py'
+"""
+        )
 
         connection.execute(
             "CREATE INDEX idx_association_gene ON association_gene_payloads (dataset_type, gene_id_normalized)"
         )
         connection.execute(
             "CREATE INDEX idx_overall_gene ON overall_gene_payloads (dataset_type, gene_id_normalized)"
+        )
+        connection.execute(
+            "CREATE INDEX idx_association_summary_gene ON association_summary_payloads (dataset_type, gene_id_normalized)"
+        )
+        connection.execute(
+            "CREATE INDEX idx_overall_summary_gene ON overall_summary_payloads (dataset_type, gene_id_normalized)"
         )
         connection.execute(
             "CREATE INDEX idx_gene_catalog ON gene_catalog (gene_id_normalized)"
