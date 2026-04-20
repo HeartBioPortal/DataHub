@@ -179,6 +179,9 @@ Important operational flags:
     cause the backfill to skip every unit
   - streams variant-index JSON arrays to disk as canonical records are produced,
     so very large genes do not have to be held in Python memory before writing
+- `--variant-index-query-mode grouped`
+  - default for variant-index backfills; uses grouped source-priority collapse
+    instead of a `row_number()` window over each giant shard
 - `--disable-variant-index`
   - emergency compatibility flag for old consumers that do not want the
     filterable variant-index artifacts

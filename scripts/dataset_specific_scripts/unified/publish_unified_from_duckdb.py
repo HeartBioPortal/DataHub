@@ -257,6 +257,15 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--variant-index-query-mode",
+        default="grouped",
+        choices=["grouped", "window"],
+        help=(
+            "Query strategy for --publisher-mode variant-index-only. grouped avoids "
+            "row_number windows over huge shards; window preserves the older ranked SQL path."
+        ),
+    )
+    parser.add_argument(
         "--json-compression",
         default="gzip",
         choices=["none", "gzip"],
@@ -855,6 +864,135 @@ SELECT
 FROM ranked
 WHERE rn = 1
 ORDER BY gene_id, phenotype, variant_id, coalesce(ancestry, '');
+"""
+
+    return connection.execute(query, [*params, *unit_params])
+
+
+def _open_grouped_unit_cursor_from_source(
+    connection: Any,
+    *,
+    source_table: str,
+    dataset_types: set[str] | None,
+    unit: GeneWorkUnit,
+    per_gene_shards: int,
+    source_priority: list[tuple[str, int]],
+) -> Any:
+    where_sql, params = _base_source_where_clause(dataset_types=dataset_types)
+    source_rank_sql = _source_rank_sql(dataset_alias="p", source_priority=source_priority)
+    available_columns = _table_columns(connection, source_table)
+    ancestry_source_code_sql, ancestry_source_label_sql = _ancestry_source_select_sql(
+        dataset_alias="p",
+        available_columns=available_columns,
+    )
+    unit_filters = ["upper(trim(p.dataset_type)) = ?"]
+    unit_params: list[Any] = [unit.dataset_type]
+
+    if unit.shard_id is not None:
+        shard_expression = _gene_shard_expression(total_shards=per_gene_shards, dataset_alias="p")
+        unit_filters.append(f"{shard_expression} = ?")
+        unit_params.append(int(unit.shard_id))
+    else:
+        unit_filters.append("trim(p.gene_id) = ?")
+        unit_params.append(unit.gene_id)
+
+    unit_where_sql = " AND ".join(unit_filters)
+    best_order_sql = """
+        source_rank,
+        CASE WHEN p_value IS NULL THEN 1 ELSE 0 END,
+        p_value,
+        ingested_at DESC,
+        source ASC
+    """
+
+    query = f"""
+WITH base AS (
+    SELECT
+        p.dataset_id,
+        upper(trim(p.dataset_type)) AS dataset_type,
+        p.source,
+        trim(p.gene_id) AS gene_id,
+        trim(p.variant_id) AS variant_id,
+        lower(regexp_replace(replace(trim(p.phenotype), '/', '_'), '\\s+', '_', 'g')) AS phenotype,
+        coalesce(trim(p.disease_category), '') AS disease_category,
+        nullif(trim(p.variation_type), '') AS variation_type,
+        nullif(trim(p.clinical_significance), '') AS clinical_significance,
+        nullif(trim(p.most_severe_consequence), '') AS most_severe_consequence,
+        p.p_value,
+        nullif(trim(coalesce(p.ancestry, '')), '') AS ancestry,
+        p.ancestry_af,
+        {ancestry_source_code_sql} AS ancestry_source_code,
+        {ancestry_source_label_sql} AS ancestry_source_label,
+        nullif(trim(coalesce(p.phenotype_key, '')), '') AS phenotype_key,
+        p.source_file,
+        p.ingested_at,
+        {source_rank_sql} AS source_rank
+    FROM {source_table} p
+    WHERE {where_sql}
+      AND {unit_where_sql}
+),
+record_best AS (
+    SELECT
+        first(dataset_id ORDER BY {best_order_sql}) AS dataset_id,
+        dataset_type,
+        first(source ORDER BY {best_order_sql}) AS source,
+        gene_id,
+        variant_id,
+        phenotype,
+        first(disease_category ORDER BY {best_order_sql}) AS disease_category,
+        first(variation_type ORDER BY {best_order_sql}) AS variation_type,
+        first(clinical_significance ORDER BY {best_order_sql}) AS clinical_significance,
+        first(most_severe_consequence ORDER BY {best_order_sql}) AS most_severe_consequence,
+        first(p_value ORDER BY {best_order_sql}) AS p_value,
+        first(phenotype_key ORDER BY {best_order_sql}) AS phenotype_key,
+        first(source_file ORDER BY {best_order_sql}) AS source_file
+    FROM base
+    GROUP BY dataset_type, gene_id, variant_id, phenotype
+),
+ancestry_best AS (
+    SELECT
+        dataset_type,
+        gene_id,
+        variant_id,
+        phenotype,
+        ancestry,
+        first(ancestry_af ORDER BY {best_order_sql}) AS ancestry_af,
+        first(ancestry_source_code ORDER BY {best_order_sql}) AS ancestry_source_code,
+        first(ancestry_source_label ORDER BY {best_order_sql}) AS ancestry_source_label
+    FROM base
+    WHERE ancestry IS NOT NULL
+      AND ancestry_af IS NOT NULL
+    GROUP BY dataset_type, gene_id, variant_id, phenotype, ancestry
+)
+SELECT
+    record_best.dataset_id,
+    record_best.dataset_type,
+    record_best.source,
+    record_best.gene_id,
+    record_best.variant_id,
+    record_best.phenotype,
+    record_best.disease_category,
+    record_best.variation_type,
+    record_best.clinical_significance,
+    record_best.most_severe_consequence,
+    record_best.p_value,
+    ancestry_best.ancestry,
+    ancestry_best.ancestry_af,
+    ancestry_best.ancestry_source_code,
+    ancestry_best.ancestry_source_label,
+    record_best.phenotype_key,
+    record_best.source_file
+FROM record_best
+LEFT JOIN ancestry_best
+    ON record_best.dataset_type = ancestry_best.dataset_type
+   AND record_best.gene_id = ancestry_best.gene_id
+   AND record_best.variant_id = ancestry_best.variant_id
+   AND record_best.phenotype = ancestry_best.phenotype
+ORDER BY
+    record_best.gene_id,
+    record_best.phenotype,
+    record_best.variant_id,
+    coalesce(ancestry_best.ancestry, '');
 """
 
     return connection.execute(query, [*params, *unit_params])
@@ -1671,14 +1809,27 @@ ORDER BY phenotype, variant_id, coalesce(ancestry, '')
                     [unit.dataset_type, unit.gene_id],
                 )
             else:
-                cursor = _open_unit_cursor_from_source(
-                    connection,
-                    source_table=source_table,
-                    dataset_types=dataset_types,
-                    unit=unit,
-                    per_gene_shards=args.per_gene_shards,
-                    source_priority=source_priority,
-                )
+                if (
+                    args.publisher_mode == "variant-index-only"
+                    and args.variant_index_query_mode == "grouped"
+                ):
+                    cursor = _open_grouped_unit_cursor_from_source(
+                        connection,
+                        source_table=source_table,
+                        dataset_types=dataset_types,
+                        unit=unit,
+                        per_gene_shards=args.per_gene_shards,
+                        source_priority=source_priority,
+                    )
+                else:
+                    cursor = _open_unit_cursor_from_source(
+                        connection,
+                        source_table=source_table,
+                        dataset_types=dataset_types,
+                        unit=unit,
+                        per_gene_shards=args.per_gene_shards,
+                        source_priority=source_priority,
+                    )
 
             current_record: CanonicalRecord | None = None
             current_key: tuple[str, str, str, str] | None = None
@@ -1835,6 +1986,7 @@ ORDER BY phenotype, variant_id, coalesce(ancestry, '')
                 "dedup_mode": args.dedup_mode,
                 "publisher_mode": args.publisher_mode,
                 "variant_index_enabled": not args.disable_variant_index,
+                "variant_index_query_mode": args.variant_index_query_mode,
                 "output_root": str(output_root),
                 "db_read_only": use_read_only,
                 "json_compression": args.json_compression,

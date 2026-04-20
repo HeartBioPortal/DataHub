@@ -306,6 +306,66 @@ def test_build_stage_publishers_supports_variant_index_only(tmp_path: Path) -> N
     assert [type(publisher).__name__ for publisher in publishers] == ["VariantIndexPublisher"]
 
 
+def test_grouped_variant_index_cursor_deduplicates_without_window(tmp_path: Path) -> None:
+    module = _load_publish_module()
+
+    db_path = tmp_path / "points.duckdb"
+    con = duckdb.connect(str(db_path))
+    con.execute(
+        """
+        CREATE TABLE mvp_association_points (
+            dataset_id VARCHAR,
+            dataset_type VARCHAR,
+            source VARCHAR,
+            gene_id VARCHAR,
+            variant_id VARCHAR,
+            phenotype VARCHAR,
+            disease_category VARCHAR,
+            variation_type VARCHAR,
+            clinical_significance VARCHAR,
+            most_severe_consequence VARCHAR,
+            p_value DOUBLE,
+            ancestry VARCHAR,
+            ancestry_af DOUBLE,
+            ancestry_source_code VARCHAR,
+            ancestry_source_label VARCHAR,
+            phenotype_key VARCHAR,
+            source_file VARCHAR,
+            ingested_at TIMESTAMP
+        )
+        """
+    )
+    con.execute(
+        """
+        INSERT INTO mvp_association_points VALUES
+        ('d1', 'CVD', 'legacy_cvd_raw', 'TTN', 'rs1', 'cardiomyopathy', 'cardiomyopathies', 'SNP', 'benign', 'missense_variant', 1e-8, 'African', 0.1, 'AFR', 'African', 'phe1', '/tmp/a.csv', '2024-01-02'::TIMESTAMP),
+        ('d2', 'CVD', 'million_veteran_program', 'TTN', 'rs1', 'cardiomyopathy', 'cardiomyopathies', 'indel', 'pathogenic', 'intron_variant', 1e-9, 'African', 0.2, 'AFR', 'African', 'phe1', '/tmp/b.csv', '2024-01-03'::TIMESTAMP),
+        ('d1', 'CVD', 'legacy_cvd_raw', 'TTN', 'rs1', 'cardiomyopathy', 'cardiomyopathies', 'SNP', 'benign', 'missense_variant', 1e-8, 'European', 0.3, 'EUR', 'European', 'phe1', '/tmp/a.csv', '2024-01-02'::TIMESTAMP)
+        """
+    )
+
+    cursor = module._open_grouped_unit_cursor_from_source(
+        con,
+        source_table="mvp_association_points",
+        dataset_types={"CVD"},
+        unit=module.GeneWorkUnit(dataset_type="CVD", gene_id="TTN", point_rows=3),
+        per_gene_shards=1,
+        source_priority=[("legacy_cvd_raw", 1), ("million_veteran_program", 2)],
+    )
+    rows = cursor.fetchall()
+    con.close()
+
+    assert len(rows) == 2
+    assert {row[module.ROW_ANCESTRY]: row[module.ROW_ANCESTRY_AF] for row in rows} == {
+        "African": 0.1,
+        "European": 0.3,
+    }
+    first_row = rows[0]
+    assert first_row[module.ROW_DATASET_ID] == "d1"
+    assert first_row[module.ROW_SOURCE] == "legacy_cvd_raw"
+    assert first_row[module.ROW_VARIATION_TYPE] == "SNP"
+
+
 def test_working_table_excludes_numeric_gene_identifiers(tmp_path: Path) -> None:
     module = _load_publish_module()
 
