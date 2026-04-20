@@ -73,6 +73,146 @@ and falls back to the existing DuckDB `payload_json` column when a source file i
 not available. This keeps in-place upgrades memory-safe without forcing every
 summary row to be read back from the very large serving DB blob column.
 
+## Runtime loading algorithm
+
+The HBP v3 backend uses a progressive loading model. The goal is to make the
+first search result fast without throwing away the full scientific payloads
+needed by detail charts.
+
+The intended request flow is:
+
+```text
+gene search
+  -> DuckDB gene_catalog lookup
+  -> DuckDB summary payload lookup
+  -> initial charts render from summary payloads
+  -> detail endpoints load full JSON/JSON.GZ artifacts only when needed
+```
+
+The first lookup is small and index-oriented. The backend should not read a full
+per-gene association JSON blob just to answer whether a gene exists or to draw
+top-level `vc`, `msc`, `cs`, and `pvals` charts.
+
+### Summary payloads
+
+Summary payloads live in:
+
+- `association_summary_payloads`
+- `overall_summary_payloads`
+
+They intentionally keep:
+
+- phenotype label paths under `disease` or `trait`
+- `vc`
+- `msc`
+- `cs`
+- `pvals`
+- additive `_datahub` metadata when available
+
+They intentionally omit detail-heavy data such as ancestry. This omission is
+not scientific data loss. It is a serving optimization for the first screen.
+The full payload remains available through the published JSON/JSON.GZ artifact.
+
+### Detail payloads
+
+Detail payloads are used for later-loading charts, such as ancestry. They can be
+served from either:
+
+- full `payload_json` values inside `association_gene_payloads` and
+  `overall_gene_payloads`
+- the JSON/JSON.GZ artifact recorded in each row's `source_path`
+
+For production-scale artifacts, DataHub should prefer the second mode whenever
+possible. Reading a single very large DuckDB `VARCHAR` blob can be slower and
+more memory-heavy than resolving the artifact path and reading the corresponding
+compressed JSON file directly.
+
+### Slim serving DB mode
+
+A slim serving DB keeps DuckDB as the catalog and summary index while avoiding
+duplicated full JSON blobs.
+
+In slim mode:
+
+- `gene_catalog` remains in DuckDB
+- summary tables remain in DuckDB
+- secondary-analysis serving tables can remain in DuckDB
+- full association and overall rows keep `dataset_type`, `gene_id`,
+  `gene_id_normalized`, and `source_path`
+- full association and overall rows may set `payload_json` to `NULL`
+
+This avoids storing the same full payload twice:
+
+```text
+published JSON/JSON.GZ artifact
+  + duplicated full payload_json inside DuckDB
+```
+
+Instead, DuckDB acts as a release index:
+
+```text
+DuckDB row
+  -> dataset_type
+  -> gene_id_normalized
+  -> source_path
+  -> published artifact
+```
+
+The HBP backend can then read summary data from DuckDB and read full data from
+the artifact path only when a detail endpoint needs it.
+
+### Source-path remapping
+
+DataHub build jobs often run on HPC paths, while production serving runs on AWS
+paths. Therefore, a consumer may need to remap a stored `source_path` suffix onto
+the production artifact root.
+
+Example:
+
+```text
+stored source_path:
+/N/scratch/kvand/hbp/analyzed_data_unified/association/final/association/CVD/TTN.json.gz
+
+production artifact root:
+/data/DataHub/analyzed_data/association_new/final
+
+resolved runtime path:
+/data/DataHub/analyzed_data/association_new/final/association/CVD/TTN.json.gz
+```
+
+The stable part is the path below `final/`:
+
+```text
+association/CVD/TTN.json.gz
+overall/TRAIT/TTN.json.gz
+```
+
+Runtime consumers should treat that suffix as the portable artifact identity.
+
+### Why not only stream one giant JSON response?
+
+HTTP streaming can help network delivery, but it does not solve the main
+runtime problem if the backend must still:
+
+- read one giant JSON blob
+- allocate it in memory
+- parse the entire object
+- serialize the entire response
+- force the browser to parse everything before most charts need it
+
+The preferred design is to load by use case:
+
+```text
+summary endpoint
+  -> summary payload only
+
+detail or ancestry endpoint
+  -> full/detail artifact only when needed
+```
+
+Chart-specific artifacts can be added later, but they should represent stable
+scientific modules, not every possible UI filter state.
+
 ## Important design rule
 
 The serving builder is downstream of publication.

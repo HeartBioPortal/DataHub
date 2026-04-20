@@ -94,6 +94,195 @@ DataHub does **not** compute overall axis counts by summing already-aggregated p
 
 This prevents the same rsID from being counted repeatedly across phenotype buckets in the overall gene summary.
 
+## Association and overall payload semantics
+
+Association publication emits two related but different payload families:
+
+```text
+association/<DATASET_TYPE>/<GENE>.json.gz
+overall/<DATASET_TYPE>/<GENE>.json.gz
+```
+
+`DATASET_TYPE` is usually:
+
+- `CVD`
+- `TRAIT`
+
+The split is intentional. It preserves disease and trait provenance, makes
+dataset filters cheap, and prevents the pipeline from mixing semantically
+different phenotype groups too early.
+
+### Association payloads
+
+Association payloads are gene-based files whose contents are phenotype-level
+records.
+
+For CVD data, each record carries a disease label path:
+
+```json
+{
+  "disease": ["cardiomyopathy", "dilated_cardiomyopathy"],
+  "vc": [{"name": "SNP", "value": 12}],
+  "msc": [{"name": "missense variant", "value": 4}],
+  "cs": [{"name": "benign", "value": 2}],
+  "ancestry": [
+    {
+      "name": "European",
+      "data": [{"rsid": "rs123", "value": 0.14}]
+    }
+  ]
+}
+```
+
+For trait data, the label key is `trait`:
+
+```json
+{
+  "trait": ["blood pressure traits", "systolic_blood_pressure"],
+  "vc": [{"name": "SNP", "value": 8}]
+}
+```
+
+The phenotype names are therefore not encoded in the filename. They live inside
+the JSON payload under `disease` or `trait`. A single gene file can contain many
+phenotype records.
+
+### Overall payloads
+
+Overall payloads are gene-level aggregates for one dataset type:
+
+```json
+{
+  "data": {
+    "vc": {"SNP": 101},
+    "msc": {"intron variant": 44},
+    "cs": {"benign": 19},
+    "ancestry": {
+      "European": {"rs123": 0.14}
+    }
+  },
+  "pvals": {}
+}
+```
+
+The overall payload exists because the unfiltered first search result should not
+have to reconstruct a gene-level aggregate at request time. It is a fast,
+precomputed view that still follows the same variant-centric scientific rule:
+deduplicate by `variant_id`, select the best representative record, then count.
+
+For a default HBP search, the runtime can show:
+
+- CVD overall from `overall/CVD/<GENE>.json.gz`
+- trait overall from `overall/TRAIT/<GENE>.json.gz`
+- a combined UI view if the frontend requests "all" and the backend has an
+  explicit scientifically safe merge rule
+
+The storage split does not require the UI to show CVD and traits as disconnected
+experiences. It only keeps the underlying artifacts clean.
+
+## Filtered aggregation semantics
+
+Filtered charts must follow the same scientific counting rule as overall.
+
+The input set changes:
+
+```text
+overall input
+  -> all records for the gene and dataset type
+
+filtered input
+  -> records whose phenotype path matches the active filters
+```
+
+The aggregation rule must not change:
+
+```text
+select matching canonical records
+  -> collapse by variant_id
+  -> pick the best representative record, usually smallest p_value
+  -> count vc, msc, and cs once per retained variant
+  -> build ancestry by population and rsID
+```
+
+### Why naive count-summing is wrong
+
+It is tempting to filter the already-published association records and sum their
+`vc`, `msc`, and `cs` counters. That is not scientifically safe.
+
+The same rsID can appear under multiple phenotypes. If a user selects "all CVD
+except two diseases", summing the remaining phenotype counters can count the
+same variant multiple times.
+
+Therefore:
+
+- default unfiltered charts may use `overall` for speed
+- phenotype-filtered charts must not blindly sum association counters
+- filtered aggregation must deduplicate by `variant_id`
+- any backend helper that computes filtered totals must use the same algorithm
+  as overall publication
+
+### Current limitation
+
+The current association JSON files preserve phenotype-level summaries and
+ancestry rsID points, but the `vc`, `msc`, and `cs` fields are already
+aggregated counters. Those counters alone are not enough to perfectly
+reconstruct a deduplicated filtered aggregate for arbitrary filter sets.
+
+For exact filtered aggregation, DataHub should add a compact filterable artifact
+or table that preserves variant identity and the fields needed for aggregation.
+
+Recommended future artifact:
+
+```text
+variant_index/CVD/<GENE>.json.gz
+variant_index/TRAIT/<GENE>.json.gz
+```
+
+Recommended shape:
+
+```json
+[
+  {
+    "variant_id": "rs123",
+    "phenotype_path": ["cardiomyopathy", "dilated_cardiomyopathy"],
+    "variation_type": "SNP",
+    "most_severe_consequence": "missense variant",
+    "clinical_significance": "benign",
+    "p_value": 1e-8,
+    "ancestry": {"European": 0.14}
+  }
+]
+```
+
+This artifact would let the backend compute filtered charts correctly without
+loading raw source rows or duplicating one artifact per possible filter
+combination.
+
+### Chart-specific artifacts
+
+Chart-specific artifacts are useful only when they reduce payload size without
+creating filter-state duplication.
+
+Good candidates:
+
+- one ancestry-focused artifact per gene and dataset type
+- one compact variant-index artifact per gene and dataset type
+- one source/provenance artifact per gene and dataset type, if provenance
+  becomes too heavy for normal detail payloads
+
+Poor candidates:
+
+- one artifact for every selected phenotype combination
+- one artifact per UI filter state
+- precomputed combinations such as "all CVD except X"
+
+The professional rule is:
+
+```text
+precompute stable scientific units
+compute user-specific filter states from those units
+```
+
 ### Ancestry semantics
 
 Ancestry payloads remain rsID-keyed. Population maps are allowed to keep one point per variant per population label. This is different from chart-axis counting:
