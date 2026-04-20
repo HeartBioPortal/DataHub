@@ -105,6 +105,7 @@ def test_expression_secondary_generate_and_apply(tmp_path: Path) -> None:
             {
                 "ANK2": {"cardiomyopathy": {"upregulated": 2, "downregulated": 1}},
                 "TTN": {"heart_failure": {"upregulated": 4, "downregulated": 0}},
+                "THRA1/BTR": {"arrhythmia": {"upregulated": 1, "downregulated": 0}},
             }
         )
     )
@@ -149,7 +150,7 @@ def test_expression_secondary_generate_and_apply(tmp_path: Path) -> None:
 
     con = duckdb.connect(str(serving_db), read_only=True)
     try:
-        assert con.execute("SELECT COUNT(*) FROM expression_gene_payloads").fetchone()[0] == 2
+        assert con.execute("SELECT COUNT(*) FROM expression_gene_payloads").fetchone()[0] == 3
         assert con.execute("SELECT COUNT(*) FROM secondary_analysis_metadata WHERE analysis_id = 'expression'").fetchone()[0] == 1
 
         ank2 = con.execute(
@@ -169,8 +170,21 @@ WHERE gene_id_normalized = 'TTN'
 """
         ).fetchone()
         assert ttn == (False, False, True)
+
+        slash_gene = con.execute(
+            """
+SELECT gene_id, gene_id_normalized, has_expression
+FROM gene_catalog
+WHERE gene_id_normalized = 'THRA1/BTR'
+"""
+        ).fetchone()
+        assert slash_gene == ("THRA1/BTR", "THRA1/BTR", True)
     finally:
         con.close()
+
+    slash_artifact_path = secondary_root / "final" / "expression" / "genes" / "THRA1%2FBTR.json.gz"
+    with gzip.open(slash_artifact_path, "rt", encoding="utf-8") as stream:
+        assert json.loads(stream.read()) == {"arrhythmia": {"up": 1, "down": 0}}
 
 
 def test_sga_secondary_generate_and_apply(tmp_path: Path) -> None:

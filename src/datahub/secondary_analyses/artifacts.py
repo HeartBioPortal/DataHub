@@ -5,6 +5,7 @@ from __future__ import annotations
 import gzip
 import json
 from pathlib import Path
+from urllib.parse import quote, unquote
 
 from .base import SecondaryArtifactRow, SecondaryAnalysisManifest
 
@@ -17,6 +18,14 @@ def metadata_path(output_root: str | Path, manifest: SecondaryAnalysisManifest) 
     return Path(output_root) / "final" / manifest.artifact_subdir / "metadata.json"
 
 
+def _safe_gene_filename(gene_id: str) -> str:
+    return quote(str(gene_id), safe="")
+
+
+def _gene_id_from_filename(filename: str) -> str:
+    return unquote(filename)
+
+
 def write_gene_payload_artifact(
     *,
     output_root: str | Path,
@@ -26,7 +35,7 @@ def write_gene_payload_artifact(
 ) -> Path:
     root = artifact_root(output_root, manifest)
     root.mkdir(parents=True, exist_ok=True)
-    path = root / f"{gene_id}.json.gz"
+    path = root / f"{_safe_gene_filename(gene_id)}.json.gz"
     with gzip.open(path, "wt", encoding="utf-8") as stream:
         stream.write(payload_json)
     return path
@@ -56,7 +65,7 @@ def read_gene_payload_artifacts(
 
     rows: list[SecondaryArtifactRow] = []
     for payload_path in sorted(root.glob("*.json.gz")):
-        gene_id = payload_path.name[:-8]
+        gene_id = _gene_id_from_filename(payload_path.name[:-8])
         with gzip.open(payload_path, "rt", encoding="utf-8") as stream:
             payload_json = stream.read()
         rows.append(
