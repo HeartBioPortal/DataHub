@@ -177,6 +177,8 @@ Important operational flags:
   - backfills only `association/final/variant_index` using a separate default
     checkpoint namespace, so existing completed association checkpoints do not
     cause the backfill to skip every unit
+  - streams variant-index JSON arrays to disk as canonical records are produced,
+    so very large genes do not have to be held in Python memory before writing
 - `--disable-variant-index`
   - emergency compatibility flag for old consumers that do not want the
     filterable variant-index artifacts

@@ -33,6 +33,7 @@ from datahub.publishers import (  # noqa: E402
     LegacyRedisPublisher,
     PhenotypeRollupPublisher,
     VariantIndexPublisher,
+    VariantIndexStreamWriter,
 )
 from datahub.unified.runtime import configure_duckdb_runtime  # noqa: E402
 
@@ -1611,17 +1612,35 @@ def main() -> int:
                 token,
             )
 
-            staged_publishers = _build_stage_publishers(
-                output_root=stage_root,
-                disable_rollup=args.disable_rollup,
-                disable_variant_index=args.disable_variant_index,
-                publisher_mode=args.publisher_mode,
-                rollup_tree_json=args.rollup_tree_json,
-                ancestry_precision=args.ancestry_precision,
-                json_compression=args.json_compression,
-                json_gzip_level=args.json_gzip_level,
-                json_indent=json_indent,
-                export_runtime=manifest_catalog.base_runtime,
+            variant_index_writer = (
+                VariantIndexStreamWriter(
+                    output_root=stage_root,
+                    skip_unknown_axis_values=True,
+                    ancestry_value_precision=args.ancestry_precision,
+                    json_indent=json_indent,
+                    json_compression=args.json_compression,
+                    json_gzip_level=args.json_gzip_level,
+                    tree_json_path=args.rollup_tree_json,
+                    export_runtime=manifest_catalog.base_runtime,
+                )
+                if not args.disable_variant_index
+                else None
+            )
+            staged_publishers = (
+                []
+                if args.publisher_mode == "variant-index-only"
+                else _build_stage_publishers(
+                    output_root=stage_root,
+                    disable_rollup=args.disable_rollup,
+                    disable_variant_index=True,
+                    publisher_mode=args.publisher_mode,
+                    rollup_tree_json=args.rollup_tree_json,
+                    ancestry_precision=args.ancestry_precision,
+                    json_compression=args.json_compression,
+                    json_gzip_level=args.json_gzip_level,
+                    json_indent=json_indent,
+                    export_runtime=manifest_catalog.base_runtime,
+                )
             )
 
             if args.dedup_mode == "global_table":
@@ -1686,16 +1705,22 @@ ORDER BY phenotype, variant_id, coalesce(ancestry, '')
 
                     if row_key != current_key:
                         if current_record is not None:
-                            record_gene_id = current_record.gene_id
-                            if current_gene_id is None:
-                                current_gene_id = record_gene_id
-                            elif record_gene_id != current_gene_id:
-                                _batched_publish(records=current_gene_records, publishers=staged_publishers)
-                                published_for_unit += len(current_gene_records)
-                                total_canonical_records += len(current_gene_records)
-                                current_gene_records = []
-                                current_gene_id = record_gene_id
-                            current_gene_records.append(current_record)
+                            if variant_index_writer is not None:
+                                variant_index_writer.write_record(current_record)
+                            if args.publisher_mode == "variant-index-only":
+                                published_for_unit += 1
+                                total_canonical_records += 1
+                            else:
+                                record_gene_id = current_record.gene_id
+                                if current_gene_id is None:
+                                    current_gene_id = record_gene_id
+                                elif record_gene_id != current_gene_id:
+                                    _batched_publish(records=current_gene_records, publishers=staged_publishers)
+                                    published_for_unit += len(current_gene_records)
+                                    total_canonical_records += len(current_gene_records)
+                                    current_gene_records = []
+                                    current_gene_id = record_gene_id
+                                current_gene_records.append(current_record)
                         current_key = row_key
                         current_record = _new_record(
                             row,
@@ -1716,16 +1741,25 @@ ORDER BY phenotype, variant_id, coalesce(ancestry, '')
                     )
 
             if current_record is not None:
-                record_gene_id = current_record.gene_id
-                if current_gene_id is None:
-                    current_gene_id = record_gene_id
-                elif record_gene_id != current_gene_id:
-                    _batched_publish(records=current_gene_records, publishers=staged_publishers)
-                    published_for_unit += len(current_gene_records)
-                    total_canonical_records += len(current_gene_records)
-                    current_gene_records = []
-                    current_gene_id = record_gene_id
-                current_gene_records.append(current_record)
+                if variant_index_writer is not None:
+                    variant_index_writer.write_record(current_record)
+                if args.publisher_mode == "variant-index-only":
+                    published_for_unit += 1
+                    total_canonical_records += 1
+                else:
+                    record_gene_id = current_record.gene_id
+                    if current_gene_id is None:
+                        current_gene_id = record_gene_id
+                    elif record_gene_id != current_gene_id:
+                        _batched_publish(records=current_gene_records, publishers=staged_publishers)
+                        published_for_unit += len(current_gene_records)
+                        total_canonical_records += len(current_gene_records)
+                        current_gene_records = []
+                        current_gene_id = record_gene_id
+                    current_gene_records.append(current_record)
+
+            if variant_index_writer is not None:
+                variant_index_writer.close()
 
             if current_gene_records:
                 _batched_publish(records=current_gene_records, publishers=staged_publishers)

@@ -275,3 +275,115 @@ class VariantIndexPublisher(Publisher):
             return round(float(value), self.ancestry_value_precision)
         except (TypeError, ValueError):
             return value
+
+
+class VariantIndexStreamWriter:
+    """Write variant-index payloads incrementally for memory-safe backfills."""
+
+    def __init__(
+        self,
+        *,
+        output_root: str | Path,
+        skip_unknown_axis_values: bool = True,
+        ancestry_value_precision: int | None = None,
+        json_indent: int | None = 4,
+        json_compression: str = "none",
+        json_gzip_level: int = 6,
+        tree_json_path: str | Path | None = None,
+        export_runtime: AssociationExportRuntime | None = None,
+    ) -> None:
+        self._formatter = VariantIndexPublisher(
+            output_root=output_root,
+            skip_unknown_axis_values=skip_unknown_axis_values,
+            ancestry_value_precision=ancestry_value_precision,
+            json_indent=json_indent,
+            json_compression=json_compression,
+            json_gzip_level=json_gzip_level,
+            tree_json_path=tree_json_path,
+            export_runtime=export_runtime,
+        )
+        self.output_root = Path(output_root)
+        self.json_indent = json_indent
+        self.json_compression = str(json_compression).strip().lower()
+        self.json_gzip_level = int(json_gzip_level)
+        self._current_key: tuple[str, str] | None = None
+        self._stream: Any | None = None
+        self._wrote_entry = False
+
+    def write_record(self, record: CanonicalRecord) -> None:
+        dataset_type = (record.dataset_type or "CVD").upper()
+        gene_id = record.gene_id
+        label_path = self._formatter._resolve_label_path(record, dataset_type)
+        if not label_path:
+            return
+
+        self._ensure_open(dataset_type=dataset_type, gene_id=gene_id)
+        if self._stream is None:
+            raise RuntimeError("variant index stream was not opened")
+
+        entry = self._formatter._build_variant_entry(
+            dataset_type=dataset_type,
+            gene_id=gene_id,
+            label_path=label_path,
+            records=[record],
+        )
+        if self._wrote_entry:
+            self._stream.write(",")
+            if self.json_indent is not None:
+                self._stream.write("\n")
+        elif self.json_indent is not None:
+            self._stream.write("\n")
+
+        json.dump(
+            entry,
+            self._stream,
+            indent=self.json_indent,
+            separators=(",", ":") if self.json_indent is None else None,
+        )
+        self._wrote_entry = True
+
+    def close(self) -> None:
+        if self._stream is None:
+            return
+        if self._wrote_entry and self.json_indent is not None:
+            self._stream.write("\n")
+        self._stream.write("]")
+        self._stream.close()
+        self._stream = None
+        self._current_key = None
+        self._wrote_entry = False
+
+    def _ensure_open(self, *, dataset_type: str, gene_id: str) -> None:
+        key = (dataset_type, gene_id)
+        if self._current_key == key:
+            return
+        self.close()
+
+        base_path = (
+            self.output_root
+            / "association"
+            / "final"
+            / "variant_index"
+            / dataset_type
+            / f"{self._formatter._safe_gene(gene_id)}.json"
+        )
+        base_path.parent.mkdir(parents=True, exist_ok=True)
+        gz_path = base_path.with_suffix(base_path.suffix + ".gz")
+
+        if self.json_compression == "gzip":
+            self._stream = gzip.open(
+                gz_path,
+                "wt",
+                encoding="utf-8",
+                compresslevel=self.json_gzip_level,
+            )
+            if base_path.exists():
+                base_path.unlink()
+        else:
+            self._stream = base_path.open("w")
+            if gz_path.exists():
+                gz_path.unlink()
+
+        self._stream.write("[")
+        self._current_key = key
+        self._wrote_entry = False

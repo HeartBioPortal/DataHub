@@ -1,4 +1,5 @@
 import csv
+import gzip
 import json
 import sys
 from pathlib import Path
@@ -12,7 +13,11 @@ from datahub.export_manifest import AssociationExportManifestCatalog
 from datahub.models import CanonicalRecord
 from datahub.pipeline import DataHubPipeline
 from datahub.phenotype_paths import PhenotypePathResolver
-from datahub.publishers import LegacyAssociationPublisher, VariantIndexPublisher
+from datahub.publishers import (
+    LegacyAssociationPublisher,
+    VariantIndexPublisher,
+    VariantIndexStreamWriter,
+)
 
 
 def _write_csv(path: Path) -> None:
@@ -519,6 +524,79 @@ def test_variant_index_supports_gzip_output(tmp_path: Path) -> None:
         / "GENE1.json.gz"
     )
     assert index_path.exists()
+
+
+def test_variant_index_stream_writer_writes_valid_gene_payloads(tmp_path: Path) -> None:
+    writer = VariantIndexStreamWriter(
+        output_root=tmp_path / "out",
+        json_compression="gzip",
+        json_indent=None,
+    )
+    writer.write_record(
+        CanonicalRecord(
+            dataset_id="d1",
+            dataset_type="CVD",
+            source="legacy",
+            gene_id="GENE1",
+            variant_id="rs1",
+            phenotype="cardiomyopathy",
+            disease_category="cardiomyopathies",
+            variation_type="SNP",
+        )
+    )
+    writer.write_record(
+        CanonicalRecord(
+            dataset_id="d1",
+            dataset_type="CVD",
+            source="legacy",
+            gene_id="GENE1",
+            variant_id="rs2",
+            phenotype="cardiomyopathy",
+            disease_category="cardiomyopathies",
+            variation_type="indel",
+        )
+    )
+    writer.write_record(
+        CanonicalRecord(
+            dataset_id="d1",
+            dataset_type="TRAIT",
+            source="legacy",
+            gene_id="GENE2",
+            variant_id="rs3",
+            phenotype="platelet_traits",
+            disease_category="blood_cell_traits",
+            variation_type="SNP",
+        )
+    )
+    writer.close()
+
+    cvd_path = (
+        tmp_path
+        / "out"
+        / "association"
+        / "final"
+        / "variant_index"
+        / "CVD"
+        / "GENE1.json.gz"
+    )
+    trait_path = (
+        tmp_path
+        / "out"
+        / "association"
+        / "final"
+        / "variant_index"
+        / "TRAIT"
+        / "GENE2.json.gz"
+    )
+
+    with gzip.open(cvd_path, "rt", encoding="utf-8") as stream:
+        cvd_payload = json.load(stream)
+    with gzip.open(trait_path, "rt", encoding="utf-8") as stream:
+        trait_payload = json.load(stream)
+
+    assert [entry["variant_id"] for entry in cvd_payload] == ["rs1", "rs2"]
+    assert cvd_payload[1]["variation_type"] == "INDEL"
+    assert trait_payload[0]["trait"] == ["blood_cell_traits", "platelet_traits"]
 
 
 def test_publisher_restores_canonical_path_from_tree_when_category_missing(tmp_path: Path) -> None:
