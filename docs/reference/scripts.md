@@ -171,6 +171,15 @@ Important operational flags:
 
 - `--preflight-validate-units N`
   - validates the first `N` staged units before the rest of the run continues
+- `--publisher-mode all`
+  - publishes association, overall, variant index, and rollups unless disabled
+- `--publisher-mode variant-index-only`
+  - backfills only `association/final/variant_index` using a separate default
+    checkpoint namespace, so existing completed association checkpoints do not
+    cause the backfill to skip every unit
+- `--disable-variant-index`
+  - emergency compatibility flag for old consumers that do not want the
+    filterable variant-index artifacts
 - `--unit-partitions` / `--unit-partition-index`
   - deterministic parallel publish partitioning
 - `--reset-checkpoint`

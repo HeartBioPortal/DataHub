@@ -12,7 +12,7 @@ from datahub.export_manifest import AssociationExportManifestCatalog
 from datahub.models import CanonicalRecord
 from datahub.pipeline import DataHubPipeline
 from datahub.phenotype_paths import PhenotypePathResolver
-from datahub.publishers import LegacyAssociationPublisher
+from datahub.publishers import LegacyAssociationPublisher, VariantIndexPublisher
 
 
 def _write_csv(path: Path) -> None:
@@ -366,6 +366,159 @@ def test_publisher_deduplicates_variant_counts_within_and_across_phenotypes(tmp_
     assert by_phenotype[("cardiomyopathies", "cardiomyopathy")] == {"SNP": 1}
     assert by_phenotype[("cardiac_dysrhythmias", "arrhythmia")] == {"INDEL": 1, "SNP": 1}
     assert overall_payload["data"]["vc"] == {"INDEL": 1, "SNP": 1}
+
+
+def _aggregate_variant_index_vc(
+    payload: list[dict[str, object]],
+    *,
+    allowed_paths: set[tuple[str, ...]] | None = None,
+) -> dict[str, int]:
+    by_variant: dict[str, dict[str, object]] = {}
+    for entry in payload:
+        phenotype_path = tuple(str(item) for item in entry["phenotype_path"])  # type: ignore[index]
+        if allowed_paths is not None and phenotype_path not in allowed_paths:
+            continue
+        variant_id = str(entry["variant_id"])
+        existing = by_variant.get(variant_id)
+        if existing is None:
+            by_variant[variant_id] = entry
+            continue
+        existing_p = existing.get("p_value")
+        candidate_p = entry.get("p_value")
+        if existing_p is None or (
+            candidate_p is not None and float(candidate_p) < float(existing_p)
+        ):
+            by_variant[variant_id] = entry
+
+    counts: dict[str, int] = {}
+    for entry in by_variant.values():
+        variation_type = entry.get("variation_type")
+        if variation_type is not None:
+            counts[str(variation_type)] = counts.get(str(variation_type), 0) + 1
+    return dict(sorted(counts.items(), key=lambda item: item[0]))
+
+
+def test_variant_index_preserves_variant_identity_for_filtered_aggregation(tmp_path: Path) -> None:
+    records = [
+        CanonicalRecord(
+            dataset_id="d1",
+            dataset_type="CVD",
+            source="legacy",
+            gene_id="GENE1",
+            variant_id="rs1",
+            phenotype="cardiomyopathy",
+            disease_category="cardiomyopathies",
+            variation_type="SNP",
+            most_severe_consequence="Missense_Variant",
+            clinical_significance="['benign', 'likely benign']",
+            p_value=1e-8,
+            ancestry={"African": 0.1234567},
+            metadata={"source_file": "/tmp/cvd.tsv", "phenotype_key": "cardiomyopathy"},
+        ),
+        CanonicalRecord(
+            dataset_id="d1",
+            dataset_type="CVD",
+            source="legacy",
+            gene_id="GENE1",
+            variant_id="rs1",
+            phenotype="cardiomyopathy",
+            disease_category="cardiomyopathies",
+            variation_type="SNP",
+            p_value=1e-6,
+            ancestry={"European": 0.2},
+        ),
+        CanonicalRecord(
+            dataset_id="d1",
+            dataset_type="CVD",
+            source="legacy",
+            gene_id="GENE1",
+            variant_id="rs1",
+            phenotype="arrhythmia",
+            disease_category="cardiac_dysrhythmias",
+            variation_type="SNP",
+            p_value=1e-5,
+        ),
+        CanonicalRecord(
+            dataset_id="d1",
+            dataset_type="CVD",
+            source="legacy",
+            gene_id="GENE1",
+            variant_id="rs2",
+            phenotype="arrhythmia",
+            disease_category="cardiac_dysrhythmias",
+            variation_type="indel",
+            p_value=1e-4,
+        ),
+    ]
+
+    out = tmp_path / "out"
+    LegacyAssociationPublisher(output_root=out).publish(records)
+    VariantIndexPublisher(
+        output_root=out,
+        ancestry_value_precision=4,
+    ).publish(records)
+
+    overall_path = out / "association" / "final" / "overall" / "CVD" / "GENE1.json"
+    index_path = out / "association" / "final" / "variant_index" / "CVD" / "GENE1.json"
+
+    overall_payload = json.loads(overall_path.read_text())
+    variant_index_payload = json.loads(index_path.read_text())
+
+    assert len(variant_index_payload) == 3
+    assert _aggregate_variant_index_vc(variant_index_payload) == overall_payload["data"]["vc"]
+    assert _aggregate_variant_index_vc(
+        variant_index_payload,
+        allowed_paths={("cardiomyopathies", "cardiomyopathy")},
+    ) == {"SNP": 1}
+    assert _aggregate_variant_index_vc(
+        variant_index_payload,
+        allowed_paths={("cardiac_dysrhythmias", "arrhythmia")},
+    ) == {"INDEL": 1, "SNP": 1}
+
+    cardiomyopathy = next(
+        entry
+        for entry in variant_index_payload
+        if entry["variant_id"] == "rs1"
+        and entry["phenotype_path"] == ["cardiomyopathies", "cardiomyopathy"]
+    )
+    assert cardiomyopathy["variation_type"] == "SNP"
+    assert cardiomyopathy["most_severe_consequence"] == "missense variant"
+    assert cardiomyopathy["clinical_significance"] == "likely benign"
+    assert cardiomyopathy["ancestry"] == {"African": 0.1235, "European": 0.2}
+    assert cardiomyopathy["metadata"]["source_files"] == ["/tmp/cvd.tsv"]
+
+
+def test_variant_index_supports_gzip_output(tmp_path: Path) -> None:
+    publisher = VariantIndexPublisher(
+        output_root=tmp_path / "out",
+        json_compression="gzip",
+        json_indent=None,
+    )
+    publisher.publish(
+        [
+            CanonicalRecord(
+                dataset_id="d1",
+                dataset_type="TRAIT",
+                source="legacy",
+                gene_id="GENE1",
+                variant_id="rs1",
+                phenotype="platelet_traits",
+                disease_category="blood_cell_traits",
+                variation_type="SNP",
+            )
+        ]
+    )
+
+    index_path = (
+        tmp_path
+        / "out"
+        / "association"
+        / "final"
+        / "variant_index"
+        / "TRAIT"
+        / "GENE1.json.gz"
+    )
+    assert index_path.exists()
 
 
 def test_publisher_restores_canonical_path_from_tree_when_category_missing(tmp_path: Path) -> None:

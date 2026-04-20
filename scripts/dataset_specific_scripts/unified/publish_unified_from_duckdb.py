@@ -32,6 +32,7 @@ from datahub.publishers import (  # noqa: E402
     LegacyAssociationPublisher,
     LegacyRedisPublisher,
     PhenotypeRollupPublisher,
+    VariantIndexPublisher,
 )
 from datahub.unified.runtime import configure_duckdb_runtime  # noqa: E402
 
@@ -239,6 +240,20 @@ def parse_args() -> argparse.Namespace:
         "--disable-rollup",
         action="store_true",
         help="Skip rollup output generation.",
+    )
+    parser.add_argument(
+        "--disable-variant-index",
+        action="store_true",
+        help="Skip variant_index output generation.",
+    )
+    parser.add_argument(
+        "--publisher-mode",
+        default="all",
+        choices=["all", "variant-index-only"],
+        help=(
+            "Output family mode. Use variant-index-only to backfill the "
+            "filterable variant index without rewriting association/overall payloads."
+        ),
     )
     parser.add_argument(
         "--json-compression",
@@ -848,6 +863,8 @@ def _build_stage_publishers(
     *,
     output_root: Path,
     disable_rollup: bool,
+    disable_variant_index: bool,
+    publisher_mode: str,
     rollup_tree_json: str | None,
     ancestry_precision: int,
     json_compression: str,
@@ -855,22 +872,42 @@ def _build_stage_publishers(
     json_indent: int | None,
     export_runtime: Any | None,
 ) -> list[Any]:
-    publishers: list[Any] = [
-        LegacyAssociationPublisher(
-            output_root=output_root,
-            skip_unknown_axis_values=True,
-            ancestry_value_precision=ancestry_precision,
-            deduplicate_ancestry_points=True,
-            incremental_merge=False,
-            json_indent=json_indent,
-            json_compression=json_compression,
-            json_gzip_level=json_gzip_level,
-            tree_json_path=rollup_tree_json,
-            export_runtime=export_runtime,
-        )
-    ]
+    if publisher_mode == "variant-index-only" and disable_variant_index:
+        raise ValueError("--disable-variant-index cannot be used with --publisher-mode variant-index-only")
 
-    if not disable_rollup:
+    publishers: list[Any] = []
+
+    if publisher_mode == "all":
+        publishers.append(
+            LegacyAssociationPublisher(
+                output_root=output_root,
+                skip_unknown_axis_values=True,
+                ancestry_value_precision=ancestry_precision,
+                deduplicate_ancestry_points=True,
+                incremental_merge=False,
+                json_indent=json_indent,
+                json_compression=json_compression,
+                json_gzip_level=json_gzip_level,
+                tree_json_path=rollup_tree_json,
+                export_runtime=export_runtime,
+            )
+        )
+
+    if not disable_variant_index:
+        publishers.append(
+            VariantIndexPublisher(
+                output_root=output_root,
+                skip_unknown_axis_values=True,
+                ancestry_value_precision=ancestry_precision,
+                json_indent=json_indent,
+                json_compression=json_compression,
+                json_gzip_level=json_gzip_level,
+                tree_json_path=rollup_tree_json,
+                export_runtime=export_runtime,
+            )
+        )
+
+    if publisher_mode == "all" and not disable_rollup:
         publishers.append(
             PhenotypeRollupPublisher(
                 output_root=output_root,
@@ -884,6 +921,9 @@ def _build_stage_publishers(
                 json_gzip_level=json_gzip_level,
             )
         )
+
+    if not publishers:
+        raise ValueError("No publishers selected.")
 
     return publishers
 
@@ -1002,28 +1042,114 @@ def _validate_overall_payload(payload: Any, *, context: str) -> None:
     _validate_axis_mapping(data.get("cs", {}), axis="clinical_significance", context=context)
 
 
+def _validate_variant_axis(value: Any, *, axis: str, context: str) -> None:
+    if value is None:
+        return
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{context}: variant_index axis '{axis}' contains an empty value")
+    normalized = normalize_axis_value(value, axis=axis)
+    if normalized is None:
+        raise ValueError(f"{context}: variant_index axis '{axis}' contains an unknown value '{value}'")
+    if normalized != value:
+        raise ValueError(
+            f"{context}: variant_index axis '{axis}' contains non-canonical value '{value}' "
+            f"(expected '{normalized}')"
+        )
+
+
+def _validate_variant_index_payload(payload: Any, *, dataset_type: str, context: str) -> None:
+    if not isinstance(payload, list) or not payload:
+        raise ValueError(f"{context}: expected non-empty variant_index list")
+
+    label_key = "trait" if dataset_type == "TRAIT" else "disease"
+    seen: set[tuple[str, tuple[str, ...]]] = set()
+    for index, entry in enumerate(payload):
+        entry_context = f"{context}:variant_index[{index}]"
+        if not isinstance(entry, dict):
+            raise ValueError(f"{entry_context}: expected dict entry")
+        variant_id = entry.get("variant_id")
+        if not isinstance(variant_id, str) or not variant_id.strip():
+            raise ValueError(f"{entry_context}: missing variant_id")
+        phenotype_path = entry.get("phenotype_path")
+        if not isinstance(phenotype_path, list) or not phenotype_path:
+            raise ValueError(f"{entry_context}: missing phenotype_path")
+        if not all(isinstance(segment, str) and segment.strip() for segment in phenotype_path):
+            raise ValueError(f"{entry_context}: phenotype_path contains an empty segment")
+        keyed_path = entry.get(label_key)
+        if keyed_path is not None and keyed_path != phenotype_path:
+            raise ValueError(f"{entry_context}: '{label_key}' does not match phenotype_path")
+        dedup_key = (variant_id, tuple(phenotype_path))
+        if dedup_key in seen:
+            raise ValueError(f"{entry_context}: duplicate variant_id + phenotype_path")
+        seen.add(dedup_key)
+        _validate_variant_axis(
+            entry.get("variation_type"),
+            axis="variation",
+            context=entry_context,
+        )
+        _validate_variant_axis(
+            entry.get("most_severe_consequence"),
+            axis="most_severe_consequence",
+            context=entry_context,
+        )
+        _validate_variant_axis(
+            entry.get("clinical_significance"),
+            axis="clinical_significance",
+            context=entry_context,
+        )
+
+
 def _validate_stage_output(
     *,
     stage_root: Path,
     unit: GeneWorkUnit,
     disable_rollup: bool,
+    disable_variant_index: bool = False,
+    publisher_mode: str = "all",
     logger: logging.Logger,
 ) -> None:
     dataset_type = unit.dataset_type.upper()
     association_dir = stage_root / "association" / "final" / "association" / dataset_type
     overall_dir = stage_root / "association" / "final" / "overall" / dataset_type
+    variant_index_dir = stage_root / "association" / "final" / "variant_index" / dataset_type
 
-    if unit.shard_id is None:
+    if unit.shard_id is None and publisher_mode == "all":
         safe_gene = unit.gene_id.replace("/", "-")
         association_paths = [_resolve_payload_path(association_dir / f"{safe_gene}.json")]
         overall_paths = [_resolve_payload_path(overall_dir / f"{safe_gene}.json")]
-    else:
+    elif publisher_mode == "all":
         association_paths = _list_payload_paths(association_dir)
         overall_paths = _list_payload_paths(overall_dir)
         if not association_paths or not overall_paths:
             raise FileNotFoundError(
                 f"Expected staged payloads not found for shard unit: dataset_type={dataset_type} shard={unit.shard_id}"
             )
+    else:
+        association_paths = []
+        overall_paths = []
+
+    if not disable_variant_index:
+        if unit.shard_id is None:
+            safe_gene = unit.gene_id.replace("/", "-")
+            variant_index_paths = [_resolve_payload_path(variant_index_dir / f"{safe_gene}.json")]
+        else:
+            variant_index_paths = _list_payload_paths(variant_index_dir)
+            if not variant_index_paths:
+                raise FileNotFoundError(
+                    "Expected staged variant_index payloads not found for shard unit: "
+                    f"dataset_type={dataset_type} shard={unit.shard_id}"
+                )
+        for variant_index_path in variant_index_paths:
+            gene_key = variant_index_path.name.removesuffix(".gz").removesuffix(".json")
+            _validate_variant_index_payload(
+                _read_json_payload(variant_index_path),
+                dataset_type=dataset_type,
+                context=f"{unit.dataset_type}:{gene_key}",
+            )
+
+    if publisher_mode == "variant-index-only":
+        logger.info("Preflight validation passed: %s", _unit_label(unit))
+        return
 
     overall_by_stem = {
         path.name.removesuffix(".gz").removesuffix(".json"): path
@@ -1266,14 +1392,24 @@ def main() -> int:
             "--reset-output cannot be used with --unit-partitions > 1. "
             "Clear output once before launching parallel partition jobs."
         )
+    if args.publisher_mode == "variant-index-only" and args.reset_output:
+        raise ValueError(
+            "--reset-output cannot be used with --publisher-mode variant-index-only. "
+            "The variant-index backfill should preserve existing association/overall outputs."
+        )
 
     output_root = Path(args.output_root)
     output_root.mkdir(parents=True, exist_ok=True)
 
+    state_namespace = (
+        "unified_publish_variant_index"
+        if args.publisher_mode == "variant-index-only"
+        else "unified_publish"
+    )
     state_root_base = (
         Path(args.state_dir)
         if args.state_dir
-        else output_root / "_datahub_state" / "unified_publish"
+        else output_root / "_datahub_state" / state_namespace
     )
     partition_suffix = (
         f"part{int(args.unit_partition_index):03d}of{int(args.unit_partitions):03d}"
@@ -1348,6 +1484,12 @@ def main() -> int:
     logger.info(
         "Preflight validation: units=%d",
         args.preflight_validate_units,
+    )
+    logger.info(
+        "Publisher mode: mode=%s variant_index=%s rollup=%s",
+        args.publisher_mode,
+        "disabled" if args.disable_variant_index else "enabled",
+        "disabled" if args.disable_rollup else "enabled",
     )
     path_resolver = (
         PhenotypePathResolver.from_tree_json(args.rollup_tree_json)
@@ -1472,6 +1614,8 @@ def main() -> int:
             staged_publishers = _build_stage_publishers(
                 output_root=stage_root,
                 disable_rollup=args.disable_rollup,
+                disable_variant_index=args.disable_variant_index,
+                publisher_mode=args.publisher_mode,
                 rollup_tree_json=args.rollup_tree_json,
                 ancestry_precision=args.ancestry_precision,
                 json_compression=args.json_compression,
@@ -1593,6 +1737,8 @@ ORDER BY phenotype, variant_id, coalesce(ancestry, '')
                     stage_root=stage_root,
                     unit=unit,
                     disable_rollup=args.disable_rollup,
+                    disable_variant_index=args.disable_variant_index,
+                    publisher_mode=args.publisher_mode,
                     logger=logger,
                 )
                 validated_preflight_units += 1
@@ -1653,6 +1799,8 @@ ORDER BY phenotype, variant_id, coalesce(ancestry, '')
                 "source_table": source_table,
                 "working_table": working_table,
                 "dedup_mode": args.dedup_mode,
+                "publisher_mode": args.publisher_mode,
+                "variant_index_enabled": not args.disable_variant_index,
                 "output_root": str(output_root),
                 "db_read_only": use_read_only,
                 "json_compression": args.json_compression,

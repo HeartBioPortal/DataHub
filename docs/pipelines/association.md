@@ -221,30 +221,31 @@ Therefore:
 - any backend helper that computes filtered totals must use the same algorithm
   as overall publication
 
-### Current limitation
+### Variant index artifact
 
 The current association JSON files preserve phenotype-level summaries and
 ancestry rsID points, but the `vc`, `msc`, and `cs` fields are already
 aggregated counters. Those counters alone are not enough to perfectly
 reconstruct a deduplicated filtered aggregate for arbitrary filter sets.
 
-For exact filtered aggregation, DataHub should add a compact filterable artifact
-or table that preserves variant identity and the fields needed for aggregation.
-
-Recommended future artifact:
+For exact filtered aggregation, DataHub publishes a compact filterable artifact
+that preserves variant identity and the fields needed for aggregation:
 
 ```text
 variant_index/CVD/<GENE>.json.gz
 variant_index/TRAIT/<GENE>.json.gz
 ```
 
-Recommended shape:
+Shape:
 
 ```json
 [
   {
     "variant_id": "rs123",
+    "gene_id": "PCSK9",
+    "dataset_type": "CVD",
     "phenotype_path": ["cardiomyopathy", "dilated_cardiomyopathy"],
+    "disease": ["cardiomyopathy", "dilated_cardiomyopathy"],
     "variation_type": "SNP",
     "most_severe_consequence": "missense variant",
     "clinical_significance": "benign",
@@ -254,9 +255,14 @@ Recommended shape:
 ]
 ```
 
-This artifact would let the backend compute filtered charts correctly without
-loading raw source rows or duplicating one artifact per possible filter
-combination.
+This artifact lets the backend compute filtered charts correctly without
+loading raw source rows and without duplicating one precomputed artifact per
+possible filter combination.
+
+The normal association publish path writes `variant_index` by default. Existing
+published outputs can be backfilled without rewriting association and overall
+payloads by running `publish_unified_from_duckdb.py` with
+`--publisher-mode variant-index-only`.
 
 ### Chart-specific artifacts
 

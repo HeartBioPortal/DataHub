@@ -38,6 +38,11 @@ It currently contains tables such as:
 - `build_metadata`
 - `secondary_analysis_metadata`
 
+Published association artifacts also include `variant_index/<DATASET_TYPE>/<GENE>.json.gz`.
+That artifact is not just another summary. It preserves one row per
+`variant_id` and phenotype path so filtered charts can deduplicate rsIDs using
+the same variant-centric rule as overall publication.
+
 ![Association serving DuckDB schema](../assets/association_serving_duckdb_schema.svg)
 
 ## Serving contract
@@ -112,6 +117,20 @@ They intentionally keep:
 They intentionally omit detail-heavy data such as ancestry. This omission is
 not scientific data loss. It is a serving optimization for the first screen.
 The full payload remains available through the published JSON/JSON.GZ artifact.
+
+### Variant index payloads
+
+Variant index payloads live outside the serving DuckDB under:
+
+```text
+association/final/variant_index/CVD/<GENE>.json.gz
+association/final/variant_index/TRAIT/<GENE>.json.gz
+```
+
+They are the intended source for phenotype-filtered chart aggregation. The
+backend filters rows by phenotype path, collapses them by `variant_id`, chooses
+the best representative record, and then counts `vc`, `msc`, and `cs`. This
+prevents a repeated rsID from being counted once per selected phenotype.
 
 ### Detail payloads
 

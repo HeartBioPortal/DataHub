@@ -70,8 +70,10 @@ def test_preflight_stage_validation_accepts_canonical_payloads(tmp_path: Path) -
     stage_root = tmp_path / "stage"
     association_path = stage_root / "association" / "final" / "association" / "CVD" / "GENE1.json"
     overall_path = stage_root / "association" / "final" / "overall" / "CVD" / "GENE1.json"
+    variant_index_path = stage_root / "association" / "final" / "variant_index" / "CVD" / "GENE1.json"
     association_path.parent.mkdir(parents=True, exist_ok=True)
     overall_path.parent.mkdir(parents=True, exist_ok=True)
+    variant_index_path.parent.mkdir(parents=True, exist_ok=True)
 
     association_path.write_text(
         json.dumps(
@@ -99,6 +101,22 @@ def test_preflight_stage_validation_accepts_canonical_payloads(tmp_path: Path) -
             }
         )
     )
+    variant_index_path.write_text(
+        json.dumps(
+            [
+                {
+                    "variant_id": "rs1",
+                    "gene_id": "GENE1",
+                    "dataset_type": "CVD",
+                    "phenotype_path": ["cardiomyopathies", "cardiomyopathy"],
+                    "disease": ["cardiomyopathies", "cardiomyopathy"],
+                    "variation_type": "INDEL",
+                    "most_severe_consequence": "missense variant",
+                    "clinical_significance": "likely benign",
+                }
+            ]
+        )
+    )
 
     unit = module.GeneWorkUnit(dataset_type="CVD", gene_id="GENE1", point_rows=1)
     module._validate_stage_output(
@@ -115,8 +133,10 @@ def test_preflight_stage_validation_rejects_noncanonical_axis_labels(tmp_path: P
     stage_root = tmp_path / "stage"
     association_path = stage_root / "association" / "final" / "association" / "CVD" / "GENE1.json"
     overall_path = stage_root / "association" / "final" / "overall" / "CVD" / "GENE1.json"
+    variant_index_path = stage_root / "association" / "final" / "variant_index" / "CVD" / "GENE1.json"
     association_path.parent.mkdir(parents=True, exist_ok=True)
     overall_path.parent.mkdir(parents=True, exist_ok=True)
+    variant_index_path.parent.mkdir(parents=True, exist_ok=True)
 
     association_path.write_text(
         json.dumps(
@@ -147,6 +167,20 @@ def test_preflight_stage_validation_rejects_noncanonical_axis_labels(tmp_path: P
             }
         )
     )
+    variant_index_path.write_text(
+        json.dumps(
+            [
+                {
+                    "variant_id": "rs1",
+                    "gene_id": "GENE1",
+                    "dataset_type": "CVD",
+                    "phenotype_path": ["cardiomyopathies", "cardiomyopathy"],
+                    "disease": ["cardiomyopathies", "cardiomyopathy"],
+                    "variation_type": "INDEL",
+                }
+            ]
+        )
+    )
 
     unit = module.GeneWorkUnit(dataset_type="CVD", gene_id="GENE1", point_rows=1)
     with pytest.raises(ValueError, match="non-canonical category"):
@@ -164,8 +198,10 @@ def test_preflight_stage_validation_accepts_shard_stage_outputs(tmp_path: Path) 
     stage_root = tmp_path / "stage"
     association_dir = stage_root / "association" / "final" / "association" / "CVD"
     overall_dir = stage_root / "association" / "final" / "overall" / "CVD"
+    variant_index_dir = stage_root / "association" / "final" / "variant_index" / "CVD"
     association_dir.mkdir(parents=True, exist_ok=True)
     overall_dir.mkdir(parents=True, exist_ok=True)
+    variant_index_dir.mkdir(parents=True, exist_ok=True)
 
     for gene in ("ANK2", "TTN"):
         (association_dir / f"{gene}.json").write_text(
@@ -194,6 +230,22 @@ def test_preflight_stage_validation_accepts_shard_stage_outputs(tmp_path: Path) 
                 }
             )
         )
+        (variant_index_dir / f"{gene}.json").write_text(
+            json.dumps(
+                [
+                    {
+                        "variant_id": "rs1",
+                        "gene_id": gene,
+                        "dataset_type": "CVD",
+                        "phenotype_path": ["cardiomyopathies", "cardiomyopathy"],
+                        "disease": ["cardiomyopathies", "cardiomyopathy"],
+                        "variation_type": "SNP",
+                        "most_severe_consequence": "missense variant",
+                        "clinical_significance": "likely benign",
+                    }
+                ]
+            )
+        )
 
     unit = module.GeneWorkUnit(dataset_type="CVD", gene_id="shard_0000", point_rows=2, shard_id=0)
     module._validate_stage_output(
@@ -202,6 +254,56 @@ def test_preflight_stage_validation_accepts_shard_stage_outputs(tmp_path: Path) 
         disable_rollup=True,
         logger=logging.getLogger("test"),
     )
+
+
+def test_preflight_stage_validation_accepts_variant_index_only(tmp_path: Path) -> None:
+    module = _load_publish_module()
+
+    stage_root = tmp_path / "stage"
+    variant_index_path = stage_root / "association" / "final" / "variant_index" / "CVD" / "GENE1.json"
+    variant_index_path.parent.mkdir(parents=True, exist_ok=True)
+    variant_index_path.write_text(
+        json.dumps(
+            [
+                {
+                    "variant_id": "rs1",
+                    "gene_id": "GENE1",
+                    "dataset_type": "CVD",
+                    "phenotype_path": ["cardiomyopathies", "cardiomyopathy"],
+                    "disease": ["cardiomyopathies", "cardiomyopathy"],
+                    "variation_type": "SNP",
+                }
+            ]
+        )
+    )
+
+    unit = module.GeneWorkUnit(dataset_type="CVD", gene_id="GENE1", point_rows=1)
+    module._validate_stage_output(
+        stage_root=stage_root,
+        unit=unit,
+        disable_rollup=True,
+        publisher_mode="variant-index-only",
+        logger=logging.getLogger("test"),
+    )
+
+
+def test_build_stage_publishers_supports_variant_index_only(tmp_path: Path) -> None:
+    module = _load_publish_module()
+
+    publishers = module._build_stage_publishers(
+        output_root=tmp_path,
+        disable_rollup=False,
+        disable_variant_index=False,
+        publisher_mode="variant-index-only",
+        rollup_tree_json=None,
+        ancestry_precision=6,
+        json_compression="gzip",
+        json_gzip_level=6,
+        json_indent=None,
+        export_runtime=None,
+    )
+
+    assert [type(publisher).__name__ for publisher in publishers] == ["VariantIndexPublisher"]
 
 
 def test_working_table_excludes_numeric_gene_identifiers(tmp_path: Path) -> None:
