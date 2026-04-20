@@ -110,11 +110,17 @@ body {
 
 .md-sidebar--primary .md-sidebar__scrollwrap,
 .md-sidebar--secondary .md-sidebar__scrollwrap {
+  padding-top: 0.75rem;
   border: 1px solid var(--hbp-border);
   border-radius: 1.1rem;
   background: var(--hbp-panel);
   box-shadow: 0 14px 35px rgba(17, 24, 39, 0.08);
   backdrop-filter: blur(16px);
+}
+
+.md-sidebar--primary .md-nav__title,
+.md-sidebar--secondary .md-nav__title {
+  margin-top: 0.2rem;
 }
 
 .md-nav__title,
