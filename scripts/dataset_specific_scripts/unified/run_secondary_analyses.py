@@ -126,6 +126,12 @@ def parse_args() -> argparse.Namespace:
         help="Insert batch size for serving DB updates.",
     )
     apply.add_argument(
+        "--progress-interval",
+        type=int,
+        default=1000,
+        help="Log apply progress every N artifact files.",
+    )
+    apply.add_argument(
         "--secondary-manifests-dir",
         default=None,
         help="Optional custom secondary-analysis manifest directory.",
@@ -254,6 +260,8 @@ def _run_apply(args: argparse.Namespace) -> int:
                 input_root=args.secondary_root,
                 manifest=manifest,
                 batch_size=args.batch_size,
+                logger=logger,
+                progress_interval=args.progress_interval,
             )
             summaries[analysis_id] = inserted
             logger.info(

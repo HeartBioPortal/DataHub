@@ -279,6 +279,8 @@ Subcommands:
   - create per-gene secondary artifacts under `final/<analysis>/genes/`
 - `apply`
   - load those artifacts into an existing serving DB and refresh `gene_catalog`
+  - logs file-read/insert progress every `--progress-interval` artifacts so long AWS/HPC updates do not appear stalled
+  - runs the table replacement and catalog refresh in one transaction so failed applies roll back cleanly
 
 ### `scripts/dataset_specific_scripts/unified/run_unified_pipeline.py`
 

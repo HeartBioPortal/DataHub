@@ -59,21 +59,33 @@ def read_gene_payload_artifacts(
     input_root: str | Path,
     manifest: SecondaryAnalysisManifest,
 ) -> list[SecondaryArtifactRow]:
+    return [
+        read_gene_payload_artifact_path(payload_path)
+        for payload_path in list_gene_payload_artifact_paths(
+            input_root=input_root,
+            manifest=manifest,
+        )
+    ]
+
+
+def list_gene_payload_artifact_paths(
+    *,
+    input_root: str | Path,
+    manifest: SecondaryAnalysisManifest,
+) -> list[Path]:
     root = artifact_root(input_root, manifest)
     if not root.exists():
         return []
+    return sorted(root.glob("*.json.gz"))
 
-    rows: list[SecondaryArtifactRow] = []
-    for payload_path in sorted(root.glob("*.json.gz")):
-        gene_id = _gene_id_from_filename(payload_path.name[:-8])
-        with gzip.open(payload_path, "rt", encoding="utf-8") as stream:
-            payload_json = stream.read()
-        rows.append(
-            SecondaryArtifactRow(
-                gene_id=gene_id,
-                gene_id_normalized=gene_id.upper(),
-                payload_json=payload_json,
-                source_path=str(payload_path),
-            )
-        )
-    return rows
+
+def read_gene_payload_artifact_path(payload_path: Path) -> SecondaryArtifactRow:
+    gene_id = _gene_id_from_filename(payload_path.name[:-8])
+    with gzip.open(payload_path, "rt", encoding="utf-8") as stream:
+        payload_json = stream.read()
+    return SecondaryArtifactRow(
+        gene_id=gene_id,
+        gene_id_normalized=gene_id.upper(),
+        payload_json=payload_json,
+        source_path=str(payload_path),
+    )

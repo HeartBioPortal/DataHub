@@ -192,5 +192,7 @@ Typical pattern:
 
 - copy only the secondary-analysis artifact tree to AWS
 - apply it into the existing serving DB
+- keep `--log-level INFO` enabled for production applies; the command logs a durable progress line every `--progress-interval` artifact files and logs when the `gene_catalog` refresh starts and completes
+- the apply is transactional: if a corrupt artifact or database error occurs, the target secondary table and `gene_catalog` update are rolled back instead of being left half-applied
 
 This avoids copying the full unified DuckDB or rebuilding the full 400GB serving artifact from scratch.

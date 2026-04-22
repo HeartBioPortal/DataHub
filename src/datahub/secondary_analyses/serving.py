@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
-from .artifacts import read_gene_payload_artifacts
+from .artifacts import (
+    list_gene_payload_artifact_paths,
+    read_gene_payload_artifact_path,
+)
 from .base import SecondaryAnalysisManifest, SecondaryArtifactRow
 
 
@@ -143,18 +147,92 @@ def _table_name_for_analysis(analysis_id: str) -> str:
     raise ValueError(f"Unsupported secondary analysis table mapping: {analysis_id}")
 
 
-def _insert_rows(
+def _progress_bar(done: int, total: int, *, width: int = 24) -> str:
+    if total <= 0:
+        return "[" + "#" * width + "]"
+    filled = min(width, int(width * done / total))
+    return "[" + "#" * filled + "-" * (width - filled) + "]"
+
+
+def _log_apply_progress(
+    logger: logging.Logger | None,
+    *,
+    analysis_id: str,
+    processed: int,
+    total: int,
+    inserted: int,
+) -> None:
+    if logger is None:
+        return
+    percent = 100.0 if total <= 0 else (processed / total) * 100.0
+    logger.info(
+        "Secondary apply progress: analysis=%s files=%d/%d inserted=%d %.1f%% %s",
+        analysis_id,
+        processed,
+        total,
+        inserted,
+        percent,
+        _progress_bar(processed, total),
+    )
+
+
+def _insert_secondary_artifact_paths(
     connection: Any,
     *,
     table_name: str,
-    rows: list[SecondaryArtifactRow],
+    manifest: SecondaryAnalysisManifest,
+    payload_paths: list[Path],
     batch_size: int,
-) -> None:
-    if not rows:
-        return
+    progress_interval: int,
+    logger: logging.Logger | None,
+) -> int:
+    if not payload_paths:
+        _log_apply_progress(
+            logger,
+            analysis_id=manifest.analysis_id,
+            processed=0,
+            total=0,
+            inserted=0,
+        )
+        return 0
+
     sql = f"INSERT INTO {table_name} VALUES (?, ?, ?, ?)"
-    for start in range(0, len(rows), max(batch_size, 1)):
-        batch = rows[start:start + max(batch_size, 1)]
+    batch: list[SecondaryArtifactRow] = []
+    processed = 0
+    inserted = 0
+    effective_batch_size = max(batch_size, 1)
+    effective_progress_interval = max(progress_interval, 1)
+
+    for payload_path in payload_paths:
+        batch.append(read_gene_payload_artifact_path(payload_path))
+        processed += 1
+
+        if len(batch) >= effective_batch_size:
+            connection.executemany(
+                sql,
+                [
+                    (
+                        row.gene_id,
+                        row.gene_id_normalized,
+                        row.payload_json,
+                        row.source_path,
+                    )
+                    for row in batch
+                ],
+            )
+            inserted += len(batch)
+            batch = []
+
+        if processed % effective_progress_interval == 0:
+            _log_apply_progress(
+                logger,
+                analysis_id=manifest.analysis_id,
+                processed=processed,
+                total=len(payload_paths),
+                inserted=inserted,
+            )
+
+    if batch:
         connection.executemany(
             sql,
             [
@@ -162,6 +240,17 @@ def _insert_rows(
                 for row in batch
             ],
         )
+        inserted += len(batch)
+
+    _log_apply_progress(
+        logger,
+        analysis_id=manifest.analysis_id,
+        processed=processed,
+        total=len(payload_paths),
+        inserted=inserted,
+    )
+
+    return inserted
 
 
 def apply_secondary_analysis_artifacts(
@@ -170,38 +259,77 @@ def apply_secondary_analysis_artifacts(
     input_root: str | Path,
     manifest: SecondaryAnalysisManifest,
     batch_size: int = 500,
+    logger: logging.Logger | None = None,
+    progress_interval: int = 1000,
 ) -> int:
     ensure_secondary_tables(connection)
-    rows = read_gene_payload_artifacts(
+    payload_paths = list_gene_payload_artifact_paths(
         input_root=input_root,
         manifest=manifest,
     )
     artifact_root = Path(input_root) / "final" / manifest.artifact_subdir / "genes"
     table_name = _table_name_for_analysis(manifest.analysis_id)
-    connection.execute(f"DELETE FROM {table_name}")
-    _insert_rows(
-        connection,
-        table_name=table_name,
-        rows=rows,
-        batch_size=batch_size,
-    )
-    connection.execute(
-        "DELETE FROM secondary_analysis_metadata WHERE analysis_id = ?",
-        [manifest.analysis_id],
-    )
-    connection.execute(
-        """
+    if logger is not None:
+        logger.info(
+            "Secondary apply start: analysis=%s table=%s artifact_root=%s files=%d batch_size=%d",
+            manifest.analysis_id,
+            table_name,
+            artifact_root,
+            len(payload_paths),
+            max(batch_size, 1),
+        )
+
+    connection.execute("BEGIN TRANSACTION")
+    try:
+        connection.execute(f"DELETE FROM {table_name}")
+        inserted = _insert_secondary_artifact_paths(
+            connection,
+            table_name=table_name,
+            manifest=manifest,
+            payload_paths=payload_paths,
+            batch_size=batch_size,
+            progress_interval=progress_interval,
+            logger=logger,
+        )
+        connection.execute(
+            "DELETE FROM secondary_analysis_metadata WHERE analysis_id = ?",
+            [manifest.analysis_id],
+        )
+        connection.execute(
+            """
 INSERT INTO secondary_analysis_metadata
 VALUES (?, ?, ?, current_timestamp, ?, ?, ?)
 """,
-        [
+            [
+                manifest.analysis_id,
+                manifest.version,
+                manifest.mode,
+                str(artifact_root),
+                inserted,
+                _metadata_json(artifact_root, manifest),
+            ],
+        )
+        if logger is not None:
+            logger.info(
+                "Secondary apply catalog refresh start: analysis=%s table=gene_catalog",
+                manifest.analysis_id,
+            )
+        _refresh_gene_catalog(connection)
+        connection.execute("COMMIT")
+    except Exception:
+        connection.execute("ROLLBACK")
+        if logger is not None:
+            logger.exception(
+                "Secondary apply failed and was rolled back: analysis=%s",
+                manifest.analysis_id,
+            )
+        raise
+
+    if logger is not None:
+        logger.info(
+            "Secondary apply complete: analysis=%s rows=%d table=%s",
             manifest.analysis_id,
-            manifest.version,
-            manifest.mode,
-            str(artifact_root),
-            len(rows),
-            _metadata_json(artifact_root, manifest),
-        ],
-    )
-    _refresh_gene_catalog(connection)
-    return len(rows)
+            inserted,
+            table_name,
+        )
+    return inserted

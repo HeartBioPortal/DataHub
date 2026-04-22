@@ -137,6 +137,8 @@ def test_expression_secondary_generate_and_apply(tmp_path: Path) -> None:
             str(secondary_root),
             "--serving-db-path",
             str(serving_db),
+            "--progress-interval",
+            "1",
             "--log-level",
             "ERROR",
         ]
@@ -258,6 +260,8 @@ CREATE TABLE mvp_association_points (
             str(secondary_root),
             "--serving-db-path",
             str(serving_db),
+            "--progress-interval",
+            "1",
             "--log-level",
             "ERROR",
         ]
