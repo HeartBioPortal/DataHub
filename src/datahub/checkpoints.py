@@ -3,18 +3,29 @@
 from __future__ import annotations
 
 import json
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 
 def write_json_atomic(path: str | Path, payload: Any, *, indent: int | None = 2, sort_keys: bool = True) -> None:
-    """Atomically write JSON payloads to disk."""
+    """Atomically write JSON payloads to disk.
+
+    Paths ending in ``.zip`` are written as single-member zip archives so the
+    artifact remains compatible with :func:`datahub.artifact_io.load_json_artifact`.
+    """
 
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     temp = target.with_suffix(target.suffix + ".tmp")
-    temp.write_text(json.dumps(payload, indent=indent, sort_keys=sort_keys))
+    content = json.dumps(payload, indent=indent, sort_keys=sort_keys)
+    if target.suffix.lower() == ".zip":
+        member_name = target.name[:-4] if target.name.lower().endswith(".zip") else target.with_suffix("").name
+        with zipfile.ZipFile(temp, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr(member_name, content)
+    else:
+        temp.write_text(content)
     temp.replace(target)
 
 

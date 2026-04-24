@@ -59,7 +59,7 @@ Recommended repository-local invocation:
 python scripts/run_structural_variant_ingestion.py \
   --input raw_data/dbvar/dbvar_structural_variants_nstd229.csv.zip \
   --gene-annotation-gtf raw_data/gencode.v49.annotation.gtf.gz \
-  --output-json analyzed_data/dbvar/dbvar_structural_variants_nstd229.json \
+  --output-json analyzed_data/dbvar/dbvar_structural_variants_nstd229.json.zip \
   --gene-metadata-seed analyzed_data/dbvar/dbvar_structural_variants_nstd102_seed.json.zip \
   --merge-source-json analyzed_data/dbvar/dbvar_structural_variants_nstd102_seed.json.zip \
   --merge-existing \
@@ -92,6 +92,7 @@ datahub-report-artifact-qa \
 Resume notes:
 
 - checkpoint defaults to `analyzed_data/dbvar/dbvar_structural_variants_nstd229.json.checkpoint.json`
+- use `--output-json ...json.zip` for reusable checked-in artifacts; DataHub reads and writes single-file JSON zip artifacts directly
 - rerun the same command to continue from the latest saved checkpoint
 - use `--reset-checkpoint` to force a clean restart
 - use `--no-resume` to ignore checkpoint state for a one-off fresh run
@@ -116,8 +117,8 @@ Single-job enrichment:
 
 ```bash
 python scripts/enrich_structural_variant_exons.py \
-  --input-json analyzed_data/dbvar/dbvar_structural_variants_nstd229.json \
-  --output-json analyzed_data/dbvar/dbvar_structural_variants_nstd229.exons.json \
+  --input-json analyzed_data/dbvar/dbvar_structural_variants_nstd229.json.zip \
+  --output-json analyzed_data/dbvar/dbvar_structural_variants_nstd229.exons.json.zip \
   --cache-path analyzed_data/dbvar/dbvar_structural_variant_exon_ensembl_cache.json \
   --report-path analyzed_data/dbvar/dbvar_structural_variants_nstd229.exons.report.json \
   --progress-every 100 \
@@ -128,15 +129,15 @@ Partitioned HPC-safe fetch/apply mode:
 
 ```bash
 python scripts/enrich_structural_variant_exons.py \
-  --input-json analyzed_data/dbvar/dbvar_structural_variants_nstd229.json \
+  --input-json analyzed_data/dbvar/dbvar_structural_variants_nstd229.json.zip \
   --patch-output-json /N/scratch/kvand/hbp/sv_exon_patches/nstd229_p00.json \
   --cache-path /N/scratch/kvand/hbp/cache/sv_exon_ensembl_p00.json \
   --unit-partitions 32 \
   --unit-partition-index 0
 
 python scripts/enrich_structural_variant_exons.py \
-  --input-json analyzed_data/dbvar/dbvar_structural_variants_nstd229.json \
-  --output-json analyzed_data/dbvar/dbvar_structural_variants_nstd229.exons.json \
+  --input-json analyzed_data/dbvar/dbvar_structural_variants_nstd229.json.zip \
+  --output-json analyzed_data/dbvar/dbvar_structural_variants_nstd229.exons.json.zip \
   --patch-input-json /N/scratch/kvand/hbp/sv_exon_patches/nstd229_p*.json
 ```
 

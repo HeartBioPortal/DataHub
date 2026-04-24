@@ -16,6 +16,7 @@ Naming convention:
 Current tracked artifact:
 
 - `dbvar_structural_variants_nstd102_seed.json.zip`
+- `dbvar_structural_variants_nstd229.json.zip`
 
 Notes:
 
