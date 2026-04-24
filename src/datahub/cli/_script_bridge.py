@@ -38,6 +38,10 @@ def ingest_legacy_raw_duckdb() -> int:
     return _run_script("scripts/dataset_specific_scripts/unified/ingest_legacy_raw_duckdb.py")
 
 
+def enrich_structural_variant_exons() -> int:
+    return _run_script("scripts/enrich_structural_variant_exons.py")
+
+
 def ingest_mvp_duckdb_fast() -> int:
     return _run_script("scripts/dataset_specific_scripts/mvp/ingest_mvp_duckdb_fast.py")
 

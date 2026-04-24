@@ -34,6 +34,7 @@ docs = [
 [project.scripts]
 datahub-build-legacy-association = "datahub.cli._script_bridge:build_legacy_association"
 datahub-build-serving-duckdb = "datahub.cli._script_bridge:build_serving_duckdb"
+datahub-enrich-structural-variant-exons = "datahub.cli._script_bridge:enrich_structural_variant_exons"
 datahub-ingest-legacy-raw-duckdb = "datahub.cli._script_bridge:ingest_legacy_raw_duckdb"
 datahub-ingest-mvp-duckdb-fast = "datahub.cli._script_bridge:ingest_mvp_duckdb_fast"
 datahub-manage-working-duckdb = "datahub.cli._script_bridge:manage_working_duckdb"

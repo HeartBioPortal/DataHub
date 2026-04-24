@@ -11,7 +11,7 @@ from .apis import (
     NcbiVariationApiClient,
     RestApiClient,
 )
-from .annotations import GtfGeneAnnotationIndex, GtfGeneRecord, GtfTranscriptRecord
+from .annotations import GtfExonRecord, GtfGeneAnnotationIndex, GtfGeneRecord, GtfTranscriptRecord
 from .artifact_qa import build_artifact_qa_report, write_artifact_qa_report
 from .checkpoints import StructuralVariantCheckpoint, write_json_atomic
 from .config import (
@@ -78,6 +78,13 @@ from .sources import (
     SourceRegistry,
     build_default_source_registry,
 )
+from .structural_variant_exons import (
+    StructuralVariantExonBackfillReport,
+    apply_structural_variant_exon_patch,
+    enrich_structural_variant_exons,
+    gene_needs_exon_backfill,
+    transcript_has_exons,
+)
 
 __all__ = [
     "CanonicalRecord",
@@ -91,6 +98,7 @@ __all__ = [
     "GtfGeneAnnotationIndex",
     "GtfGeneRecord",
     "GtfTranscriptRecord",
+    "GtfExonRecord",
     "StructuralVariantCheckpoint",
     "write_json_atomic",
     "build_artifact_qa_report",
@@ -151,4 +159,9 @@ __all__ = [
     "build_default_export_helper_registry",
     "build_default_adapter_registry",
     "build_default_source_registry",
+    "StructuralVariantExonBackfillReport",
+    "apply_structural_variant_exon_patch",
+    "enrich_structural_variant_exons",
+    "gene_needs_exon_backfill",
+    "transcript_has_exons",
 ]

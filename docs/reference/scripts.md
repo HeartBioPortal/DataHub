@@ -98,6 +98,48 @@ Resume notes:
 - if you add `--skip-row-count`, progress percent is intentionally unavailable because the total row count is not precomputed
 - add `--enable-ensembl-overlap-fallback` only if you want no-hit rows double-checked against Ensembl
 
+### `scripts/enrich_structural_variant_exons.py`
+
+Backfill missing canonical transcript exon arrays in a legacy structural variant
+artifact using Ensembl `lookup/id?expand=1`. Use this after a large dbVar run
+when local GTF metadata supplied gene/transcript spans but not full exon
+structure for newly added genes.
+
+Default behavior is conservative:
+
+- genes whose `canonical_transcript[0].Exon` already exists are skipped, so the
+  older Ensembl-seeded genes are left alone
+- genes are looked up by their existing Ensembl transcript ID
+- the output shape stays compatible with the legacy backend/frontend contract
+
+Single-job enrichment:
+
+```bash
+python scripts/enrich_structural_variant_exons.py \
+  --input-json analyzed_data/dbvar/dbvar_structural_variants_nstd229.json \
+  --output-json analyzed_data/dbvar/dbvar_structural_variants_nstd229.exons.json \
+  --cache-path analyzed_data/dbvar/dbvar_structural_variant_exon_ensembl_cache.json \
+  --report-path analyzed_data/dbvar/dbvar_structural_variants_nstd229.exons.report.json \
+  --progress-every 100 \
+  --log-level INFO
+```
+
+Partitioned HPC-safe fetch/apply mode:
+
+```bash
+python scripts/enrich_structural_variant_exons.py \
+  --input-json analyzed_data/dbvar/dbvar_structural_variants_nstd229.json \
+  --patch-output-json /N/scratch/kvand/hbp/sv_exon_patches/nstd229_p00.json \
+  --cache-path /N/scratch/kvand/hbp/cache/sv_exon_ensembl_p00.json \
+  --unit-partitions 32 \
+  --unit-partition-index 0
+
+python scripts/enrich_structural_variant_exons.py \
+  --input-json analyzed_data/dbvar/dbvar_structural_variants_nstd229.json \
+  --output-json analyzed_data/dbvar/dbvar_structural_variants_nstd229.exons.json \
+  --patch-input-json /N/scratch/kvand/hbp/sv_exon_patches/nstd229_p*.json
+```
+
 ## MVP scripts
 
 ### `scripts/dataset_specific_scripts/mvp/ingest_mvp_duckdb_fast.py`

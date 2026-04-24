@@ -95,16 +95,39 @@ def _attribute_list(attributes: dict[str, Any], *keys: str) -> list[str]:
 
 
 @dataclass(frozen=True)
+class GtfExonRecord:
+    """Exon-level annotation extracted from a GTF."""
+
+    exon_id: str | None
+    start: int
+    end: int
+    exon_number: int | None = None
+
+    def to_lookup_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "start": self.start,
+            "end": self.end,
+        }
+        if self.exon_id:
+            payload["id"] = self.exon_id
+        if self.exon_number is not None:
+            payload["exon_number"] = self.exon_number
+        return payload
+
+
+@dataclass(frozen=True)
 class GtfTranscriptRecord:
     """Transcript-level annotation extracted from a GTF."""
 
     transcript_id: str
     transcript_name: str | None
+    chromosome: str
     start: int
     end: int
     strand: int | None
     biotype: str | None
     tags: tuple[str, ...] = ()
+    exons: list[GtfExonRecord] = field(default_factory=list)
 
     @property
     def span(self) -> int:
@@ -115,6 +138,7 @@ class GtfTranscriptRecord:
             "id": self.transcript_id,
             "start": self.start,
             "end": self.end,
+            "seq_region_name": self.chromosome,
         }
         if self.transcript_name:
             payload["display_name"] = self.transcript_name
@@ -128,6 +152,18 @@ class GtfTranscriptRecord:
             payload["gencode_basic"] = 1
         if self.tags:
             payload["tags"] = list(self.tags)
+        if self.exons:
+            payload["Exon"] = [
+                exon.to_lookup_payload()
+                for exon in sorted(
+                    self.exons,
+                    key=lambda item: (
+                        item.exon_number if item.exon_number is not None else 10**9,
+                        item.start,
+                        item.end,
+                    ),
+                )
+            ]
         return payload
 
 
@@ -239,7 +275,7 @@ class GtfGeneAnnotationIndex:
                     continue
 
                 chromosome, _source, feature_type, start_text, end_text, _score, strand_text, _frame, attributes_text = columns
-                if feature_type not in {"gene", "transcript"}:
+                if feature_type not in {"gene", "transcript", "exon"}:
                     continue
 
                 try:
@@ -290,17 +326,36 @@ class GtfGeneAnnotationIndex:
                     self._genes_by_id[gene_id] = gene_record
                     gene_count += 1
 
-                transcript = GtfTranscriptRecord(
-                    transcript_id=transcript_id,
-                    transcript_name=_attribute_first(attributes, "transcript_name") or None,
+                if feature_type == "transcript":
+                    transcript = GtfTranscriptRecord(
+                        transcript_id=transcript_id,
+                        transcript_name=_attribute_first(attributes, "transcript_name") or None,
+                        chromosome=chromosome,
+                        start=start,
+                        end=end,
+                        strand=strand,
+                        biotype=_attribute_first(attributes, "transcript_biotype", "transcript_type") or None,
+                        tags=tuple(_attribute_list(attributes, "tag")),
+                    )
+                    gene_record.transcripts.append(transcript)
+                    transcript_count += 1
+                    continue
+
+                exon_number_text = _attribute_first(attributes, "exon_number")
+                try:
+                    exon_number = int(exon_number_text) if exon_number_text else None
+                except ValueError:
+                    exon_number = None
+                exon = GtfExonRecord(
+                    exon_id=_strip_version(_attribute_first(attributes, "exon_id")) or None,
                     start=start,
                     end=end,
-                    strand=strand,
-                    biotype=_attribute_first(attributes, "transcript_biotype", "transcript_type") or None,
-                    tags=tuple(_attribute_list(attributes, "tag")),
+                    exon_number=exon_number,
                 )
-                gene_record.transcripts.append(transcript)
-                transcript_count += 1
+                for transcript in gene_record.transcripts:
+                    if transcript.transcript_id == transcript_id:
+                        transcript.exons.append(exon)
+                        break
 
         self._build_bins()
         logger.info(

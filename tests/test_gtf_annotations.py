@@ -42,6 +42,32 @@ def _write_gtf(path: Path) -> None:
                 [
                     "1",
                     "HAVANA",
+                    "exon",
+                    "100",
+                    "150",
+                    ".",
+                    "+",
+                    ".",
+                    'gene_id "ENSG000001.5"; gene_name "GENE1"; transcript_id "ENST000001.2"; exon_id "ENSE000001.1"; exon_number "1";',
+                ]
+            ),
+            '\t'.join(
+                [
+                    "1",
+                    "HAVANA",
+                    "exon",
+                    "200",
+                    "250",
+                    ".",
+                    "+",
+                    ".",
+                    'gene_id "ENSG000001.5"; gene_name "GENE1"; transcript_id "ENST000001.2"; exon_id "ENSE000002.1"; exon_number "2";',
+                ]
+            ),
+            '\t'.join(
+                [
+                    "1",
+                    "HAVANA",
                     "transcript",
                     "120",
                     "400",
@@ -80,3 +106,8 @@ def test_gtf_gene_annotation_index_parses_overlap_and_lookup(tmp_path: Path) -> 
     assert lookup["display_name"] == "GENE1"
     assert lookup["Transcript"][0]["id"] == "ENST000001"
     assert lookup["Transcript"][0]["is_canonical"] == 1
+    assert lookup["Transcript"][0]["seq_region_name"] == "1"
+    assert lookup["Transcript"][0]["Exon"] == [
+        {"id": "ENSE000001", "start": 100, "end": 150, "exon_number": 1},
+        {"id": "ENSE000002", "start": 200, "end": 250, "exon_number": 2},
+    ]
