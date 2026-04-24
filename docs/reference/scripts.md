@@ -132,6 +132,7 @@ python scripts/enrich_structural_variant_exons.py \
   --input-json analyzed_data/dbvar/dbvar_structural_variants_nstd229.json.zip \
   --patch-output-json /N/scratch/kvand/hbp/sv_exon_patches/nstd229_p00.json \
   --cache-path /N/scratch/kvand/hbp/cache/sv_exon_ensembl_p00.json \
+  --sleep-seconds 0.25 \
   --unit-partitions 32 \
   --unit-partition-index 0
 
@@ -140,6 +141,10 @@ python scripts/enrich_structural_variant_exons.py \
   --output-json analyzed_data/dbvar/dbvar_structural_variants_nstd229.exons.json.zip \
   --patch-input-json /N/scratch/kvand/hbp/sv_exon_patches/nstd229_p*.json
 ```
+
+For array jobs, keep `--sleep-seconds` nonzero so parallel partitions do not
+hit Ensembl in the same burst. The shared API client also retries `429 Too Many
+Requests` responses using `Retry-After` when Ensembl provides it.
 
 ## MVP scripts
 

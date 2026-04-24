@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Iterable, Mapping
 
 import requests
+
+
+logger = logging.getLogger(__name__)
 
 
 class ApiClientError(RuntimeError):
@@ -66,6 +70,9 @@ class RestApiClient:
         cache: JsonFileApiCache | None = None,
         cache_path: str | Path | None = None,
         session: requests.Session | None = None,
+        max_retries: int = 6,
+        retry_backoff_seconds: float = 1.0,
+        retry_status_codes: Iterable[int] = (429, 500, 502, 503, 504),
     ) -> None:
         resolved_base_url = (base_url or self.base_url).strip().rstrip("/")
         if not resolved_base_url:
@@ -77,6 +84,9 @@ class RestApiClient:
         self.cache = cache or JsonFileApiCache(cache_path)
         self._session = session or requests.Session()
         self._owns_session = session is None
+        self.max_retries = max(int(max_retries), 0)
+        self.retry_backoff_seconds = max(float(retry_backoff_seconds), 0.0)
+        self.retry_status_codes = {int(status_code) for status_code in retry_status_codes}
 
     def close(self) -> None:
         self.cache.persist()
@@ -102,16 +112,36 @@ class RestApiClient:
             request_headers.update(dict(headers))
 
         url = f"{self.base_url}/{endpoint.lstrip('/')}"
-        try:
-            response = self._session.get(
-                url,
-                params=dict(params or {}),
-                headers=request_headers,
-                timeout=self.timeout_seconds,
-            )
-            response.raise_for_status()
-        except requests.RequestException as exc:
-            raise ApiClientError(f"API request failed for {url}: {exc}") from exc
+        response: requests.Response | None = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                response = self._session.get(
+                    url,
+                    params=dict(params or {}),
+                    headers=request_headers,
+                    timeout=self.timeout_seconds,
+                )
+                response.raise_for_status()
+                break
+            except requests.RequestException as exc:
+                status_code = self._status_code_from_exception(exc)
+                if attempt >= self.max_retries or status_code not in self.retry_status_codes:
+                    raise ApiClientError(f"API request failed for {url}: {exc}") from exc
+
+                delay = self._retry_delay_seconds(exc, attempt=attempt)
+                logger.warning(
+                    "API request failed with retryable status %s for %s; retrying in %.1fs (%d/%d)",
+                    status_code,
+                    url,
+                    delay,
+                    attempt + 1,
+                    self.max_retries,
+                )
+                if delay:
+                    time.sleep(delay)
+
+        if response is None:
+            raise ApiClientError(f"API request failed for {url}: no response")
 
         try:
             payload = response.json()
@@ -125,3 +155,21 @@ class RestApiClient:
             time.sleep(self.sleep_seconds)
 
         return deepcopy(payload)
+
+    def _status_code_from_exception(self, exc: requests.RequestException) -> int | None:
+        response = getattr(exc, "response", None)
+        status_code = getattr(response, "status_code", None)
+        try:
+            return int(status_code) if status_code is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    def _retry_delay_seconds(self, exc: requests.RequestException, *, attempt: int) -> float:
+        response = getattr(exc, "response", None)
+        retry_after = getattr(response, "headers", {}).get("Retry-After") if response is not None else None
+        if retry_after:
+            try:
+                return max(float(retry_after), 0.0)
+            except ValueError:
+                pass
+        return self.retry_backoff_seconds * (2**attempt)
