@@ -37,6 +37,16 @@ CREATE TABLE IF NOT EXISTS sga_gene_payloads (
     )
     connection.execute(
         """
+CREATE TABLE IF NOT EXISTS protein_context_gene_payloads (
+    gene_id VARCHAR,
+    gene_id_normalized VARCHAR,
+    payload_json VARCHAR,
+    source_path VARCHAR
+)
+"""
+    )
+    connection.execute(
+        """
 CREATE TABLE IF NOT EXISTS secondary_analysis_metadata (
     analysis_id VARCHAR,
     analysis_version BIGINT,
@@ -48,21 +58,94 @@ CREATE TABLE IF NOT EXISTS secondary_analysis_metadata (
 )
 """
     )
+    _ensure_gene_catalog_columns(connection)
+
+
+def _table_columns(connection: Any, table_name: str) -> set[str]:
+    try:
+        rows = connection.execute(f"PRAGMA table_info('{table_name}')").fetchall()
+    except Exception:
+        return set()
+    return {str(row[1]) for row in rows}
+
+
+def _ensure_gene_catalog_columns(connection: Any) -> None:
+    columns = _table_columns(connection, "gene_catalog")
+    if not columns:
+        return
+    if "has_protein_context" not in columns:
+        connection.execute(
+            "ALTER TABLE gene_catalog ADD COLUMN has_protein_context BOOLEAN DEFAULT false"
+        )
 
 
 def _refresh_gene_catalog(connection: Any) -> None:
+    _ensure_gene_catalog_columns(connection)
     connection.execute("DELETE FROM gene_catalog")
     connection.execute(
         """
-INSERT INTO gene_catalog
+WITH gene_universe AS (
+    SELECT gene_id_normalized, min(gene_id) AS gene_id
+    FROM (
+        SELECT gene_id, gene_id_normalized FROM association_gene_payloads
+        UNION ALL
+        SELECT gene_id, gene_id_normalized FROM overall_gene_payloads
+        UNION ALL
+        SELECT gene_id, gene_id_normalized FROM expression_gene_payloads
+        UNION ALL
+        SELECT gene_id, gene_id_normalized FROM sga_gene_payloads
+        UNION ALL
+        SELECT gene_id, gene_id_normalized FROM protein_context_gene_payloads
+    )
+    GROUP BY gene_id_normalized
+),
+association_flags AS (
+    SELECT
+        gene_id_normalized,
+        bool_or(dataset_type = 'CVD') AS has_cvd_association,
+        bool_or(dataset_type = 'TRAIT') AS has_trait_association
+    FROM association_gene_payloads
+    GROUP BY gene_id_normalized
+),
+overall_flags AS (
+    SELECT
+        gene_id_normalized,
+        bool_or(dataset_type = 'CVD') AS has_cvd_overall,
+        bool_or(dataset_type = 'TRAIT') AS has_trait_overall
+    FROM overall_gene_payloads
+    GROUP BY gene_id_normalized
+),
+expression_flags AS (
+    SELECT gene_id_normalized, true AS has_expression
+    FROM expression_gene_payloads
+    GROUP BY gene_id_normalized
+),
+sga_flags AS (
+    SELECT gene_id_normalized, true AS has_sga
+    FROM sga_gene_payloads
+    GROUP BY gene_id_normalized
+),
+protein_context_flags AS (
+    SELECT gene_id_normalized, true AS has_protein_context
+    FROM protein_context_gene_payloads
+    GROUP BY gene_id_normalized
+)
+INSERT INTO gene_catalog (
+    gene_id,
+    gene_id_normalized,
+    has_cvd,
+    has_trait,
+    has_cvd_association,
+    has_trait_association,
+    has_cvd_overall,
+    has_trait_overall,
+    has_expression,
+    has_sga,
+    has_protein_context
+)
 SELECT
-    coalesce(a.gene_id, o.gene_id, e.gene_id, s.gene_id) AS gene_id,
-    coalesce(
-        a.gene_id_normalized,
-        o.gene_id_normalized,
-        e.gene_id_normalized,
-        s.gene_id_normalized
-    ) AS gene_id_normalized,
+    g.gene_id AS gene_id,
+    g.gene_id_normalized AS gene_id_normalized,
     coalesce(a.has_cvd_association, false) OR coalesce(o.has_cvd_overall, false) AS has_cvd,
     coalesce(a.has_trait_association, false) OR coalesce(o.has_trait_overall, false) AS has_trait,
     coalesce(a.has_cvd_association, false) AS has_cvd_association,
@@ -70,44 +153,14 @@ SELECT
     coalesce(o.has_cvd_overall, false) AS has_cvd_overall,
     coalesce(o.has_trait_overall, false) AS has_trait_overall,
     coalesce(e.has_expression, false) AS has_expression,
-    coalesce(s.has_sga, false) AS has_sga
-FROM (
-    SELECT
-        gene_id,
-        gene_id_normalized,
-        bool_or(dataset_type = 'CVD') AS has_cvd_association,
-        bool_or(dataset_type = 'TRAIT') AS has_trait_association
-    FROM association_gene_payloads
-    GROUP BY gene_id, gene_id_normalized
-) a
-FULL OUTER JOIN (
-    SELECT
-        gene_id,
-        gene_id_normalized,
-        bool_or(dataset_type = 'CVD') AS has_cvd_overall,
-        bool_or(dataset_type = 'TRAIT') AS has_trait_overall
-    FROM overall_gene_payloads
-    GROUP BY gene_id, gene_id_normalized
-) o
-  ON a.gene_id_normalized = o.gene_id_normalized
-FULL OUTER JOIN (
-    SELECT
-        gene_id,
-        gene_id_normalized,
-        true AS has_expression
-    FROM expression_gene_payloads
-    GROUP BY gene_id, gene_id_normalized
-) e
-  ON coalesce(a.gene_id_normalized, o.gene_id_normalized) = e.gene_id_normalized
-FULL OUTER JOIN (
-    SELECT
-        gene_id,
-        gene_id_normalized,
-        true AS has_sga
-    FROM sga_gene_payloads
-    GROUP BY gene_id, gene_id_normalized
-) s
-  ON coalesce(a.gene_id_normalized, o.gene_id_normalized, e.gene_id_normalized) = s.gene_id_normalized
+    coalesce(s.has_sga, false) AS has_sga,
+    coalesce(p.has_protein_context, false) AS has_protein_context
+FROM gene_universe g
+LEFT JOIN association_flags a ON g.gene_id_normalized = a.gene_id_normalized
+LEFT JOIN overall_flags o ON g.gene_id_normalized = o.gene_id_normalized
+LEFT JOIN expression_flags e ON g.gene_id_normalized = e.gene_id_normalized
+LEFT JOIN sga_flags s ON g.gene_id_normalized = s.gene_id_normalized
+LEFT JOIN protein_context_flags p ON g.gene_id_normalized = p.gene_id_normalized
 """
     )
 
@@ -144,6 +197,8 @@ def _table_name_for_analysis(analysis_id: str) -> str:
         return "expression_gene_payloads"
     if analysis_id == "sga":
         return "sga_gene_payloads"
+    if analysis_id == "protein_context":
+        return "protein_context_gene_payloads"
     raise ValueError(f"Unsupported secondary analysis table mapping: {analysis_id}")
 
 

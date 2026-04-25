@@ -14,6 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from datahub.secondary_analyses.expression import generate_expression_artifacts
+from datahub.secondary_analyses.protein_context import generate_protein_context_artifacts
 from datahub.secondary_analyses.registry import SecondaryAnalysisRegistry
 from datahub.secondary_analyses.serving import apply_secondary_analysis_artifacts
 from datahub.secondary_analyses.sga import generate_sga_artifacts
@@ -45,6 +46,64 @@ def parse_args() -> argparse.Namespace:
         "--expression-json-path",
         default=None,
         help="Path to expression.json for the expression secondary analysis.",
+    )
+    generate.add_argument(
+        "--variant-viewer-root",
+        default=None,
+        help=(
+            "Variant-viewer artifact root used by protein_context to infer genes, "
+            "isoform IDs, and protein lengths. Usually analyzed_data/variant_viewer."
+        ),
+    )
+    generate.add_argument(
+        "--protein-context-cache-path",
+        default=None,
+        help="Persistent JSON API cache for protein_context Ensembl/Proteins/InterPro calls.",
+    )
+    generate.add_argument(
+        "--protein-context-species",
+        default="homo_sapiens",
+        help="Ensembl species for protein_context generation.",
+    )
+    generate.add_argument(
+        "--protein-context-max-isoforms",
+        type=int,
+        default=12,
+        help="Maximum Ensembl protein-coding isoforms to emit per gene for protein_context.",
+    )
+    generate.add_argument(
+        "--protein-context-timeout-seconds",
+        type=float,
+        default=30.0,
+        help="Per-request timeout for protein_context API calls.",
+    )
+    generate.add_argument(
+        "--protein-context-sleep-seconds",
+        type=float,
+        default=0.1,
+        help="Delay after uncached protein_context API requests.",
+    )
+    generate.add_argument(
+        "--protein-context-limit",
+        type=int,
+        default=None,
+        help="Optional maximum genes to process in this protein_context job.",
+    )
+    generate.add_argument(
+        "--protein-context-progress-every",
+        type=int,
+        default=25,
+        help="Log protein_context progress every N selected genes.",
+    )
+    generate.add_argument(
+        "--protein-context-skip-ebi-proteins",
+        action="store_true",
+        help="Skip EBI Proteins API feature enrichment.",
+    )
+    generate.add_argument(
+        "--protein-context-skip-interpro",
+        action="store_true",
+        help="Skip InterPro feature enrichment.",
     )
     generate.add_argument(
         "--include-genes",
@@ -224,6 +283,24 @@ def _run_generate(args: argparse.Namespace) -> int:
                 duckdb_threads=args.duckdb_threads,
                 duckdb_memory_limit=args.duckdb_memory_limit,
                 duckdb_temp_directory=args.duckdb_temp_directory,
+            )
+        elif analysis_id == "protein_context":
+            result = generate_protein_context_artifacts(
+                output_root=output_root,
+                manifest=manifest,
+                include_genes=include_genes,
+                variant_viewer_root=args.variant_viewer_root,
+                species=args.protein_context_species,
+                cache_path=args.protein_context_cache_path,
+                timeout_seconds=args.protein_context_timeout_seconds,
+                sleep_seconds=args.protein_context_sleep_seconds,
+                max_isoforms=args.protein_context_max_isoforms,
+                use_ebi_proteins=not args.protein_context_skip_ebi_proteins,
+                use_interpro=not args.protein_context_skip_interpro,
+                unit_partitions=args.unit_partitions,
+                unit_partition_index=args.unit_partition_index,
+                limit=args.protein_context_limit,
+                progress_every=args.protein_context_progress_every,
             )
         else:
             raise ValueError(f"Unsupported secondary analysis: {analysis_id}")

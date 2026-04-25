@@ -75,6 +75,81 @@ class EnsemblRestClient(RestApiClient):
     def gene_lookup(self, gene_id: str) -> dict[str, Any]:
         return self.lookup_id(gene_id, expand=True)
 
+    def lookup_symbol(
+        self,
+        symbol: str,
+        *,
+        species: str = "homo_sapiens",
+        expand: bool = False,
+    ) -> dict[str, Any]:
+        cache_key = f"{species}:{symbol}:expand={int(bool(expand))}"
+        payload = self.get_json(
+            f"lookup/symbol/{quote(species, safe='')}/{quote(symbol, safe='')}",
+            params={"expand": 1 if expand else 0},
+            cache_namespace="ensembl_lookup_symbol",
+            cache_key=cache_key,
+        )
+        return dict(payload or {})
+
+    def xrefs_id(
+        self,
+        identifier: str,
+        *,
+        external_db: str | None = None,
+    ) -> list[dict[str, Any]]:
+        params: dict[str, Any] = {}
+        if external_db:
+            params["external_db"] = external_db
+        cache_key = f"{identifier}:external_db={external_db or ''}"
+        payload = self.get_json(
+            f"xrefs/id/{quote(identifier, safe='')}",
+            params=params,
+            cache_namespace="ensembl_xrefs_id",
+            cache_key=cache_key,
+        )
+        return list(payload or [])
+
+    def xrefs_name(
+        self,
+        name: str,
+        *,
+        species: str = "homo_sapiens",
+        external_db: str | None = None,
+    ) -> list[dict[str, Any]]:
+        params: dict[str, Any] = {}
+        if external_db:
+            params["external_db"] = external_db
+        cache_key = f"{species}:{name}:external_db={external_db or ''}"
+        payload = self.get_json(
+            f"xrefs/name/{quote(species, safe='')}/{quote(name, safe='')}",
+            params=params,
+            cache_namespace="ensembl_xrefs_name",
+            cache_key=cache_key,
+        )
+        return list(payload or [])
+
+    def overlap_translation(
+        self,
+        translation_id: str,
+        *,
+        feature: str = "protein_feature",
+        species: str = "homo_sapiens",
+        type_filter: str | None = None,
+    ) -> list[dict[str, Any]]:
+        params: dict[str, Any] = {"feature": feature, "species": species}
+        if type_filter:
+            params["type"] = type_filter
+        cache_key = (
+            f"{translation_id}:feature={feature}:species={species}:type={type_filter or ''}"
+        )
+        payload = self.get_json(
+            f"overlap/translation/{quote(translation_id, safe='')}",
+            params=params,
+            cache_namespace="ensembl_overlap_translation",
+            cache_key=cache_key,
+        )
+        return list(payload or [])
+
     def overlap_region_genes(
         self,
         *,

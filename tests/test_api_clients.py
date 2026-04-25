@@ -6,7 +6,12 @@ import requests
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from datahub.apis import EnsemblRestClient, NcbiVariationApiClient
+from datahub.apis import (
+    EbiProteinsApiClient,
+    EnsemblRestClient,
+    InterProApiClient,
+    NcbiVariationApiClient,
+)
 
 
 class _FakeResponse:
@@ -110,6 +115,51 @@ def test_ensembl_client_retries_rate_limited_lookup(monkeypatch) -> None:
     assert payload == {"id": "ENST00000530963"}
     assert len(session.calls) == 2
     assert sleep_calls == [0.25]
+
+
+def test_ensembl_translation_overlap_endpoint() -> None:
+    session = _FakeSession(
+        {
+            (
+                "https://rest.ensembl.org/overlap/translation/ENSP0001",
+                (("feature", "translation_exon"), ("species", "homo_sapiens")),
+            ): [{"start": 1, "end": 10}],
+        }
+    )
+
+    client = EnsemblRestClient(session=session, sleep_seconds=0.0)
+    payload = client.overlap_translation("ENSP0001", feature="translation_exon")
+
+    assert payload == [{"start": 1, "end": 10}]
+    assert session.calls[0]["url"] == "https://rest.ensembl.org/overlap/translation/ENSP0001"
+
+
+def test_ebi_proteins_feature_endpoint() -> None:
+    session = _FakeSession(
+        {
+            (
+                "https://www.ebi.ac.uk/proteins/api/features/P12345",
+                (),
+            ): {"features": [{"type": "DOMAIN", "begin": "1", "end": "20"}]},
+        }
+    )
+
+    client = EbiProteinsApiClient(session=session, sleep_seconds=0.0)
+    assert client.features("P12345") == [{"type": "DOMAIN", "begin": "1", "end": "20"}]
+
+
+def test_interpro_entries_for_uniprot_endpoint() -> None:
+    session = _FakeSession(
+        {
+            (
+                "https://www.ebi.ac.uk/interpro/api/entry/interpro/protein/uniprot/P12345",
+                (("page_size", 200),),
+            ): {"results": [{"metadata": {"accession": "IPR1"}}], "next": None},
+        }
+    )
+
+    client = InterProApiClient(session=session, sleep_seconds=0.0)
+    assert client.entries_for_uniprot("P12345") == [{"metadata": {"accession": "IPR1"}}]
 
 
 def test_ncbi_variation_client_normalizes_rsid_prefix() -> None:

@@ -1,0 +1,7 @@
+{
+  "analysis_id": "protein_context",
+  "version": 1,
+  "mode": "derived",
+  "description": "Build protein-coordinate isoform, exon, domain, topology, and feature context for the splicing viewer.",
+  "artifact_subdir": "protein_context"
+}

@@ -137,6 +137,23 @@ To keep the existing frontend payload contract stable without reintroducing a pa
 
 This is an implementation detail for runtime compatibility. Scientifically, the SGA result is still interpreted as shared rsID identity across CVD/trait phenotype pairs.
 
+## Protein-context semantics
+
+Protein context is a derived secondary analysis for the splicing viewer.
+
+The contract is:
+
+- per gene
+- per protein-coding isoform
+- all feature coordinates expressed in amino-acid/protein coordinates
+- Ensembl provides the transcript/translation backbone and translation-exon track
+- EBI Proteins and InterPro add protein feature, domain, topology, and region annotations when a UniProt accession can be resolved
+
+The generated artifact is intentionally separate from structural-variant genomic
+exon backfills. SV exon data can help as a fallback, but the splicing viewer's
+scientific axis is protein residue position, so the primary artifact must be
+protein-coordinate and isoform-aware.
+
 ## Incremental serving updates
 
 Secondary analyses are meant to update an existing serving DB in place.
@@ -166,8 +183,15 @@ Typical pattern:
 
 - derive `sga` from the corrected unified DuckDB
 - optionally generate `expression` artifacts from an explicit source file
+- generate `protein_context` from a variant-viewer root and API-backed protein annotations
 
 For large SGA runs, the generator streams the cleaned association point store in gene order instead of materializing the full deduplicated result set in Python memory. This keeps memory bounded to one gene's phenotype/variant working set at a time and is the intended HPC execution mode.
+
+For protein-context runs on BigRed, use the Slurm wrapper:
+
+- `scripts/slurm/generate_protein_context.sbatch`
+
+Submit it as a capped array job, for example `sbatch --array=0-31%4 ...`, so no more than four API-fetch partitions run at once.
 
 Very large SGA runs should also be split into deterministic gene partitions:
 

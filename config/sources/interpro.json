@@ -1,0 +1,19 @@
+{
+  "source_id": "interpro",
+  "display_name": "InterPro",
+  "description": "Protein family, domain, repeat, site, and member-signature annotations integrated from the InterPro consortium.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["PROTEIN_CONTEXT"],
+  "modalities": ["proteomics", "protein_domain", "annotation"],
+  "access_mode": "api",
+  "homepage_url": "https://www.ebi.ac.uk/interpro/",
+  "api_base_url": "https://www.ebi.ac.uk/interpro/api",
+  "bulk_download_url": "https://ftp.ebi.ac.uk/pub/databases/interpro/",
+  "license_name": "EMBL-EBI terms of use",
+  "update_frequency": "release-based",
+  "priority_tier": 1,
+  "provenance_tags": ["interpro", "domain", "family", "site"],
+  "data_category": "protein_context",
+  "integration_status": "integrated",
+  "default_params": {}
+}

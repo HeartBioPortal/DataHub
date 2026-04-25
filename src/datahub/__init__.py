@@ -6,7 +6,9 @@ validation, enrichment, storage and publication.
 
 from .apis import (
     ApiClientError,
+    EbiProteinsApiClient,
     EnsemblRestClient,
+    InterProApiClient,
     JsonFileApiCache,
     NcbiVariationApiClient,
     RestApiClient,
@@ -41,6 +43,11 @@ from .export_manifest import (
 from .models import CanonicalRecord
 from .output_contracts import OutputContract, OutputContractLoader
 from .pipeline import DataHubPipeline, DataHubRunReport
+from .protein_context import (
+    IsoformHint,
+    ProteinContextReport,
+    build_protein_context_payload,
+)
 from .prep import (
     PREPARED_ASSOCIATION_COLUMNS,
     AssociationRawPreparer,
@@ -94,6 +101,8 @@ __all__ = [
     "RestApiClient",
     "JsonFileApiCache",
     "EnsemblRestClient",
+    "EbiProteinsApiClient",
+    "InterProApiClient",
     "NcbiVariationApiClient",
     "GtfGeneAnnotationIndex",
     "GtfGeneRecord",
@@ -112,6 +121,9 @@ __all__ = [
     "DatasetContract",
     "DataHubPipeline",
     "DataHubRunReport",
+    "IsoformHint",
+    "ProteinContextReport",
+    "build_protein_context_payload",
     "PREPARED_ASSOCIATION_COLUMNS",
     "open_text_artifact",
     "load_json_artifact",

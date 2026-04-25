@@ -1,0 +1,19 @@
+{
+  "source_id": "ebi_proteins",
+  "display_name": "EMBL-EBI Proteins API",
+  "description": "UniProt-derived protein sequences, feature annotations, topology, variants, and proteomics mappings exposed through the EBI Proteins API.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["PROTEIN_CONTEXT"],
+  "modalities": ["proteomics", "protein_feature", "annotation"],
+  "access_mode": "api",
+  "homepage_url": "https://www.ebi.ac.uk/proteins/api/doc/index",
+  "api_base_url": "https://www.ebi.ac.uk/proteins/api",
+  "bulk_download_url": null,
+  "license_name": "UniProt/EMBL-EBI terms of use",
+  "update_frequency": "release-based",
+  "priority_tier": 1,
+  "provenance_tags": ["uniprot", "ebi_proteins", "protein_feature"],
+  "data_category": "protein_context",
+  "integration_status": "integrated",
+  "default_params": {}
+}

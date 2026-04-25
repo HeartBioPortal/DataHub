@@ -313,6 +313,7 @@ Use this when:
 
 - you want to derive `sga` from the cleaned unified association DuckDB
 - you want to normalize `expression` into the standard secondary-analysis artifact layout
+- you want to derive `protein_context` artifacts for the splicing viewer from Ensembl, EBI Proteins, and InterPro
 - you want to update an existing serving DuckDB with secondary analyses without rebuilding association tables
 
 Operational note:
@@ -320,6 +321,7 @@ Operational note:
 - the `sga` generator is designed for HPC-style runs and streams the unified association table gene-by-gene to avoid loading the full deduplicated working set into Python memory
 - for large production SGA runs, use `--unit-partitions` and `--unit-partition-index` to split work across deterministic gene shards; clear the output once before submission rather than using `--replace` inside parallel jobs
 - use `--duckdb-memory-limit` and `--duckdb-temp-directory` on HPC so large distinct/order phases can spill to scratch rather than being killed for exceeding Slurm memory
+- for `protein_context`, use `--variant-viewer-root`, `--protein-context-cache-path`, and capped Slurm arrays to avoid API rate-limit spikes
 
 Subcommands:
 

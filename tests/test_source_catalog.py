@@ -11,6 +11,7 @@ ALLOWED_CATEGORIES = {
     "single_cell_spatial",
     "epigenomics_regulatory",
     "proteomics",
+    "protein_context",
     "metabolomics_lipidomics",
     "pathways_interactions_networks",
     "drug_target_translational",
