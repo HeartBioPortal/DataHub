@@ -16,6 +16,8 @@ DATAHUB_ROOT="${DATAHUB_ROOT:-$PWD}"
 PYTHON="${PYTHON:-.venv/bin/python3}"
 OUTPUT_ROOT="${OUTPUT_ROOT:-/N/scratch/$USER/hbp/secondary_analyses}"
 VARIANT_VIEWER_ROOT="${VARIANT_VIEWER_ROOT:-$DATAHUB_ROOT/analyzed_data/variant_viewer}"
+ASSOCIATION_DB_PATH="${ASSOCIATION_DB_PATH:-/N/scratch/$USER/hbp/datamart/mvp_fast.duckdb}"
+ASSOCIATION_TABLE="${ASSOCIATION_TABLE:-mvp_association_points}"
 CACHE_ROOT="${CACHE_ROOT:-/N/scratch/$USER/hbp/cache/datahub}"
 CACHE_PATH="${CACHE_PATH:-$CACHE_ROOT/protein_context_api_cache_${SLURM_ARRAY_TASK_ID:-0}.json}"
 UNIT_PARTITIONS="${UNIT_PARTITIONS:-32}"
@@ -46,6 +48,11 @@ if [[ "${SKIP_INTERPRO:-0}" == "1" ]]; then
 fi
 if [[ -n "${PROTEIN_CONTEXT_LIMIT:-}" ]]; then
   extra_args+=(--protein-context-limit "$PROTEIN_CONTEXT_LIMIT")
+fi
+if [[ -f "$ASSOCIATION_DB_PATH" ]]; then
+  extra_args+=(--association-db-path "$ASSOCIATION_DB_PATH" --association-table "$ASSOCIATION_TABLE")
+else
+  echo "WARNING: association DuckDB not found at $ASSOCIATION_DB_PATH; relying on VARIANT_VIEWER_ROOT=$VARIANT_VIEWER_ROOT" >&2
 fi
 
 "$PYTHON" scripts/dataset_specific_scripts/unified/run_secondary_analyses.py generate \

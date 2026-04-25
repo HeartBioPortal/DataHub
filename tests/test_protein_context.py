@@ -1,6 +1,7 @@
 import gzip
 import json
 import sys
+import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -9,6 +10,8 @@ sys.path.insert(0, str(ROOT / "src"))
 from datahub.protein_context import IsoformHint, build_protein_context_payload
 from datahub.secondary_analyses.base import SecondaryAnalysisManifest
 from datahub.secondary_analyses.protein_context import (
+    collect_association_db_genes,
+    collect_variant_viewer_genes,
     generate_protein_context_artifacts,
     read_variant_viewer_isoform_hints,
 )
@@ -160,6 +163,59 @@ def test_variant_viewer_hints_and_secondary_generation(tmp_path: Path) -> None:
         payload = json.loads(stream.read())
     assert payload["gene"] == "ANK2"
     assert payload["isoforms"][0]["domains"]
+
+
+def test_variant_viewer_gene_discovery_supports_compressed_tables(tmp_path: Path) -> None:
+    variant_root = tmp_path / "variant_viewer"
+    overall = variant_root / "overall"
+    overall.mkdir(parents=True)
+    with zipfile.ZipFile(overall / "TTN.csv.zip", "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("TTN.csv", "protein_id,max,value,mutation\nNM_001267550.2,35991,1,missense\n")
+    with gzip.open(overall / "ANK2.tsv.gz", "wt", encoding="utf-8") as stream:
+        stream.write("protein_id\tmax\tvalue\tmutation\nNM_001148.6\t3957\t100\tmissense\n")
+
+    assert collect_variant_viewer_genes(variant_root) == {"ANK2", "TTN"}
+    hints = read_variant_viewer_isoform_hints(variant_viewer_root=variant_root, gene="ANK2")
+    assert hints == [IsoformHint(identifier="NM_001148.6", length_aa=3957, row_count=1)]
+
+
+def test_protein_context_falls_back_to_association_db_genes(tmp_path: Path) -> None:
+    if duckdb is None:
+        import pytest
+
+        pytest.skip("duckdb is not installed in this Python environment")
+
+    db_path = tmp_path / "association.duckdb"
+    con = duckdb.connect(str(db_path))
+    try:
+        con.execute("CREATE TABLE mvp_association_points (gene_id VARCHAR)")
+        con.execute("INSERT INTO mvp_association_points VALUES ('ANK2'), ('12345'), ('TTN')")
+    finally:
+        con.close()
+
+    assert collect_association_db_genes(db_path) == {"ANK2", "TTN"}
+
+
+def test_protein_context_zero_gene_source_fails_loudly(tmp_path: Path) -> None:
+    import pytest
+
+    manifest = SecondaryAnalysisManifest(
+        analysis_id="protein_context",
+        version=1,
+        mode="derived",
+        description="test",
+        artifact_subdir="protein_context",
+    )
+
+    with pytest.raises(ValueError, match="zero candidate genes"):
+        generate_protein_context_artifacts(
+            output_root=tmp_path / "secondary",
+            manifest=manifest,
+            variant_viewer_root=tmp_path / "missing_variant_viewer",
+            ensembl_client=_FakeEnsemblProteinClient(),
+            proteins_client=_FakeProteinsClient(),
+            interpro_client=_FakeInterProClient(),
+        )
 
 
 def test_protein_context_secondary_apply_updates_catalog(tmp_path: Path) -> None:

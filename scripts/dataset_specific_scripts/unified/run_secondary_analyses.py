@@ -106,6 +106,14 @@ def parse_args() -> argparse.Namespace:
         help="Skip InterPro feature enrichment.",
     )
     generate.add_argument(
+        "--protein-context-allow-empty",
+        action="store_true",
+        help=(
+            "Allow protein_context generation to emit metadata only when no candidate genes "
+            "are found. By default this is treated as a failed run."
+        ),
+    )
+    generate.add_argument(
         "--include-genes",
         default="",
         help="Optional comma-separated gene list filter.",
@@ -290,6 +298,8 @@ def _run_generate(args: argparse.Namespace) -> int:
                 manifest=manifest,
                 include_genes=include_genes,
                 variant_viewer_root=args.variant_viewer_root,
+                association_db_path=args.association_db_path,
+                association_table=args.association_table,
                 species=args.protein_context_species,
                 cache_path=args.protein_context_cache_path,
                 timeout_seconds=args.protein_context_timeout_seconds,
@@ -301,6 +311,7 @@ def _run_generate(args: argparse.Namespace) -> int:
                 unit_partition_index=args.unit_partition_index,
                 limit=args.protein_context_limit,
                 progress_every=args.protein_context_progress_every,
+                allow_empty=args.protein_context_allow_empty,
             )
         else:
             raise ValueError(f"Unsupported secondary analysis: {analysis_id}")

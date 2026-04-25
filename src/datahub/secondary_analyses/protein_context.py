@@ -9,12 +9,14 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Iterable
 
+from datahub.artifact_io import open_text_artifact
 from datahub.apis import (
     EbiProteinsApiClient,
     EnsemblRestClient,
     InterProApiClient,
     JsonFileApiCache,
 )
+from datahub.gene_ids import is_valid_gene_id
 from datahub.protein_context import (
     EbiProteinsFeatureClient,
     EnsemblProteinContextClient,
@@ -31,7 +33,19 @@ logger = logging.getLogger(__name__)
 
 
 def _safe_gene_from_path(path: Path) -> str:
-    return path.name.removesuffix(".csv").removesuffix(".tsv").strip().upper()
+    name = path.name
+    for suffix in (".gz", ".zip"):
+        if name.lower().endswith(suffix):
+            name = name[: -len(suffix)]
+    for suffix in (".csv", ".tsv", ".json"):
+        if name.lower().endswith(suffix):
+            name = name[: -len(suffix)]
+    return name.strip().upper()
+
+
+def _is_variant_viewer_table(path: Path) -> bool:
+    name = path.name.lower()
+    return name.endswith((".csv", ".csv.gz", ".csv.zip", ".tsv", ".tsv.gz", ".tsv.zip"))
 
 
 def _selected_by_partition(
@@ -62,9 +76,122 @@ def collect_variant_viewer_genes(variant_viewer_root: str | Path | None) -> set[
         return set()
     return {
         _safe_gene_from_path(path)
-        for path in overall_dir.glob("*.csv")
-        if _safe_gene_from_path(path)
+        for path in overall_dir.iterdir()
+        if path.is_file() and _is_variant_viewer_table(path)
+        if is_valid_gene_id(_safe_gene_from_path(path))
     }
+
+
+def _quote_identifier(identifier: str) -> str:
+    return '"' + str(identifier).replace('"', '""') + '"'
+
+
+def collect_association_db_genes(
+    db_path: str | Path | None,
+    *,
+    source_table: str = "mvp_association_points",
+) -> set[str]:
+    """Collect candidate gene symbols from a DataHub serving or association DuckDB."""
+
+    if not db_path:
+        return set()
+    path = Path(db_path)
+    if not path.exists():
+        return set()
+
+    try:
+        import duckdb  # type: ignore
+    except ImportError as exc:  # pragma: no cover - runtime dependency guard
+        raise RuntimeError("duckdb is required to infer protein_context genes from DuckDB") from exc
+
+    table_priority = [
+        "gene_catalog",
+        "association_gene_payloads",
+        "overall_gene_payloads",
+        source_table,
+    ]
+    column_priority = [
+        "gene_id_normalized",
+        "gene_id",
+        "gene_symbol",
+        "symbol",
+        "hgnc_symbol",
+    ]
+
+    connection = duckdb.connect(str(path), read_only=True)
+    try:
+        available_tables = {
+            str(row[0])
+            for row in connection.execute("SHOW TABLES").fetchall()
+        }
+        for table in table_priority:
+            if table not in available_tables:
+                continue
+            columns = {
+                str(row[0])
+                for row in connection.execute(
+                    """
+SELECT column_name
+FROM information_schema.columns
+WHERE table_name = ?
+""",
+                    [table],
+                ).fetchall()
+            }
+            gene_column = next((column for column in column_priority if column in columns), None)
+            if gene_column is None:
+                continue
+
+            genes: set[str] = set()
+            for (raw_gene,) in connection.execute(
+                f"""
+SELECT DISTINCT trim(cast({_quote_identifier(gene_column)} AS VARCHAR)) AS gene
+FROM {_quote_identifier(table)}
+WHERE coalesce(trim(cast({_quote_identifier(gene_column)} AS VARCHAR)), '') <> ''
+"""
+            ).fetchall():
+                gene = str(raw_gene or "").strip().upper()
+                if is_valid_gene_id(gene):
+                    genes.add(gene)
+            if genes:
+                logger.info(
+                    "Protein context gene source: db=%s table=%s column=%s genes=%d",
+                    path,
+                    table,
+                    gene_column,
+                    len(genes),
+                )
+                return genes
+    finally:
+        connection.close()
+
+    return set()
+
+
+def _variant_viewer_diagnostic(variant_viewer_root: str | Path | None) -> dict[str, Any]:
+    overall_dir = _variant_viewer_overall_dir(variant_viewer_root)
+    if overall_dir is None:
+        return {"variant_viewer_root": "", "overall_dir": "", "overall_dir_exists": False}
+
+    files: list[str] = []
+    if overall_dir.exists():
+        files = sorted(path.name for path in overall_dir.iterdir() if path.is_file())[:10]
+    return {
+        "variant_viewer_root": str(variant_viewer_root or ""),
+        "overall_dir": str(overall_dir),
+        "overall_dir_exists": overall_dir.exists(),
+        "sample_files": files,
+    }
+
+
+def _resolve_variant_viewer_gene_file(overall_dir: Path, gene: str) -> Path | None:
+    candidates: list[Path] = []
+    for stem in (gene.upper(), gene):
+        candidates.extend(
+            overall_dir / f"{stem}{suffix}"
+            for suffix in (".csv", ".csv.gz", ".csv.zip", ".tsv", ".tsv.gz", ".tsv.zip")
+        )
+    return next((path for path in candidates if path.exists()), None)
 
 
 def read_variant_viewer_isoform_hints(
@@ -77,14 +204,12 @@ def read_variant_viewer_isoform_hints(
     overall_dir = _variant_viewer_overall_dir(variant_viewer_root)
     if overall_dir is None:
         return []
-    path = overall_dir / f"{gene.upper()}.csv"
-    if not path.exists():
-        path = overall_dir / f"{gene}.csv"
-    if not path.exists():
+    path = _resolve_variant_viewer_gene_file(overall_dir, gene)
+    if path is None:
         return []
 
     grouped: dict[str, dict[str, Any]] = defaultdict(lambda: {"lengths": [], "row_count": 0})
-    with path.open("rt", encoding="utf-8", newline="") as stream:
+    with open_text_artifact(path, newline="") as stream:
         sample = stream.read(4096)
         stream.seek(0)
         first_line = sample.splitlines()[0] if sample.splitlines() else ""
@@ -119,10 +244,25 @@ def _resolve_gene_list(
     *,
     include_genes: set[str] | None,
     variant_viewer_root: str | Path | None,
+    association_db_path: str | Path | None,
+    association_table: str,
 ) -> list[str]:
     if include_genes:
         return sorted({gene.strip().upper() for gene in include_genes if gene.strip()})
-    return sorted(collect_variant_viewer_genes(variant_viewer_root))
+    genes = collect_variant_viewer_genes(variant_viewer_root)
+    if genes:
+        logger.info(
+            "Protein context gene source: variant_viewer_root=%s genes=%d",
+            variant_viewer_root,
+            len(genes),
+        )
+        return sorted(genes)
+    return sorted(
+        collect_association_db_genes(
+            association_db_path,
+            source_table=association_table,
+        )
+    )
 
 
 def generate_protein_context_artifacts(
@@ -131,6 +271,8 @@ def generate_protein_context_artifacts(
     manifest: SecondaryAnalysisManifest,
     include_genes: set[str] | None = None,
     variant_viewer_root: str | Path | None = None,
+    association_db_path: str | Path | None = None,
+    association_table: str = "mvp_association_points",
     species: str = "homo_sapiens",
     cache_path: str | Path | None = None,
     timeout_seconds: float = 30.0,
@@ -144,6 +286,7 @@ def generate_protein_context_artifacts(
     unit_partition_index: int = 0,
     limit: int | None = None,
     progress_every: int = 25,
+    allow_empty: bool = False,
     ensembl_client: EnsemblProteinContextClient | None = None,
     proteins_client: EbiProteinsFeatureClient | None = None,
     interpro_client: InterProFeatureClient | None = None,
@@ -158,7 +301,19 @@ def generate_protein_context_artifacts(
     genes = _resolve_gene_list(
         include_genes=include_genes,
         variant_viewer_root=variant_viewer_root,
+        association_db_path=association_db_path,
+        association_table=association_table,
     )
+    if not genes and not allow_empty:
+        diagnostic = _variant_viewer_diagnostic(variant_viewer_root)
+        raise ValueError(
+            "protein_context found zero candidate genes. "
+            f"variant_viewer={diagnostic}; "
+            f"association_db_path={str(association_db_path or '')!r}; "
+            f"association_table={association_table!r}. "
+            "Pass --variant-viewer-root pointing at the splicing-viewer artifacts, "
+            "or pass --association-db-path so genes can be inferred from DuckDB."
+        )
     selected_genes = [
         gene
         for index, gene in enumerate(genes)
@@ -275,6 +430,8 @@ def generate_protein_context_artifacts(
             "selected_gene_count": len(selected_genes),
             "filtered_gene_count": 0 if include_genes is None else len(include_genes),
             "variant_viewer_root": str(variant_viewer_root or ""),
+            "association_db_path": str(association_db_path or ""),
+            "association_table": association_table,
             "species": species,
             "unit_partitions": unit_partitions,
             "unit_partition_index": unit_partition_index,
