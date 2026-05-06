@@ -59,7 +59,7 @@ Recommended repository-local invocation:
 python scripts/run_structural_variant_ingestion.py \
   --input raw_data/dbvar/dbvar_structural_variants_nstd229.csv.zip \
   --gene-annotation-gtf raw_data/gencode.v49.annotation.gtf.gz \
-  --output-json analyzed_data/dbvar/dbvar_structural_variants_nstd229.json \
+  --output-json analyzed_data/dbvar/dbvar_structural_variants_nstd229.json.zip \
   --gene-metadata-seed analyzed_data/dbvar/dbvar_structural_variants_nstd102_seed.json.zip \
   --merge-source-json analyzed_data/dbvar/dbvar_structural_variants_nstd102_seed.json.zip \
   --merge-existing \
@@ -92,11 +92,59 @@ datahub-report-artifact-qa \
 Resume notes:
 
 - checkpoint defaults to `analyzed_data/dbvar/dbvar_structural_variants_nstd229.json.checkpoint.json`
+- use `--output-json ...json.zip` for reusable checked-in artifacts; DataHub reads and writes single-file JSON zip artifacts directly
 - rerun the same command to continue from the latest saved checkpoint
 - use `--reset-checkpoint` to force a clean restart
 - use `--no-resume` to ignore checkpoint state for a one-off fresh run
 - if you add `--skip-row-count`, progress percent is intentionally unavailable because the total row count is not precomputed
 - add `--enable-ensembl-overlap-fallback` only if you want no-hit rows double-checked against Ensembl
+
+### `scripts/enrich_structural_variant_exons.py`
+
+Backfill missing canonical transcript exon arrays in a legacy structural variant
+artifact using Ensembl `lookup/id?expand=1`. Use this after a large dbVar run
+when local GTF metadata supplied gene/transcript spans but not full exon
+structure for newly added genes.
+
+Default behavior is conservative:
+
+- genes whose `canonical_transcript[0].Exon` already exists are skipped, so the
+  older Ensembl-seeded genes are left alone
+- genes are looked up by their existing Ensembl transcript ID
+- the output shape stays compatible with the legacy backend/frontend contract
+
+Single-job enrichment:
+
+```bash
+python scripts/enrich_structural_variant_exons.py \
+  --input-json analyzed_data/dbvar/dbvar_structural_variants_nstd229.json.zip \
+  --output-json analyzed_data/dbvar/dbvar_structural_variants_nstd229.exons.json.zip \
+  --cache-path analyzed_data/dbvar/dbvar_structural_variant_exon_ensembl_cache.json \
+  --report-path analyzed_data/dbvar/dbvar_structural_variants_nstd229.exons.report.json \
+  --progress-every 100 \
+  --log-level INFO
+```
+
+Partitioned HPC-safe fetch/apply mode:
+
+```bash
+python scripts/enrich_structural_variant_exons.py \
+  --input-json analyzed_data/dbvar/dbvar_structural_variants_nstd229.json.zip \
+  --patch-output-json /N/scratch/kvand/hbp/sv_exon_patches/nstd229_p00.json \
+  --cache-path /N/scratch/kvand/hbp/cache/sv_exon_ensembl_p00.json \
+  --sleep-seconds 0.25 \
+  --unit-partitions 32 \
+  --unit-partition-index 0
+
+python scripts/enrich_structural_variant_exons.py \
+  --input-json analyzed_data/dbvar/dbvar_structural_variants_nstd229.json.zip \
+  --output-json analyzed_data/dbvar/dbvar_structural_variants_nstd229.exons.json.zip \
+  --patch-input-json /N/scratch/kvand/hbp/sv_exon_patches/nstd229_p*.json
+```
+
+For array jobs, keep `--sleep-seconds` nonzero so parallel partitions do not
+hit Ensembl in the same burst. The shared API client also retries `429 Too Many
+Requests` responses using `Retry-After` when Ensembl provides it.
 
 ## MVP scripts
 
@@ -265,6 +313,7 @@ Use this when:
 
 - you want to derive `sga` from the cleaned unified association DuckDB
 - you want to normalize `expression` into the standard secondary-analysis artifact layout
+- you want to derive `protein_context` artifacts for the splicing viewer from Ensembl, EBI Proteins, and InterPro
 - you want to update an existing serving DuckDB with secondary analyses without rebuilding association tables
 
 Operational note:
@@ -272,6 +321,7 @@ Operational note:
 - the `sga` generator is designed for HPC-style runs and streams the unified association table gene-by-gene to avoid loading the full deduplicated working set into Python memory
 - for large production SGA runs, use `--unit-partitions` and `--unit-partition-index` to split work across deterministic gene shards; clear the output once before submission rather than using `--replace` inside parallel jobs
 - use `--duckdb-memory-limit` and `--duckdb-temp-directory` on HPC so large distinct/order phases can spill to scratch rather than being killed for exceeding Slurm memory
+- for `protein_context`, use `--variant-viewer-root`, `--protein-context-cache-path`, and capped Slurm arrays to avoid API rate-limit spikes
 
 Subcommands:
 

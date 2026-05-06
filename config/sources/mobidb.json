@@ -1,0 +1,19 @@
+{
+  "source_id": "mobidb",
+  "display_name": "MobiDB",
+  "description": "Intrinsic disorder, mobility, low-complexity, and related protein region annotations for future protein-context enrichment.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["PROTEIN_CONTEXT"],
+  "modalities": ["proteomics", "protein_disorder", "annotation"],
+  "access_mode": "api",
+  "homepage_url": "https://mobidb.org/",
+  "api_base_url": "https://mobidb.org/api",
+  "bulk_download_url": "https://mobidb.org/download",
+  "license_name": "MobiDB terms of use",
+  "update_frequency": "release-based",
+  "priority_tier": 2,
+  "provenance_tags": ["mobidb", "disorder", "low_complexity"],
+  "data_category": "protein_context",
+  "integration_status": "catalog_only",
+  "default_params": {}
+}

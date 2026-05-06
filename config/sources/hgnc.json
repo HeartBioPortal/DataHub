@@ -1,0 +1,19 @@
+{
+  "source_id": "hgnc",
+  "display_name": "HGNC",
+  "description": "Official human gene nomenclature, approved symbols, names, aliases, locus types, and cross-references.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["GENE_PROFILE"],
+  "modalities": ["gene_identity", "nomenclature", "cross_reference"],
+  "access_mode": "hybrid",
+  "homepage_url": "https://www.genenames.org/",
+  "api_base_url": "https://rest.genenames.org/",
+  "bulk_download_url": "https://storage.googleapis.com/public-download-files/hgnc/tsv/tsv/hgnc_complete_set.txt",
+  "license_name": "HGNC data reuse terms",
+  "update_frequency": "release-based",
+  "priority_tier": 1,
+  "provenance_tags": ["hgnc", "gene_identity", "nomenclature"],
+  "data_category": "ontologies_standards",
+  "integration_status": "integrated",
+  "default_params": {}
+}

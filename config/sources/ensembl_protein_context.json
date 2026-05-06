@@ -1,0 +1,21 @@
+{
+  "source_id": "ensembl_protein_context",
+  "display_name": "Ensembl Protein and Transcript Context",
+  "description": "Canonical transcript, translation, exon-to-protein coordinate, and translation feature annotations from Ensembl REST.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["PROTEIN_CONTEXT"],
+  "modalities": ["genomics", "transcriptomics", "proteomics", "annotation"],
+  "access_mode": "api",
+  "homepage_url": "https://www.ensembl.org/",
+  "api_base_url": "https://rest.ensembl.org",
+  "bulk_download_url": "https://ftp.ensembl.org/pub/",
+  "license_name": "Ensembl Terms of Use",
+  "update_frequency": "release-based",
+  "priority_tier": 1,
+  "provenance_tags": ["ensembl", "transcript", "translation", "protein_feature"],
+  "data_category": "protein_context",
+  "integration_status": "integrated",
+  "default_params": {
+    "species": "homo_sapiens"
+  }
+}

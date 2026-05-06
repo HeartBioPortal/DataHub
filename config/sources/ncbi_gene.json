@@ -1,0 +1,19 @@
+{
+  "source_id": "ncbi_gene",
+  "display_name": "NCBI Gene",
+  "description": "Gene identifiers, RefSeq gene summaries, cross-references, and gene-to-GO mappings from NCBI Gene.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["GENE_PROFILE"],
+  "modalities": ["gene_summary", "gene_identity", "cross_reference"],
+  "access_mode": "hybrid",
+  "homepage_url": "https://www.ncbi.nlm.nih.gov/gene/",
+  "api_base_url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/",
+  "bulk_download_url": "https://ftp.ncbi.nlm.nih.gov/gene/DATA/gene_summary.gz",
+  "license_name": "NCBI public domain and usage guidelines",
+  "update_frequency": "daily",
+  "priority_tier": 1,
+  "provenance_tags": ["ncbi_gene", "refseq", "gene_summary"],
+  "data_category": "ontologies_standards",
+  "integration_status": "integrated",
+  "default_params": {}
+}

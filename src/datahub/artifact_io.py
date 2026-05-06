@@ -11,6 +11,26 @@ from pathlib import Path
 from typing import Any, Iterator, TextIO
 
 
+def resolve_readable_artifact_path(path: str | Path) -> Path:
+    """Resolve a readable artifact path, preferring exact matches.
+
+    If a plain path is missing but the matching single-file zip exists
+    (for example ``foo.json`` -> ``foo.json.zip``), return the zip. This keeps
+    older command lines usable after large checked-in artifacts are compressed.
+    """
+
+    artifact_path = Path(path)
+    if artifact_path.exists():
+        return artifact_path
+
+    if artifact_path.suffix.lower() != ".zip":
+        zipped_path = artifact_path.with_name(f"{artifact_path.name}.zip")
+        if zipped_path.exists():
+            return zipped_path
+
+    return artifact_path
+
+
 def _iter_zip_members(archive: zipfile.ZipFile) -> list[zipfile.ZipInfo]:
     return [member for member in archive.infolist() if not member.is_dir()]
 
@@ -50,7 +70,7 @@ def open_text_artifact(
 ) -> Iterator[TextIO]:
     """Open a plain-text, gzip, or single-file zip artifact for reading."""
 
-    artifact_path = Path(path)
+    artifact_path = resolve_readable_artifact_path(path)
     suffixes = tuple(suffix.lower() for suffix in artifact_path.suffixes)
 
     if suffixes[-1:] == (".gz",):

@@ -6,12 +6,14 @@ validation, enrichment, storage and publication.
 
 from .apis import (
     ApiClientError,
+    EbiProteinsApiClient,
     EnsemblRestClient,
+    InterProApiClient,
     JsonFileApiCache,
     NcbiVariationApiClient,
     RestApiClient,
 )
-from .annotations import GtfGeneAnnotationIndex, GtfGeneRecord, GtfTranscriptRecord
+from .annotations import GtfExonRecord, GtfGeneAnnotationIndex, GtfGeneRecord, GtfTranscriptRecord
 from .artifact_qa import build_artifact_qa_report, write_artifact_qa_report
 from .checkpoints import StructuralVariantCheckpoint, write_json_atomic
 from .config import (
@@ -41,6 +43,11 @@ from .export_manifest import (
 from .models import CanonicalRecord
 from .output_contracts import OutputContract, OutputContractLoader
 from .pipeline import DataHubPipeline, DataHubRunReport
+from .protein_context import (
+    IsoformHint,
+    ProteinContextReport,
+    build_protein_context_payload,
+)
 from .prep import (
     PREPARED_ASSOCIATION_COLUMNS,
     AssociationRawPreparer,
@@ -78,6 +85,13 @@ from .sources import (
     SourceRegistry,
     build_default_source_registry,
 )
+from .structural_variant_exons import (
+    StructuralVariantExonBackfillReport,
+    apply_structural_variant_exon_patch,
+    enrich_structural_variant_exons,
+    gene_needs_exon_backfill,
+    transcript_has_exons,
+)
 
 __all__ = [
     "CanonicalRecord",
@@ -87,10 +101,13 @@ __all__ = [
     "RestApiClient",
     "JsonFileApiCache",
     "EnsemblRestClient",
+    "EbiProteinsApiClient",
+    "InterProApiClient",
     "NcbiVariationApiClient",
     "GtfGeneAnnotationIndex",
     "GtfGeneRecord",
     "GtfTranscriptRecord",
+    "GtfExonRecord",
     "StructuralVariantCheckpoint",
     "write_json_atomic",
     "build_artifact_qa_report",
@@ -104,6 +121,9 @@ __all__ = [
     "DatasetContract",
     "DataHubPipeline",
     "DataHubRunReport",
+    "IsoformHint",
+    "ProteinContextReport",
+    "build_protein_context_payload",
     "PREPARED_ASSOCIATION_COLUMNS",
     "open_text_artifact",
     "load_json_artifact",
@@ -151,4 +171,9 @@ __all__ = [
     "build_default_export_helper_registry",
     "build_default_adapter_registry",
     "build_default_source_registry",
+    "StructuralVariantExonBackfillReport",
+    "apply_structural_variant_exon_patch",
+    "enrich_structural_variant_exons",
+    "gene_needs_exon_backfill",
+    "transcript_has_exons",
 ]

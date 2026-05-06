@@ -159,6 +159,32 @@ def _write_gtf(path: Path) -> None:
                     'gene_id "ENSG00000114739.12"; gene_name "BMPR2"; transcript_id "ENST00000263377.9"; transcript_name "BMPR2-201"; transcript_type "protein_coding"; tag "basic"; tag "Ensembl_canonical";',
                 ]
             ),
+            '\t'.join(
+                [
+                    "2",
+                    "HAVANA",
+                    "exon",
+                    "202376327",
+                    "202376400",
+                    ".",
+                    "+",
+                    ".",
+                    'gene_id "ENSG00000114739.12"; gene_name "BMPR2"; transcript_id "ENST00000263377.9"; exon_id "ENSE000BMPR201.1"; exon_number "1";',
+                ]
+            ),
+            '\t'.join(
+                [
+                    "2",
+                    "HAVANA",
+                    "exon",
+                    "202567700",
+                    "202567751",
+                    ".",
+                    "+",
+                    ".",
+                    'gene_id "ENSG00000114739.12"; gene_name "BMPR2"; transcript_id "ENST00000263377.9"; exon_id "ENSE000BMPR202.1"; exon_number "2";',
+                ]
+            ),
         ]
     )
     with gzip.open(path, "wt", encoding="utf-8") as handle:
@@ -245,6 +271,11 @@ def test_dbvar_structural_variant_adapter_uses_local_gtf_annotations(tmp_path: P
     assert record.gene_id == "BMPR2"
     assert record.metadata["gene_location"] == "202376327-202567751"
     assert record.metadata["canonical_transcript"][0]["id"] == "ENST00000263377"
+    assert record.metadata["canonical_transcript"][0]["seq_region_name"] == "2"
+    assert record.metadata["canonical_transcript"][0]["Exon"] == [
+        {"id": "ENSE000BMPR201", "start": 202376327, "end": 202376400, "exon_number": 1},
+        {"id": "ENSE000BMPR202", "start": 202567700, "end": 202567751, "exon_number": 2},
+    ]
 
 
 def test_dbvar_structural_variant_adapter_skips_ensembl_overlap_when_local_gtf_has_no_hit(tmp_path: Path) -> None:
