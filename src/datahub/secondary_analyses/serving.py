@@ -47,6 +47,16 @@ CREATE TABLE IF NOT EXISTS protein_context_gene_payloads (
     )
     connection.execute(
         """
+CREATE TABLE IF NOT EXISTS gene_profile_payloads (
+    gene_id VARCHAR,
+    gene_id_normalized VARCHAR,
+    payload_json VARCHAR,
+    source_path VARCHAR
+)
+"""
+    )
+    connection.execute(
+        """
 CREATE TABLE IF NOT EXISTS secondary_analysis_metadata (
     analysis_id VARCHAR,
     analysis_version BIGINT,
@@ -77,6 +87,10 @@ def _ensure_gene_catalog_columns(connection: Any) -> None:
         connection.execute(
             "ALTER TABLE gene_catalog ADD COLUMN has_protein_context BOOLEAN DEFAULT false"
         )
+    if "has_gene_profile" not in columns:
+        connection.execute(
+            "ALTER TABLE gene_catalog ADD COLUMN has_gene_profile BOOLEAN DEFAULT false"
+        )
 
 
 def _refresh_gene_catalog(connection: Any) -> None:
@@ -96,6 +110,8 @@ WITH gene_universe AS (
         SELECT gene_id, gene_id_normalized FROM sga_gene_payloads
         UNION ALL
         SELECT gene_id, gene_id_normalized FROM protein_context_gene_payloads
+        UNION ALL
+        SELECT gene_id, gene_id_normalized FROM gene_profile_payloads
     )
     GROUP BY gene_id_normalized
 ),
@@ -129,6 +145,11 @@ protein_context_flags AS (
     SELECT gene_id_normalized, true AS has_protein_context
     FROM protein_context_gene_payloads
     GROUP BY gene_id_normalized
+),
+gene_profile_flags AS (
+    SELECT gene_id_normalized, true AS has_gene_profile
+    FROM gene_profile_payloads
+    GROUP BY gene_id_normalized
 )
 INSERT INTO gene_catalog (
     gene_id,
@@ -141,7 +162,8 @@ INSERT INTO gene_catalog (
     has_trait_overall,
     has_expression,
     has_sga,
-    has_protein_context
+    has_protein_context,
+    has_gene_profile
 )
 SELECT
     g.gene_id AS gene_id,
@@ -154,13 +176,15 @@ SELECT
     coalesce(o.has_trait_overall, false) AS has_trait_overall,
     coalesce(e.has_expression, false) AS has_expression,
     coalesce(s.has_sga, false) AS has_sga,
-    coalesce(p.has_protein_context, false) AS has_protein_context
+    coalesce(p.has_protein_context, false) AS has_protein_context,
+    coalesce(gp.has_gene_profile, false) AS has_gene_profile
 FROM gene_universe g
 LEFT JOIN association_flags a ON g.gene_id_normalized = a.gene_id_normalized
 LEFT JOIN overall_flags o ON g.gene_id_normalized = o.gene_id_normalized
 LEFT JOIN expression_flags e ON g.gene_id_normalized = e.gene_id_normalized
 LEFT JOIN sga_flags s ON g.gene_id_normalized = s.gene_id_normalized
 LEFT JOIN protein_context_flags p ON g.gene_id_normalized = p.gene_id_normalized
+LEFT JOIN gene_profile_flags gp ON g.gene_id_normalized = gp.gene_id_normalized
 """
     )
 
@@ -199,6 +223,8 @@ def _table_name_for_analysis(analysis_id: str) -> str:
         return "sga_gene_payloads"
     if analysis_id == "protein_context":
         return "protein_context_gene_payloads"
+    if analysis_id == "gene_profile":
+        return "gene_profile_payloads"
     raise ValueError(f"Unsupported secondary analysis table mapping: {analysis_id}")
 
 

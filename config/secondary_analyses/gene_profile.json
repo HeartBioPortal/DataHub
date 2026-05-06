@@ -1,0 +1,7 @@
+{
+  "analysis_id": "gene_profile",
+  "version": 1,
+  "mode": "derived",
+  "description": "Assemble field-provenance-aware gene identity, summary, protein, ontology, and HBP evidence profile artifacts for gene headers and dossier pages.",
+  "artifact_subdir": "gene_profile/v1"
+}

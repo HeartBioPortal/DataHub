@@ -70,6 +70,10 @@ def run_secondary_analyses() -> int:
     return _run_script("scripts/dataset_specific_scripts/unified/run_secondary_analyses.py")
 
 
+def run_gene_profile_pipeline() -> int:
+    return _run_script("scripts/dataset_specific_scripts/unified/run_gene_profile_pipeline.py")
+
+
 def run_structural_variant_ingestion() -> int:
     return _run_script("scripts/run_structural_variant_ingestion.py")
 

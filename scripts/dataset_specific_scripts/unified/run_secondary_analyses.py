@@ -14,6 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from datahub.secondary_analyses.expression import generate_expression_artifacts
+from datahub.secondary_analyses.gene_profile import generate_gene_profile_artifacts
 from datahub.secondary_analyses.protein_context import generate_protein_context_artifacts
 from datahub.secondary_analyses.registry import SecondaryAnalysisRegistry
 from datahub.secondary_analyses.serving import apply_secondary_analysis_artifacts
@@ -112,6 +113,31 @@ def parse_args() -> argparse.Namespace:
             "Allow protein_context generation to emit metadata only when no candidate genes "
             "are found. By default this is treated as a failed run."
         ),
+    )
+    generate.add_argument(
+        "--gene-profile-hgnc-path",
+        default=None,
+        help="HGNC complete-set TSV/JSON path for gene_profile generation.",
+    )
+    generate.add_argument(
+        "--gene-profile-ncbi-summary-path",
+        default=None,
+        help="Optional NCBI Gene gene_summary.gz path for gene_profile summaries.",
+    )
+    generate.add_argument(
+        "--gene-profile-uniprot-path",
+        default=None,
+        help="Optional UniProtKB JSON/JSONL snapshot path for gene_profile protein fields.",
+    )
+    generate.add_argument(
+        "--gene-profile-go-annotation-path",
+        default=None,
+        help="Optional compact GO annotation TSV path for gene_profile function terms.",
+    )
+    generate.add_argument(
+        "--gene-profile-protein-context-root",
+        default=None,
+        help="Optional existing HBP protein_context artifact root to fold into gene_profile.",
     )
     generate.add_argument(
         "--include-genes",
@@ -312,6 +338,19 @@ def _run_generate(args: argparse.Namespace) -> int:
                 limit=args.protein_context_limit,
                 progress_every=args.protein_context_progress_every,
                 allow_empty=args.protein_context_allow_empty,
+            )
+        elif analysis_id == "gene_profile":
+            if not args.gene_profile_hgnc_path:
+                raise ValueError("gene_profile generation requires --gene-profile-hgnc-path")
+            result = generate_gene_profile_artifacts(
+                hgnc_path=args.gene_profile_hgnc_path,
+                ncbi_gene_summary_path=args.gene_profile_ncbi_summary_path,
+                uniprot_path=args.gene_profile_uniprot_path,
+                go_annotation_path=args.gene_profile_go_annotation_path,
+                protein_context_root=args.gene_profile_protein_context_root,
+                output_root=output_root,
+                manifest=manifest,
+                include_genes=include_genes,
             )
         else:
             raise ValueError(f"Unsupported secondary analysis: {analysis_id}")

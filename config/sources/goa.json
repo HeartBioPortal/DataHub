@@ -1,0 +1,19 @@
+{
+  "source_id": "goa",
+  "display_name": "Gene Ontology Annotation",
+  "description": "Evidence-coded gene product annotations to Gene Ontology molecular function, biological process, and cellular component terms.",
+  "adapter_name": "external_source_adapter",
+  "dataset_types": ["GENE_PROFILE"],
+  "modalities": ["ontology", "functional_annotation", "evidence"],
+  "access_mode": "hybrid",
+  "homepage_url": "https://geneontology.org/",
+  "api_base_url": "https://www.ebi.ac.uk/QuickGO/services/",
+  "bulk_download_url": "https://current.geneontology.org/annotations/goa_human.gaf.gz",
+  "license_name": "Gene Ontology Consortium data license",
+  "update_frequency": "release-based",
+  "priority_tier": 1,
+  "provenance_tags": ["go", "goa", "quickgo", "functional_annotation"],
+  "data_category": "ontologies_standards",
+  "integration_status": "integrated",
+  "default_params": {}
+}
