@@ -16,6 +16,7 @@ from datahub.secondary_analyses.gene_profile import (
     read_uniprot_records,
 )
 from datahub.secondary_analyses.gene_profile_sources import (
+    DEFAULT_SOURCES,
     download_source_file,
     write_compact_goa_annotations,
 )
@@ -208,6 +209,13 @@ def test_write_compact_goa_annotations_from_gaf(tmp_path: Path) -> None:
         text = stream.read()
     assert "gene_symbol\tuniprot_accession\tgo_id" in text
     assert "TTN\tQ8WZ42\tGO:0030018" in text
+
+
+def test_uniprot_source_uses_current_go_field_name() -> None:
+    url = DEFAULT_SOURCES["uniprot_human_reviewed"]["url"]
+
+    assert "go_id" in url
+    assert "xref_go" not in url
 
 
 def test_read_uniprot_tsv_snapshot(tmp_path: Path) -> None:

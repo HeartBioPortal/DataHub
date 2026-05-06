@@ -35,7 +35,7 @@ DEFAULT_SOURCES = {
         "url": (
             "https://rest.uniprot.org/uniprotkb/stream"
             "?query=%28organism_id%3A9606%29%20AND%20%28reviewed%3Atrue%29"
-            "&fields=accession%2Creviewed%2Cprotein_name%2Cgene_names%2Clength%2Ccc_function%2Cxref_go%2Cxref_reactome"
+            "&fields=accession%2Creviewed%2Cprotein_name%2Cgene_names%2Clength%2Ccc_function%2Cgo_id%2Cxref_reactome"
             "&format=tsv"
         ),
         "filename": "human_reviewed_uniprot.tsv",
