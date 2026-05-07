@@ -163,6 +163,7 @@
         "Diabetic cardiomyopathy",
         "Chagas cardiomyopathy",
         "Familial cardiomyopathy",
+        "Familial hypertrophic cardiomyopathy",
         "Familial isolated dilated cardiomyopathy",
         "Familial dilated cardiomyopathy",
         "Familial restrictive cardiomyopathy",
@@ -193,6 +194,7 @@
       ],
       "cardiac arrhythmias": [
         "Arrhythmia",
+        "Cardiac arrhythmia",
         "Atrial fibrillation",
         "Atrial flutter",
         "Ventricular tachycardia",
@@ -234,6 +236,7 @@
         "Coronary heart disease",
         "Angina",
         "Myocardial infarction",
+        "Acute myocardial infarction",
         "Acute coronary syndrome",
         "Prinzmetal's angina",
         "Non-ST Elevation Myocardial Infarction",
