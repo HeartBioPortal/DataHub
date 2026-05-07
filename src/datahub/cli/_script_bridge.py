@@ -34,6 +34,10 @@ def build_serving_duckdb() -> int:
     return _run_script("scripts/dataset_specific_scripts/unified/build_association_serving_duckdb.py")
 
 
+def build_dbsnp_frequency_index() -> int:
+    return _run_script("scripts/dataset_specific_scripts/unified/build_dbsnp_frequency_index.py")
+
+
 def ingest_legacy_raw_duckdb() -> int:
     return _run_script("scripts/dataset_specific_scripts/unified/ingest_legacy_raw_duckdb.py")
 
