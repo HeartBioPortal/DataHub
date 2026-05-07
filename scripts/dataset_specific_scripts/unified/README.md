@@ -3,6 +3,11 @@
 This workflow keeps aggregation at the raw/point layer and generates legacy JSON
 once from a unified table.
 
+Before adding or changing operational scripts, read the repository-level
+`SCRIPT_MANIFESTO.md`. New long-running scripts must include visible progress,
+structured logging, resumable checkpoints, smoke-test controls, and an HPC/Slurm
+path when the workload is too large for the current host.
+
 ## Profile-driven runner (recommended)
 
 Use the profile runner to keep one code path across laptop/AWS/HPC and only

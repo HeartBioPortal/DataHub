@@ -71,10 +71,12 @@ def test_build_dbsnp_frequency_index_keeps_new_and_legacy_rows(tmp_path: Path) -
         output_db=output_db,
         legacy_dbsnp_root=legacy_root,
         include_legacy=True,
+        progress=False,
     )
 
     assert summary.rows_loaded == 3
     assert summary.distinct_rsids == 1
+    assert (tmp_path / "datamart" / "dbsnp_frequency.checkpoint.json").exists()
 
     connection = duckdb.connect(str(output_db), read_only=True)
     try:
@@ -106,6 +108,15 @@ def test_build_dbsnp_frequency_index_keeps_new_and_legacy_rows(tmp_path: Path) -
         assert population_summary == (10, 0.2, 0.2, 0.2)
     finally:
         connection.close()
+
+    resumed_summary = build_dbsnp_frequency_index(
+        raw_root=raw_root,
+        output_db=output_db,
+        legacy_dbsnp_root=legacy_root,
+        include_legacy=True,
+        progress=False,
+    )
+    assert resumed_summary.rows_loaded == 3
 
 
 def _write_archive(path: Path, member_name: str, content: str) -> None:

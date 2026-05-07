@@ -64,6 +64,39 @@ def parse_args() -> argparse.Namespace:
         default=10_000,
         help="Number of normalized rows inserted per DuckDB batch.",
     )
+    parser.add_argument(
+        "--checkpoint-path",
+        type=Path,
+        default=None,
+        help="JSON checkpoint/progress file. Defaults to <output-db>.checkpoint.json.",
+    )
+    resume_group = parser.add_mutually_exclusive_group()
+    resume_group.add_argument(
+        "--resume",
+        dest="resume",
+        action="store_true",
+        default=True,
+        help="Resume from the checkpoint when present. This is the default.",
+    )
+    resume_group.add_argument(
+        "--reset",
+        dest="resume",
+        action="store_false",
+        help="Ignore any checkpoint and rebuild the output DuckDB from scratch.",
+    )
+    parser.add_argument(
+        "--no-progress",
+        dest="progress",
+        action="store_false",
+        default=True,
+        help="Disable terminal progress output and periodic progress checkpoint writes.",
+    )
+    parser.add_argument(
+        "--progress-interval",
+        type=float,
+        default=5.0,
+        help="Seconds between progress updates and checkpoint writes.",
+    )
     parser.add_argument("--verbose", action="store_true", help="Enable progress logging.")
     return parser.parse_args()
 
@@ -81,6 +114,10 @@ def main() -> int:
         include_legacy=args.include_legacy,
         limit_members=args.limit_members,
         batch_size=args.batch_size,
+        checkpoint_path=args.checkpoint_path,
+        resume=args.resume,
+        progress=args.progress,
+        progress_interval=args.progress_interval,
     )
     print(json.dumps(asdict(summary), indent=2, sort_keys=True))
     return 0

@@ -7,6 +7,7 @@ HeartBioPortal DataHub is the data integration and publishing layer behind Heart
 Comprehensive documentation lives under `docs/` and can also be served as a documentation website.
 
 - Start with: `docs/index.md`
+- Script standards: `SCRIPT_MANIFESTO.md`
 - Architecture guide: `docs/architecture/`
 - Pipeline guides: `docs/pipelines/`
 - Extension/contributor guides: `docs/extending/` and `docs/contributing.md`
