@@ -40,8 +40,10 @@ Current example:
 
 These analyses are computed from the cleaned association layer after ingest, merge, and deduplication.
 
-Current example:
+Current examples:
 
+- `gene_profile`
+- `protein_context`
 - `sga`
 
 ## Config surface
@@ -53,6 +55,8 @@ Secondary analyses are declared under:
 Current manifests:
 
 - `config/secondary_analyses/expression.json`
+- `config/secondary_analyses/gene_profile.json`
+- `config/secondary_analyses/protein_context.json`
 - `config/secondary_analyses/sga.json`
 
 These manifests declare:
@@ -74,6 +78,10 @@ Important modules:
   - loads and validates secondary-analysis manifests
 - `expression.py`
   - imports and normalizes expression payloads
+- `gene_profile.py` and `gene_profile_sources.py`
+  - download source snapshots and assemble gene dossier/profile artifacts
+- `protein_context.py`
+  - builds protein-coordinate isoform, exon, domain, topology, and feature payloads
 - `sga.py`
   - derives SGA payloads from the unified association point store
 - `artifacts.py`
@@ -108,6 +116,47 @@ The current source is the legacy:
 
 The secondary-analysis runner converts it into the runtime per-gene payload the frontend already expects. No association semantics are changed here; this is normalization and packaging only.
 
+## Gene-profile semantics
+
+Gene profile is a derived dossier analysis for gene headers and gene summary
+cards.
+
+It combines field-provenance-aware source snapshots from:
+
+- HGNC
+- NCBI Gene summaries
+- UniProtKB
+- GOA compact annotations
+- optional HBP protein-context artifacts
+
+The one-command runner downloads source snapshots under
+`raw_data/gene_profile/<release>/`, writes checksum manifests, and publishes
+artifacts under:
+
+```text
+secondary_root/final/gene_profile/v1/genes/<GENE>.json.gz
+```
+
+The backend should point `HBP_GENE_PROFILE_PATH` at
+`secondary_analyses/final/gene_profile/v1`.
+
+## Protein-context semantics
+
+Protein context is a derived secondary analysis for the splicing viewer.
+
+The contract is:
+
+- per gene
+- per protein-coding isoform
+- all feature coordinates expressed in amino-acid/protein coordinates
+- Ensembl provides the transcript/translation backbone and translation-exon track
+- EBI Proteins and InterPro add protein feature, domain, topology, and region annotations when a UniProt accession can be resolved
+
+The generated artifact is intentionally separate from structural-variant genomic
+exon backfills. SV exon data can help as a fallback, but the splicing viewer's
+scientific axis is protein residue position, so the primary artifact must be
+protein-coordinate and isoform-aware.
+
 ## SGA semantics
 
 SGA is a derived secondary analysis.
@@ -136,23 +185,6 @@ The cleaned unified association point store preserves `variant_id` / rsID identi
 To keep the existing frontend payload contract stable without reintroducing a parallel raw-data dependency, the current DataHub SGA secondary analysis encodes each shared rsID as a deterministic identity interval. This preserves exact shared-rsID overlap behavior for the existing chart contract.
 
 This is an implementation detail for runtime compatibility. Scientifically, the SGA result is still interpreted as shared rsID identity across CVD/trait phenotype pairs.
-
-## Protein-context semantics
-
-Protein context is a derived secondary analysis for the splicing viewer.
-
-The contract is:
-
-- per gene
-- per protein-coding isoform
-- all feature coordinates expressed in amino-acid/protein coordinates
-- Ensembl provides the transcript/translation backbone and translation-exon track
-- EBI Proteins and InterPro add protein feature, domain, topology, and region annotations when a UniProt accession can be resolved
-
-The generated artifact is intentionally separate from structural-variant genomic
-exon backfills. SV exon data can help as a fallback, but the splicing viewer's
-scientific axis is protein residue position, so the primary artifact must be
-protein-coordinate and isoform-aware.
 
 ## Incremental serving updates
 
@@ -184,6 +216,7 @@ Typical pattern:
 - derive `sga` from the corrected unified DuckDB
 - optionally generate `expression` artifacts from an explicit source file
 - generate `protein_context` from a variant-viewer root and API-backed protein annotations
+- build `gene_profile` with `run_gene_profile_pipeline.py` after protein-context artifacts are available, then apply it to the serving DB with the other secondary artifacts
 
 For large SGA runs, the generator streams the cleaned association point store in gene order instead of materializing the full deduplicated result set in Python memory. This keeps memory bounded to one gene's phenotype/variant working set at a time and is the intended HPC execution mode.
 

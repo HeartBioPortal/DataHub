@@ -52,6 +52,11 @@ raw files / source APIs
 - **Legacy-compatible association build**: direct publish from prepared/legacy inputs
 - **MVP dataset-specific pipeline**: canonical ingest plus legacy-compatible publish
 - **Unified DuckDB-first pipeline**: merged MVP + legacy points, source-priority dedup, publish from DuckDB, optional serving artifact build
+- **Secondary analyses**: expression, SGA, protein context, and gene profile
+  artifacts that can be generated or attached without rebuilding association
+  publication
+- **Population-frequency indexing**: dbSNP archive and legacy frequency rows
+  normalized into a provenance-preserving DuckDB index
 
 The source catalog distinguishes `integrated` sources, which can create
 canonical records today, from `catalog_only` sources, which document curated

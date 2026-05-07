@@ -67,6 +67,10 @@ Test dependencies live under the `test` optional extra in `pyproject.toml`.
 - `scripts/run_structural_variant_ingestion.py`
 - `scripts/dataset_specific_scripts/mvp/run_mvp_pipeline.py`
 - `scripts/dataset_specific_scripts/unified/run_unified_pipeline.py`
+- `scripts/dataset_specific_scripts/unified/run_secondary_analyses.py`
+- `scripts/dataset_specific_scripts/unified/run_gene_profile_pipeline.py`
+- `scripts/dataset_specific_scripts/unified/build_dbsnp_frequency_index.py`
+- `scripts/dataset_specific_scripts/unified/canonicalize_variant_viewer_artifacts.py`
 - `scripts/report_artifact_qa.py`
 
 Editable installs also expose console commands such as:
@@ -76,6 +80,9 @@ Editable installs also expose console commands such as:
 - `datahub-ingest-mvp-duckdb-fast`
 - `datahub-publish-unified-from-duckdb`
 - `datahub-build-serving-duckdb`
+- `datahub-run-secondary-analyses`
+- `datahub-run-gene-profile-pipeline`
+- `datahub-build-dbsnp-frequency-index`
 - `datahub-report-artifact-qa`
 
 ## Main Repository Areas

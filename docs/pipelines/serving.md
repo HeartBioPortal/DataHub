@@ -34,6 +34,8 @@ It currently contains tables such as:
 - `overall_summary_payloads`
 - `expression_gene_payloads`
 - `sga_gene_payloads`
+- `protein_context_gene_payloads`
+- `gene_profile_payloads`
 - `gene_catalog`
 - `build_metadata`
 - `secondary_analysis_metadata`
@@ -156,6 +158,8 @@ In slim mode:
 - `gene_catalog` remains in DuckDB
 - summary tables remain in DuckDB
 - secondary-analysis serving tables can remain in DuckDB
+- `protein_context` and `gene_profile` secondary tables can be attached later
+  without rebuilding association tables
 - full association and overall rows keep `dataset_type`, `gene_id`,
   `gene_id_normalized`, and `source_path`
 - full association and overall rows may set `payload_json` to `NULL`
@@ -264,7 +268,8 @@ Incremental secondary-analysis updates are recorded separately in:
 This distinguishes:
 
 - base serving artifact construction
-- later in-place attachment of secondary analyses such as expression and SGA
+- later in-place attachment of secondary analyses such as expression, SGA,
+  protein context, and gene profile
 
 The serving builder can also write a DataHub QA report after the DB is built:
 
@@ -297,7 +302,8 @@ That flow is intended for cases such as:
 
 - building the primary serving DB on BigRed
 - copying it to AWS
-- deriving or importing secondary artifacts later
+- deriving or importing secondary artifacts later, including expression, SGA,
+  protein context, and gene profile
 - updating the production serving DB in place
 
 The current incremental update surface is:

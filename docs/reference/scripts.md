@@ -8,6 +8,11 @@ Editable installs expose console commands for the main entrypoints. For
 example, `datahub-run-ingestion` is the console-command equivalent of
 `scripts/run_ingestion.py`.
 
+All operational scripts should follow the repository-level standards in
+`SCRIPT_MANIFESTO.md`: visible progress, structured logging, resumable
+checkpointing for long jobs, smoke-test controls, explicit output paths, and a
+machine-readable summary when practical.
+
 ### `scripts/prepare_association_raw.py`
 
 Prepare irregular raw association inputs using a prep profile.
@@ -98,6 +103,53 @@ Resume notes:
 - use `--no-resume` to ignore checkpoint state for a one-off fresh run
 - if you add `--skip-row-count`, progress percent is intentionally unavailable because the total row count is not precomputed
 - add `--enable-ensembl-overlap-fallback` only if you want no-hit rows double-checked against Ensembl
+
+### `scripts/dataset_specific_scripts/unified/canonicalize_variant_viewer_artifacts.py`
+
+Canonicalize legacy Protein Consequence Viewer artifacts against
+`config/phenotype_tree.json` and remove macOS resource-fork files from raw data.
+
+Use this when:
+
+- legacy `variant_viewer` artifacts contain malformed phenotype slugs such as
+  missing leading/trailing letters
+- raw inputs contain macOS files such as `._stroke.txt` or `.DS_Store`
+- you need the protein consequence viewer to rely on clean DataHub artifacts
+  instead of backend display-time correction
+
+The script rewrites row phenotype labels, merges malformed phenotype folders
+into canonical folders, drops known resource-fork-derived bogus gene artifacts,
+and writes a checkpoint plus a JSON report. It should be run in dry-run mode
+first:
+
+```bash
+python scripts/dataset_specific_scripts/unified/canonicalize_variant_viewer_artifacts.py \
+  --variant-viewer-root analyzed_data/variant_viewer \
+  --phenotype-tree-json config/phenotype_tree.json \
+  --raw-root raw_data \
+  --dry-run \
+  --remove-hidden-raw \
+  --fail-on-unknown \
+  --reset-checkpoint \
+  --verbose
+```
+
+Apply mode should keep a backup unless the artifact root is disposable:
+
+```bash
+python scripts/dataset_specific_scripts/unified/canonicalize_variant_viewer_artifacts.py \
+  --variant-viewer-root analyzed_data/variant_viewer \
+  --phenotype-tree-json config/phenotype_tree.json \
+  --raw-root raw_data \
+  --remove-hidden-raw \
+  --fail-on-unknown \
+  --reset-checkpoint \
+  --backup-root analyzed_data/backups \
+  --verbose
+```
+
+The final dry-run after apply should report zero remaining rewrites, drops, and
+unknown phenotype labels.
 
 ### `scripts/enrich_structural_variant_exons.py`
 
@@ -331,6 +383,89 @@ Subcommands:
   - load those artifacts into an existing serving DB and refresh `gene_catalog`
   - logs file-read/insert progress every `--progress-interval` artifacts so long AWS/HPC updates do not appear stalled
   - runs the table replacement and catalog refresh in one transaction so failed applies roll back cleanly
+
+### `scripts/dataset_specific_scripts/unified/run_gene_profile_pipeline.py`
+
+Download source snapshots and build `gene_profile` secondary-analysis artifacts
+for the gene dossier/header.
+
+Use this when:
+
+- gene headers need HGNC/NCBI/UniProt/GOA-backed summaries and identifiers
+- gene profile output should fold in existing HBP protein-context evidence
+- source downloads need checksum manifests under `raw_data/gene_profile/<release>/`
+
+Example:
+
+```bash
+python scripts/dataset_specific_scripts/unified/run_gene_profile_pipeline.py \
+  --raw-root raw_data \
+  --output-root secondary_analyses \
+  --release 2026-05-06 \
+  --protein-context-root secondary_analyses/final/protein_context
+```
+
+Smoke-test a small gene set before a full source refresh:
+
+```bash
+python scripts/dataset_specific_scripts/unified/run_gene_profile_pipeline.py \
+  --raw-root raw_data \
+  --output-root secondary_analyses \
+  --release 2026-05-06 \
+  --include-genes TTN,PCSK9,ANK2
+```
+
+Operational notes:
+
+- the backend expects `HBP_GENE_PROFILE_PATH` to point at
+  `secondary_analyses/final/gene_profile/v1`
+- `--skip-download` rebuilds artifacts from existing snapshots
+- `--force-download` refreshes the downloaded source files
+- GOA can be skipped with `--skip-goa` when building a minimal smoke artifact
+
+### `scripts/dataset_specific_scripts/unified/build_dbsnp_frequency_index.py`
+
+Build the DuckDB-backed population-frequency index from raw dbSNP frequency
+archives and, by default, existing legacy HBP dbSNP CSV artifacts.
+
+Use this when:
+
+- population/ancestry context needs richer frequency evidence than the legacy
+  chart CSVs
+- new dbSNP archive batches have been placed under `raw_data/dbsnp`
+- legacy and new frequency observations should remain separately provenanced
+  instead of being silently collapsed
+
+Example:
+
+```bash
+python scripts/dataset_specific_scripts/unified/build_dbsnp_frequency_index.py \
+  --raw-root raw_data/dbsnp \
+  --output-db datamart/dbsnp_frequency.duckdb \
+  --legacy-dbsnp-root analyzed_data/dbSNP \
+  --include-legacy \
+  --verbose
+```
+
+Smoke-test with a bounded number of archive members:
+
+```bash
+python scripts/dataset_specific_scripts/unified/build_dbsnp_frequency_index.py \
+  --raw-root raw_data/dbsnp \
+  --output-db datamart/dbsnp_frequency.smoke.duckdb \
+  --limit-members 5 \
+  --reset \
+  --verbose
+```
+
+Operational notes:
+
+- checkpoint defaults to `<output-db>.checkpoint.json`
+- rerun with the default `--resume` to continue from completed archive members
+- use `--reset` only for an intentional rebuild
+- `--skip-legacy` builds from new dbSNP archives only
+- terminal progress and checkpoint progress are on by default; use
+  `--no-progress` only for controlled noninteractive jobs
 
 ### `scripts/dataset_specific_scripts/unified/run_unified_pipeline.py`
 

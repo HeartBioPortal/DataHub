@@ -136,7 +136,40 @@ This package is responsible for:
 Current analyses:
 
 - `expression` as an imported secondary analysis
+- `gene_profile` as a derived gene dossier/header analysis
+- `protein_context` as a derived protein-coordinate context analysis
 - `sga` as a derived post-association analysis
+
+## `variant_viewer_canonicalization.py`
+
+Canonicalizes legacy Protein Consequence Viewer artifacts against the phenotype
+tree.
+
+**Philosophy:** malformed legacy artifact labels should be corrected at the
+artifact layer, using the same phenotype registry as the association pipeline,
+instead of being patched in the backend or frontend.
+
+This module is responsible for:
+
+- removing macOS resource-fork raw files such as `._stroke.txt`
+- mapping known malformed phenotype slugs to canonical phenotype-tree labels
+- merging malformed `variant_viewer/phenotypes/` folders into canonical folders
+- dropping resource-fork-derived bogus artifacts such as `roke_*`
+- writing a JSON report and checkpoint for reproducible cleanup runs
+
+## `secondary_analyses/dbsnp_frequency.py`
+
+Builds a DuckDB index for dbSNP population-frequency observations.
+
+**Philosophy:** population-frequency context should preserve source provenance
+and should not be constrained by the old chart-specific CSV shape.
+
+This module is responsible for:
+
+- streaming raw dbSNP frequency archives
+- optionally loading existing legacy HBP dbSNP CSV artifacts
+- preserving legacy and new observations as separately provenanced rows
+- checkpointing archive/member progress so large runs can resume safely
 
 ## `pipeline.py`
 
