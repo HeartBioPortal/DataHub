@@ -70,6 +70,7 @@ Test dependencies live under the `test` optional extra in `pyproject.toml`.
 - `scripts/dataset_specific_scripts/unified/run_secondary_analyses.py`
 - `scripts/dataset_specific_scripts/unified/run_gene_profile_pipeline.py`
 - `scripts/dataset_specific_scripts/unified/build_dbsnp_frequency_index.py`
+- `scripts/dataset_specific_scripts/unified/build_dbsnp_frequency_parquet.py`
 - `scripts/dataset_specific_scripts/unified/canonicalize_variant_viewer_artifacts.py`
 - `scripts/report_artifact_qa.py`
 
@@ -83,6 +84,7 @@ Editable installs also expose console commands such as:
 - `datahub-run-secondary-analyses`
 - `datahub-run-gene-profile-pipeline`
 - `datahub-build-dbsnp-frequency-index`
+- `datahub-build-dbsnp-frequency-parquet`
 - `datahub-report-artifact-qa`
 
 ## Main Repository Areas

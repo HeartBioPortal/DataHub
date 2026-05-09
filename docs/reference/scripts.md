@@ -423,6 +423,85 @@ Operational notes:
 - `--force-download` refreshes the downloaded source files
 - GOA can be skipped with `--skip-goa` when building a minimal smoke artifact
 
+### `scripts/dataset_specific_scripts/unified/build_dbsnp_frequency_parquet.py`
+
+Build production-scale dbSNP frequency handoff artifacts as compressed Parquet,
+then import those artifacts into the final DuckDB index. This is the
+recommended workflow for large dbSNP archive batches because the expensive tar
+streaming work can run on HPC, while the AWS/server step becomes a simpler
+Parquet-to-DuckDB import.
+
+Use this when:
+
+- dbSNP frequency archives are too large for a single web server run
+- HPC should process each archive independently and write portable artifacts
+- Parquet files should be copied to AWS with `scp` or `rsync` before the final
+  serving index build
+- resume checkpoints and manifests are needed for archive-level handoff
+
+Export one archive to Parquet:
+
+```bash
+python scripts/dataset_specific_scripts/unified/build_dbsnp_frequency_parquet.py \
+  --verbose \
+  export-archive \
+  --archive raw_data/dbsnp/dbsnp_frequency_data_batch1.tar.gz \
+  --output-root analyzed_data/dbsnp_frequency \
+  --batch-size 250000 \
+  --progress-interval 60
+```
+
+Export the existing legacy HBP dbSNP CSV artifacts as a separate provenanced
+source:
+
+```bash
+python scripts/dataset_specific_scripts/unified/build_dbsnp_frequency_parquet.py \
+  --verbose \
+  export-legacy \
+  --legacy-dbsnp-root analyzed_data/dbSNP \
+  --output-root analyzed_data/dbsnp_frequency \
+  --batch-size 250000
+```
+
+Import the handoff artifacts into the final DuckDB index on the serving host:
+
+```bash
+python scripts/dataset_specific_scripts/unified/build_dbsnp_frequency_parquet.py \
+  --verbose \
+  build-duckdb \
+  --parquet-root analyzed_data/dbsnp_frequency \
+  --output-db datamart/dbsnp_frequency.duckdb \
+  --replace \
+  --threads 8 \
+  --memory-limit 32GB \
+  --temp-directory datamart/duckdb_tmp
+```
+
+HPC Slurm export example:
+
+```bash
+sbatch --array=0-2 \
+  --export=ALL,DATAHUB_ROOT=/geode2/home/u050/kvand/BigRed200/DataHub,RAW_ROOT=/N/scratch/kvand/hbp/raw_data/dbsnp,OUTPUT_ROOT=/N/scratch/kvand/hbp/analyzed_data/dbsnp_frequency,BATCH_SIZE=250000 \
+  scripts/slurm/build_dbsnp_frequency_parquet.sbatch
+```
+
+After Slurm export finishes, copy only the handoff directory to AWS, not the
+expanded raw archive contents:
+
+```bash
+rsync -av analyzed_data/dbsnp_frequency/ ubuntu@SERVER:/data/DataHub/analyzed_data/dbsnp_frequency/
+```
+
+Operational notes:
+
+- `export-archive` writes records under `records/`, a checkpoint under
+  `checkpoints/`, and a manifest under `manifests/`
+- rerun export commands with the default resume behavior to continue completed
+  archive members; use `--reset` only for an intentional rebuild of that shard
+- `--limit-members` provides a bounded smoke test before a full archive run
+- keep Parquet manifests with release logs, but do not commit generated Parquet,
+  DuckDB, checkpoint, raw archive, or analyzed artifact files
+
 ### `scripts/dataset_specific_scripts/unified/build_dbsnp_frequency_index.py`
 
 Build the DuckDB-backed population-frequency index from raw dbSNP frequency
@@ -435,6 +514,11 @@ Use this when:
 - new dbSNP archive batches have been placed under `raw_data/dbsnp`
 - legacy and new frequency observations should remain separately provenanced
   instead of being silently collapsed
+
+For production-scale archive batches, prefer
+`build_dbsnp_frequency_parquet.py`. This direct builder is still useful for
+small local runs, smoke tests, and environments where the raw archive streaming
+and DuckDB import must happen on the same machine.
 
 Example:
 

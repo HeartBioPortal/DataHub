@@ -159,7 +159,7 @@ This module is responsible for:
 
 ## `secondary_analyses/dbsnp_frequency.py`
 
-Builds a DuckDB index for dbSNP population-frequency observations.
+Builds dbSNP population-frequency handoff artifacts and the final DuckDB index.
 
 **Philosophy:** population-frequency context should preserve source provenance
 and should not be constrained by the old chart-specific CSV shape.
@@ -167,9 +167,11 @@ and should not be constrained by the old chart-specific CSV shape.
 This module is responsible for:
 
 - streaming raw dbSNP frequency archives
+- writing compressed Parquet handoff parts for HPC-to-AWS transfer
 - optionally loading existing legacy HBP dbSNP CSV artifacts
 - preserving legacy and new observations as separately provenanced rows
 - checkpointing archive/member progress so large runs can resume safely
+- importing Parquet handoff parts into a queryable, indexed DuckDB database
 
 ## `pipeline.py`
 

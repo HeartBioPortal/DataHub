@@ -8,6 +8,9 @@ import duckdb
 
 from datahub.secondary_analyses.dbsnp_frequency import (
     build_dbsnp_frequency_index,
+    build_dbsnp_frequency_index_from_parquet,
+    export_archive_to_parquet,
+    export_legacy_to_parquet,
     parse_frequency_member,
 )
 
@@ -117,6 +120,89 @@ def test_build_dbsnp_frequency_index_keeps_new_and_legacy_rows(tmp_path: Path) -
         progress=False,
     )
     assert resumed_summary.rows_loaded == 3
+
+
+def test_parquet_handoff_exports_and_builds_final_duckdb(tmp_path: Path) -> None:
+    raw_root = tmp_path / "raw_data" / "dbsnp"
+    raw_root.mkdir(parents=True)
+    archive_path = raw_root / "dbsnp_frequency_data_batch1.tar.gz"
+    _write_archive(archive_path, "batch1/rs123_frequency.csv", FREQUENCY_TEXT)
+
+    legacy_root = tmp_path / "analyzed_data" / "dbSNP"
+    legacy_csv_root = legacy_root / "csvs"
+    legacy_csv_root.mkdir(parents=True)
+    (legacy_csv_root / "rs123.csv").write_text(
+        "Study,Population,Group,Sample Size,Ref Allele,Alt Allele,rsid\n"
+        "LegacyStudy,LegacyPopulation,LegacyGroup,10,T=0.8,C=0.2,rs123\n",
+        encoding="utf-8",
+    )
+
+    parquet_root = tmp_path / "analyzed_data" / "dbsnp_frequency"
+    archive_summary = export_archive_to_parquet(
+        archive_path=archive_path,
+        output_root=parquet_root,
+        batch_size=1,
+        progress=False,
+    )
+    legacy_summary = export_legacy_to_parquet(
+        legacy_dbsnp_root=legacy_root,
+        output_root=parquet_root,
+        batch_size=1,
+        progress=False,
+    )
+
+    assert archive_summary.rows_loaded == 2
+    assert legacy_summary.rows_loaded == 1
+    assert len(list((parquet_root / "records").glob("*.parquet"))) == 2
+    assert (parquet_root / "manifests" / "dbsnp_frequency_data_batch1.tar.gz.manifest.json").exists()
+    assert (parquet_root / "manifests" / "hbp_legacy_dbsnp.manifest.json").exists()
+    assert export_archive_to_parquet(
+        archive_path=archive_path,
+        output_root=parquet_root,
+        batch_size=1,
+        progress=False,
+    ).distinct_rsids == 1
+    assert export_legacy_to_parquet(
+        legacy_dbsnp_root=legacy_root,
+        output_root=parquet_root,
+        batch_size=1,
+        progress=False,
+    ).distinct_rsids == 1
+
+    output_db = tmp_path / "datamart" / "dbsnp_frequency_from_parquet.duckdb"
+    summary = build_dbsnp_frequency_index_from_parquet(
+        parquet_root=parquet_root,
+        output_db=output_db,
+    )
+
+    assert summary.rows_loaded == 3
+    connection = duckdb.connect(str(output_db), read_only=True)
+    try:
+        rows = connection.execute(
+            """
+            SELECT source_system, study, population, alt_frequency
+            FROM dbsnp_frequency_records
+            ORDER BY source_system, study
+            """
+        ).fetchall()
+        assert rows == [
+            ("hbp_legacy_dbsnp", "LegacyStudy", "LegacyPopulation", 0.2),
+            ("ncbi_dbsnp_frequency", "TopMed", "Global", 0.000189),
+            ("ncbi_dbsnp_frequency", "gnomAD v4 - Genomes", "African/African American", 0.1),
+        ]
+        source_rows = connection.execute(
+            """
+            SELECT source_system, rows_loaded, distinct_rsids
+            FROM dbsnp_frequency_sources
+            ORDER BY source_system
+            """
+        ).fetchall()
+        assert source_rows == [
+            ("hbp_legacy_dbsnp", 1, 1),
+            ("ncbi_dbsnp_frequency", 2, 1),
+        ]
+    finally:
+        connection.close()
 
 
 def _write_archive(path: Path, member_name: str, content: str) -> None:

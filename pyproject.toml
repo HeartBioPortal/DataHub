@@ -34,6 +34,7 @@ docs = [
 [project.scripts]
 datahub-build-legacy-association = "datahub.cli._script_bridge:build_legacy_association"
 datahub-build-dbsnp-frequency-index = "datahub.cli._script_bridge:build_dbsnp_frequency_index"
+datahub-build-dbsnp-frequency-parquet = "datahub.cli._script_bridge:build_dbsnp_frequency_parquet"
 datahub-build-serving-duckdb = "datahub.cli._script_bridge:build_serving_duckdb"
 datahub-enrich-structural-variant-exons = "datahub.cli._script_bridge:enrich_structural_variant_exons"
 datahub-ingest-legacy-raw-duckdb = "datahub.cli._script_bridge:ingest_legacy_raw_duckdb"

@@ -56,7 +56,8 @@ raw files / source APIs
   artifacts that can be generated or attached without rebuilding association
   publication
 - **Population-frequency indexing**: dbSNP archive and legacy frequency rows
-  normalized into a provenance-preserving DuckDB index
+  normalized into Parquet handoff artifacts and a provenance-preserving DuckDB
+  index
 
 The source catalog distinguishes `integrated` sources, which can create
 canonical records today, from `catalog_only` sources, which document curated

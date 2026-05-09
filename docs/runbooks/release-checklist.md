@@ -67,8 +67,62 @@ should report zero remaining moves, rewrites, drops, and hidden raw files.
 
 ## dbSNP frequency index
 
-If new dbSNP frequency archive batches are included, build or refresh the
-population-frequency DuckDB index:
+If new dbSNP frequency archive batches are included, the preferred production
+workflow is a two-step handoff:
+
+1. Export raw archive rows to compressed Parquet on HPC or another batch host.
+2. Copy the Parquet handoff directory to the serving host and import it into
+   DuckDB there.
+
+HPC/archive export:
+
+```bash
+python scripts/dataset_specific_scripts/unified/build_dbsnp_frequency_parquet.py \
+  --verbose \
+  export-archive \
+  --archive raw_data/dbsnp/dbsnp_frequency_data_batch1.tar.gz \
+  --output-root analyzed_data/dbsnp_frequency \
+  --batch-size 250000 \
+  --progress-interval 60
+```
+
+Slurm array export, one archive per task:
+
+```bash
+sbatch --array=0-2 \
+  --export=ALL,DATAHUB_ROOT=/path/to/DataHub,RAW_ROOT=/scratch/hbp/raw_data/dbsnp,OUTPUT_ROOT=/scratch/hbp/analyzed_data/dbsnp_frequency,BATCH_SIZE=250000 \
+  scripts/slurm/build_dbsnp_frequency_parquet.sbatch
+```
+
+Legacy HBP dbSNP CSV export, if legacy rows should stay available as a
+separate provenanced source:
+
+```bash
+python scripts/dataset_specific_scripts/unified/build_dbsnp_frequency_parquet.py \
+  --verbose \
+  export-legacy \
+  --legacy-dbsnp-root analyzed_data/dbSNP \
+  --output-root analyzed_data/dbsnp_frequency \
+  --batch-size 250000
+```
+
+After export, copy `analyzed_data/dbsnp_frequency/` to the serving host. Then
+build or refresh the final population-frequency DuckDB index:
+
+```bash
+python scripts/dataset_specific_scripts/unified/build_dbsnp_frequency_parquet.py \
+  --verbose \
+  build-duckdb \
+  --parquet-root analyzed_data/dbsnp_frequency \
+  --output-db datamart/dbsnp_frequency.duckdb \
+  --replace \
+  --threads 8 \
+  --memory-limit 32GB \
+  --temp-directory datamart/duckdb_tmp
+```
+
+The older direct builder remains available for bounded local runs or smoke
+tests where archive streaming and DuckDB import happen on one machine:
 
 ```bash
 python scripts/dataset_specific_scripts/unified/build_dbsnp_frequency_index.py \
@@ -79,8 +133,8 @@ python scripts/dataset_specific_scripts/unified/build_dbsnp_frequency_index.py \
   --verbose
 ```
 
-Keep the checkpoint JSON with run logs, but do not commit generated DuckDB,
-checkpoint, raw archive, or analyzed artifact files.
+Keep checkpoint JSON and Parquet manifests with run logs, but do not commit
+generated Parquet, DuckDB, checkpoint, raw archive, or analyzed artifact files.
 
 ## Secondary analyses
 

@@ -217,3 +217,71 @@ python3 scripts/dataset_specific_scripts/unified/publish_unified_from_duckdb.py 
 - Legacy raw ingest: rerun without `--reset-checkpoint` to continue.
 - Unified publish: rerun without `--reset-checkpoint` to continue from pending units.
 - If source table contents change (new ingest), run publish with `--reset-checkpoint`.
+
+## 5) dbSNP population-frequency handoff
+
+For production dbSNP frequency batches, do not stream millions of tiny CSV
+members into DuckDB on the web server. Export compressed Parquet handoff parts
+on HPC or another batch host, copy those artifacts to AWS, then build the final
+DuckDB index from Parquet.
+
+Export one raw dbSNP archive:
+
+```bash
+python scripts/dataset_specific_scripts/unified/build_dbsnp_frequency_parquet.py \
+  --verbose \
+  export-archive \
+  --archive raw_data/dbsnp/dbsnp_frequency_data_batch1.tar.gz \
+  --output-root analyzed_data/dbsnp_frequency \
+  --batch-size 250000 \
+  --progress-interval 60
+```
+
+Export legacy HBP dbSNP CSV rows as a separate source when needed:
+
+```bash
+python scripts/dataset_specific_scripts/unified/build_dbsnp_frequency_parquet.py \
+  --verbose \
+  export-legacy \
+  --legacy-dbsnp-root analyzed_data/dbSNP \
+  --output-root analyzed_data/dbsnp_frequency \
+  --batch-size 250000
+```
+
+Run archive export as a Slurm array, one archive per task:
+
+```bash
+sbatch --array=0-2 \
+  --export=ALL,DATAHUB_ROOT=/geode2/home/u050/kvand/BigRed200/DataHub,RAW_ROOT=/N/scratch/kvand/hbp/raw_data/dbsnp,OUTPUT_ROOT=/N/scratch/kvand/hbp/analyzed_data/dbsnp_frequency,BATCH_SIZE=250000 \
+  scripts/slurm/build_dbsnp_frequency_parquet.sbatch
+```
+
+Copy the completed handoff directory to the serving host:
+
+```bash
+rsync -av analyzed_data/dbsnp_frequency/ ubuntu@SERVER:/data/DataHub/analyzed_data/dbsnp_frequency/
+```
+
+Build the final DuckDB index on AWS/server:
+
+```bash
+python scripts/dataset_specific_scripts/unified/build_dbsnp_frequency_parquet.py \
+  --verbose \
+  build-duckdb \
+  --parquet-root analyzed_data/dbsnp_frequency \
+  --output-db datamart/dbsnp_frequency.duckdb \
+  --replace \
+  --threads 8 \
+  --memory-limit 32GB \
+  --temp-directory datamart/duckdb_tmp
+```
+
+Operational contract:
+
+- `export-archive` and `export-legacy` write `records/*.parquet`,
+  `checkpoints/*.json`, and `manifests/*.json`
+- rerun export commands without `--reset` to resume completed archive members
+  or legacy files
+- use `--limit-members` for smoke tests before full archive export
+- generated raw archives, Parquet parts, checkpoints, manifests, and DuckDB
+  files are release artifacts, not git-tracked source files
