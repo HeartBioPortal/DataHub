@@ -1,0 +1,39 @@
+{
+  "title": "HeartBioPortal DataHub: HBP 3.0 NAR release",
+  "creators": [
+    {
+      "name": "HeartBioPortal contributors"
+    },
+    {
+      "name": "TBD: confirm author list before release"
+    }
+  ],
+  "description": "Data integration, provenance, artifact publishing, and serving-datamart tooling for the HeartBioPortal 3.0 NAR Database Issue manuscript release.",
+  "access_right": "open",
+  "upload_type": "software",
+  "license": "cc-by-4.0",
+  "keywords": [
+    "HeartBioPortal",
+    "cardiovascular genomics",
+    "data integration",
+    "provenance",
+    "NAR Database Issue"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/HeartBioPortal/DataHub",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    },
+    {
+      "identifier": "https://heartbioportal.org/",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    },
+    {
+      "identifier": "https://github.com/HeartBioPortal",
+      "relation": "isPartOf",
+      "scheme": "url"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "project": "HeartBioPortal",
+  "component": "DataHub",
+  "release": "3.0.0-nar",
+  "created_at": "2026-05-18T00:00:00-04:00",
+  "git_commit": "784decace6458cd0791e8149e09eb76552a31bee",
+  "datahub_schema_version": "TBD; confirm before release",
+  "genome_assembly": "GRCh38 if applicable; confirm per artifact",
+  "major_layers": [
+    "association and phenotype evidence",
+    "population-frequency context",
+    "variant annotation",
+    "structural-variant evidence",
+    "protein context",
+    "gene profiles",
+    "clinical guideline graph links",
+    "drug-discovery / drugs and compounds",
+    "expression",
+    "shared genetic architecture"
+  ],
+  "source_manifest": "DATA_SOURCES.tsv",
+  "artifact_manifest": "ARTIFACT_MANIFEST.tsv",
+  "restricted_data_policy": "Do not redistribute controlled individual-level human data, credentials, restricted raw source data, raw DrugBank full database files, or license-uncertain third-party source files.",
+  "controlled_individual_level_data": "not redistributed",
+  "notes": [
+    "Update git_commit after final release commit is selected.",
+    "Counts marked TBD in ARTIFACT_MANIFEST.tsv require production QA confirmation.",
+    "Local dbVar nstd229 report verifies 3072942 records, 3040582 variants, and 75192 gene-level payloads.",
+    "DrugBank v5.1.12 raw data are license-restricted and should not be included unless redistribution permission is confirmed."
+  ]
+}

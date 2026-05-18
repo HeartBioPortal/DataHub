@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use this software or data-processing workflow, please cite the HeartBioPortal 3.0 manuscript and this archived release."
+title: "HeartBioPortal DataHub"
+version: "3.0.0-nar"
+date-released: "2026-05-18"
+license: "CC-BY-4.0"
+repository-code: "https://github.com/HeartBioPortal/DataHub"
+url: "https://heartbioportal.org/"
+authors:
+  - name: "HeartBioPortal contributors"
+  - name: "TBD: confirm author list before release"
+abstract: "Data integration, provenance, artifact publishing, and serving-datamart tooling for the HeartBioPortal 3.0 NAR Database Issue manuscript release."
+keywords:
+  - HeartBioPortal
+  - cardiovascular genomics
+  - data integration
+  - provenance
+  - NAR Database Issue
