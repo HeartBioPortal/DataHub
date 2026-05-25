@@ -59,13 +59,17 @@ Discover CVD GEO candidates and seed the curation manifest:
 ./.venv/bin/python scripts/dataset_specific_scripts/expression/run_expression_pipeline.py \
   discover-geo \
   --geometadb-sqlite data/raw/expression/GEOmetadb.sqlite \
+  --phenotype-tree-json config/phenotype_tree.json \
   --output-csv data/interim/expression_v3/geo_cvd_candidates.csv \
   --curation-output-csv data/interim/expression_v3/geo_cvd_curation_manifest.csv
 ```
 
-Curate `data/interim/expression_v3/geo_cvd_curation_manifest.csv`. Approved
-rows include explicit case/control sample accessions, disease labels, tissue,
-platform, sample sizes, and contrast direction.
+The default discovery path uses `config/phenotype_tree.json`, so each candidate
+keeps both the original matched GEO search term and the HBP phenotype tree path.
+Curate `data/interim/expression_v3/geo_cvd_curation_manifest.csv`. Approved rows
+include explicit case/control sample accessions, disease labels, tissue,
+platform, sample sizes, contrast direction, and the phenotype tree path we use
+for portal alignment.
 
 Run approved GEO/limma contrasts:
 

@@ -18,6 +18,7 @@ from datahub.expression.curation import write_curation_manifest
 from datahub.expression.geo_discovery import (
     GeoStudyCandidate,
     discover_geo_cvd_candidates,
+    discover_geo_cvd_candidates_from_phenotype_tree,
     download_geometadb_sqlite,
 )
 from datahub.expression.legacy_cardioquilt import read_cardioquilt_csv
@@ -46,6 +47,16 @@ def parse_args() -> argparse.Namespace:
     discover.add_argument("--geometadb-sqlite", required=True)
     discover.add_argument("--output-csv", required=True)
     discover.add_argument("--limit-per-term", type=int, default=None)
+    discover.add_argument(
+        "--phenotype-tree-json",
+        default=str(REPO_ROOT / "config" / "phenotype_tree.json"),
+        help="HBP phenotype tree used to seed CVD search terms and phenotype paths.",
+    )
+    discover.add_argument(
+        "--no-phenotype-tree",
+        action="store_true",
+        help="Use the fallback built-in CVD term list instead of config/phenotype_tree.json.",
+    )
     discover.add_argument(
         "--curation-output-csv",
         default=None,
@@ -109,10 +120,20 @@ def _run_legacy_cardioquilt(args: argparse.Namespace) -> int:
 
 
 def _run_discover_geo(args: argparse.Namespace) -> int:
-    candidates = discover_geo_cvd_candidates(
-        args.geometadb_sqlite,
-        limit_per_term=args.limit_per_term,
-    )
+    phenotype_tree_path = Path(args.phenotype_tree_json)
+    if not args.no_phenotype_tree and phenotype_tree_path.exists():
+        candidates = discover_geo_cvd_candidates_from_phenotype_tree(
+            args.geometadb_sqlite,
+            phenotype_tree_path,
+            limit_per_term=args.limit_per_term,
+        )
+        discovery_terms_source = str(phenotype_tree_path)
+    else:
+        candidates = discover_geo_cvd_candidates(
+            args.geometadb_sqlite,
+            limit_per_term=args.limit_per_term,
+        )
+        discovery_terms_source = "built_in_default_cvd_terms"
     output = Path(args.output_csv)
     output.parent.mkdir(parents=True, exist_ok=True)
     rows = [candidate.to_dict() for candidate in candidates]
@@ -131,7 +152,11 @@ def _run_discover_geo(args: argparse.Namespace) -> int:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
-    payload = {"output_csv": str(output), "candidate_count": len(rows)}
+    payload = {
+        "output_csv": str(output),
+        "candidate_count": len(rows),
+        "discovery_terms_source": discovery_terms_source,
+    }
     if args.curation_output_csv:
         curation_path = write_curation_manifest(
             candidates=candidates,
@@ -151,6 +176,7 @@ def _candidate_from_dict(row: dict[str, str]) -> GeoStudyCandidate:
         organism=row.get("organism") or None,
         platform=row.get("platform") or None,
         matched_term=row.get("matched_term") or row.get("disease_name") or "",
+        phenotype_tree_path=row.get("phenotype_tree_path") or None,
         overall_design=row.get("overall_design") or None,
         source_url=row.get("source_url")
         or f"https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc={row.get('study_accession', '')}",

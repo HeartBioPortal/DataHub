@@ -17,6 +17,7 @@ CURATION_COLUMNS = [
     "source_database",
     "source_url",
     "matched_term",
+    "phenotype_tree_path",
     "disease_name",
     "disease_id",
     "phenotype_label_original",
@@ -46,6 +47,7 @@ class ExpressionCurationRow:
     source_database: str
     source_url: str
     matched_term: str
+    phenotype_tree_path: str
     disease_name: str
     disease_id: str
     phenotype_label_original: str
@@ -82,6 +84,7 @@ def candidate_to_curation_row(candidate: GeoStudyCandidate) -> ExpressionCuratio
         source_database="GEO",
         source_url=candidate.source_url,
         matched_term=candidate.matched_term,
+        phenotype_tree_path=candidate.phenotype_tree_path or "",
         disease_name=disease_name,
         disease_id="",
         phenotype_label_original=disease_name,
@@ -132,4 +135,3 @@ def approved_curation_rows(path: str | Path) -> list[dict[str, str]]:
         for row in read_curation_manifest(path)
         if str(row.get("approved", "")).strip().lower() in {"true", "1", "yes", "y"}
     ]
-

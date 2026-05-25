@@ -15,7 +15,9 @@ from datahub.expression.config import ExpressionBuildConfig
 from datahub.expression.curation import read_curation_manifest, write_curation_manifest
 from datahub.expression.geo_discovery import (
     discover_geo_cvd_candidates,
+    discover_geo_cvd_candidates_from_phenotype_tree,
     download_geometadb_sqlite,
+    load_cvd_terms_from_phenotype_tree,
 )
 from datahub.expression.legacy_cardioquilt import read_cardioquilt_csv
 from datahub.expression.pipeline import build_expression_outputs
@@ -156,6 +158,46 @@ def test_geo_discovery_from_local_geometadb(tmp_path: Path) -> None:
     assert candidates[0].matched_term == "heart failure"
 
 
+def test_geo_discovery_uses_hbp_phenotype_tree_paths(tmp_path: Path) -> None:
+    tree_path = tmp_path / "phenotype_tree.json"
+    tree_path.write_text(
+        json.dumps(
+            {
+                "CVD": {
+                    "coronary artery diseases": [
+                        "Angina",
+                        "Myocardial infarction",
+                    ]
+                }
+            }
+        )
+    )
+    terms = load_cvd_terms_from_phenotype_tree(tree_path)
+    assert terms["Angina"] == "CVD/coronary_artery_diseases/angina"
+
+    sqlite_path = tmp_path / "GEOmetadb.sqlite"
+    con = sqlite3.connect(sqlite_path)
+    try:
+        con.execute("CREATE TABLE gse (gse TEXT, title TEXT, summary TEXT, pubmed_id TEXT, overall_design TEXT)")
+        con.execute("CREATE TABLE gse_gpl (gse TEXT, gpl TEXT)")
+        con.execute("CREATE TABLE gpl (gpl TEXT, organism TEXT)")
+        con.execute(
+            "INSERT INTO gse VALUES (?, ?, ?, ?, ?)",
+            ("GSE105449", "angina monocyte expression", "case control", "123", "CVD vs control"),
+        )
+        con.execute("INSERT INTO gse_gpl VALUES (?, ?)", ("GSE105449", "GPL1"))
+        con.execute("INSERT INTO gpl VALUES (?, ?)", ("GPL1", "Homo sapiens"))
+        con.commit()
+    finally:
+        con.close()
+
+    candidates = discover_geo_cvd_candidates_from_phenotype_tree(sqlite_path, tree_path)
+
+    assert len(candidates) == 1
+    assert candidates[0].matched_term == "Angina"
+    assert candidates[0].phenotype_tree_path == "CVD/coronary_artery_diseases/angina"
+
+
 def test_expression_v3_curation_manifest_from_candidates(tmp_path: Path) -> None:
     sqlite_path = tmp_path / "GEOmetadb.sqlite"
     con = sqlite3.connect(sqlite_path)
@@ -183,6 +225,7 @@ def test_expression_v3_curation_manifest_from_candidates(tmp_path: Path) -> None
     assert rows[0]["approved"] == "false"
     assert rows[0]["review_status"] == "needs_review"
     assert rows[0]["study_accession"] == "GSE99"
+    assert "phenotype_tree_path" in rows[0]
     assert rows[0]["phenotype_label_normalized"] == "dilated_cardiomyopathy"
     assert rows[0]["analysis_method"] == "geoquery_limma"
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 import gzip
+import json
 import shutil
 import urllib.request
 from dataclasses import asdict, dataclass
@@ -24,6 +25,7 @@ class GeoStudyCandidate:
     organism: str | None
     platform: str | None
     matched_term: str
+    phenotype_tree_path: str | None
     overall_design: str | None
     source_url: str
 
@@ -83,6 +85,7 @@ ORDER BY gse.gse
                     organism=row[4],
                     platform=row[5],
                     matched_term=term,
+                    phenotype_tree_path=None,
                     overall_design=row[6],
                     source_url=f"https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc={accession}",
                 )
@@ -90,6 +93,81 @@ ORDER BY gse.gse
         connection.close()
 
     return sorted(candidates.values(), key=lambda item: (item.matched_term, item.study_accession))
+
+
+def _normalize_tree_key(value: object) -> str:
+    return str(value or "").strip().lower().replace("/", " ").replace("-", " ").replace(" ", "_")
+
+
+def _walk_phenotype_tree(node: object, path: tuple[str, ...]) -> Iterable[tuple[str, str]]:
+    if isinstance(node, dict):
+        for key, value in node.items():
+            clean_key = str(key).strip()
+            if clean_key:
+                yield clean_key, "/".join((*path, _normalize_tree_key(clean_key)))
+            yield from _walk_phenotype_tree(value, (*path, _normalize_tree_key(clean_key)))
+        return
+    if isinstance(node, list):
+        for item in node:
+            if isinstance(item, (dict, list)):
+                yield from _walk_phenotype_tree(item, path)
+                continue
+            text = str(item or "").strip()
+            if text:
+                yield text, "/".join((*path, _normalize_tree_key(text)))
+
+
+def load_cvd_terms_from_phenotype_tree(
+    phenotype_tree_json: str | Path,
+    *,
+    root_key: str = "CVD",
+) -> dict[str, str]:
+    """Return search term -> HBP phenotype tree path from the CVD tree."""
+
+    path = Path(phenotype_tree_json)
+    with path.open() as handle:
+        tree = json.load(handle)
+    root = tree.get(root_key, tree) if isinstance(tree, dict) else tree
+    terms: dict[str, str] = {}
+    for term, tree_path in _walk_phenotype_tree(root, (root_key,)):
+        normalized = " ".join(term.split())
+        if normalized:
+            terms.setdefault(normalized, tree_path)
+    return dict(sorted(terms.items(), key=lambda item: item[0].lower()))
+
+
+def discover_geo_cvd_candidates_from_phenotype_tree(
+    sqlite_path: str | Path,
+    phenotype_tree_json: str | Path,
+    *,
+    root_key: str = "CVD",
+    organism: str = "Homo sapiens",
+    limit_per_term: int | None = None,
+) -> list[GeoStudyCandidate]:
+    """Discover GEO candidates using the HeartBioPortal phenotype tree."""
+
+    term_to_path = load_cvd_terms_from_phenotype_tree(phenotype_tree_json, root_key=root_key)
+    candidates = discover_geo_cvd_candidates(
+        sqlite_path,
+        terms=term_to_path,
+        organism=organism,
+        limit_per_term=limit_per_term,
+    )
+    return [
+        GeoStudyCandidate(
+            study_accession=candidate.study_accession,
+            title=candidate.title,
+            summary=candidate.summary,
+            pubmed_id=candidate.pubmed_id,
+            organism=candidate.organism,
+            platform=candidate.platform,
+            matched_term=candidate.matched_term,
+            phenotype_tree_path=term_to_path.get(candidate.matched_term),
+            overall_design=candidate.overall_design,
+            source_url=candidate.source_url,
+        )
+        for candidate in candidates
+    ]
 
 
 def download_geometadb_sqlite(
