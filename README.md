@@ -66,6 +66,7 @@ Test dependencies live under the `test` optional extra in `pyproject.toml`.
 - `scripts/run_structural_variant_ingestion.py`
 - `scripts/dataset_specific_scripts/mvp/run_mvp_pipeline.py`
 - `scripts/dataset_specific_scripts/unified/run_unified_pipeline.py`
+- `scripts/dataset_specific_scripts/expression/run_expression_pipeline.py`
 - `scripts/report_artifact_qa.py`
 
 Editable installs also expose console commands such as:
@@ -75,7 +76,39 @@ Editable installs also expose console commands such as:
 - `datahub-ingest-mvp-duckdb-fast`
 - `datahub-publish-unified-from-duckdb`
 - `datahub-build-serving-duckdb`
+- `datahub-run-expression-pipeline`
 - `datahub-report-artifact-qa`
+
+## Expression v3 Runtime Setup
+
+Expression v3 uses Python for orchestration, metadata, validation, and DataHub
+artifact generation. GEO microarray differential-expression execution uses
+GEOquery, limma, and Biobase from Bioconductor through a local R library.
+
+On Ubuntu/AWS, the system libraries for R `curl` and `xml2` packages are
+installed before `GEOquery`:
+
+```bash
+cd /data/DataHub
+mkdir -p .r-lib
+
+sudo apt-get update
+sudo apt-get install -y libcurl4-openssl-dev libxml2-dev libssl-dev
+
+R_LIBS_USER="$PWD/.r-lib" Rscript -e ".libPaths(c(Sys.getenv('R_LIBS_USER'), .libPaths())); if (!requireNamespace('BiocManager', quietly=TRUE)) install.packages('BiocManager', repos='https://cloud.r-project.org')"
+
+R_LIBS_USER="$PWD/.r-lib" Rscript -e ".libPaths(c(Sys.getenv('R_LIBS_USER'), .libPaths())); install.packages(c('curl','xml2'), repos='https://cloud.r-project.org')"
+
+R_LIBS_USER="$PWD/.r-lib" Rscript -e ".libPaths(c(Sys.getenv('R_LIBS_USER'), .libPaths())); BiocManager::install(c('GEOquery','limma','Biobase'), ask=FALSE, update=FALSE)"
+```
+
+Verification:
+
+```bash
+R_LIBS_USER="$PWD/.r-lib" Rscript -e ".libPaths(c(Sys.getenv('R_LIBS_USER'), .libPaths())); pkgs <- c('BiocManager','GEOquery','limma','Biobase'); print(setNames(vapply(pkgs, requireNamespace, logical(1), quietly=TRUE), pkgs))"
+```
+
+All four packages print `TRUE` before we run approved GEO/limma jobs.
 
 ## Main Repository Areas
 
