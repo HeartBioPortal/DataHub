@@ -118,7 +118,7 @@ checksums, working DuckDB table counts, and serving DuckDB table counts.
 
 ## Runtime profiles
 
-The unified pipeline should normally be launched through runtime profiles in `config/runtime_profiles/unified_pipeline_profiles.json`.
+The unified pipeline normally runs through runtime profiles in `config/runtime_profiles/unified_pipeline_profiles.json`.
 
 These profiles separate:
 
@@ -126,10 +126,10 @@ These profiles separate:
 - environment-specific execution details
 
 Direct DuckDB-heavy CLIs use `<db-dir>/_duckdb_tmp` as the default spill path
-for laptop-safe behavior. Runtime profiles should still set `paths.temp_directory`
+for laptop-safe behavior. Runtime profiles still set `paths.temp_directory`
 to a production scratch path on AWS or HPC.
 
-This is a major design choice. Laptop/AWS/HPC should not require different scientific code paths.
+This is a major design choice. Laptop/AWS/HPC use the same scientific code paths.
 
 ## HPC behavior
 

@@ -48,7 +48,7 @@ Location:
 
 - `src/datahub/adapters/`
 
-An adapter should do source-specific parsing and produce canonical records. It should not contain environment-specific orchestration logic.
+An adapter does source-specific parsing and produces canonical records. Environment-specific orchestration stays in runtime profiles and scripts.
 
 ### 4. Register the adapter if needed
 

@@ -1,0 +1,54 @@
+{
+  "analysis_id": "expression_v3",
+  "version": 3,
+  "mode": "curated_public_sources",
+  "description": "Production-oriented cardiovascular differential-expression build from approved public GEO and future Expression Atlas/ArrayExpress sources.",
+  "artifact_subdir": "expression_v3",
+  "default_thresholds": {
+    "adjusted_p_value_lt": 0.05,
+    "fdr_method": "BH",
+    "minimum_abs_log2_fold_change": null,
+    "minimum_case_samples": 2,
+    "minimum_control_samples": 2
+  },
+  "curation_required": true,
+  "allowed_direction_values": [
+    "up",
+    "down",
+    "not_significant"
+  ],
+  "source_priority": [
+    "geo",
+    "expression_atlas",
+    "arrayexpress",
+    "gtex_baseline"
+  ],
+  "source_roles": {
+    "geo": "disease_case_control",
+    "expression_atlas": "disease_case_control_or_curated_de",
+    "arrayexpress": "disease_case_control_or_curated_de",
+    "gtex_baseline": "normal_tissue_baseline"
+  },
+  "required_study_metadata": [
+    "study_accession",
+    "source_database",
+    "source_url",
+    "assay_type",
+    "platform",
+    "species",
+    "disease_name",
+    "phenotype_label_original",
+    "phenotype_label_normalized",
+    "case_sample_accessions",
+    "control_sample_accessions",
+    "n_case",
+    "n_control",
+    "contrast_name"
+  ],
+  "notes": [
+    "Only approved curation-manifest rows should be analyzed into expression v3.",
+    "Do not mix GTEx baseline expression into disease-vs-control differential-expression counts.",
+    "Store not_significant rows when a gene was tested but did not pass the configured threshold.",
+    "Keep legacy expression payloads unchanged until v3 outputs pass parity, provenance, and domain review."
+  ]
+}

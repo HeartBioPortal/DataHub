@@ -78,6 +78,10 @@ def run_secondary_analyses() -> int:
     return _run_script("scripts/dataset_specific_scripts/unified/run_secondary_analyses.py")
 
 
+def run_expression_pipeline() -> int:
+    return _run_script("scripts/dataset_specific_scripts/expression/run_expression_pipeline.py")
+
+
 def run_gene_profile_pipeline() -> int:
     return _run_script("scripts/dataset_specific_scripts/unified/run_gene_profile_pipeline.py")
 

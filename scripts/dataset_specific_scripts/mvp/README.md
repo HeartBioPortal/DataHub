@@ -3,7 +3,7 @@
 This folder contains scripts specific to Million Veteran Program (MVP)
 integration workflows.
 
-## 1) Fast ingest (recommended for very large MVP drops)
+## 1. Fast Ingest for Very Large MVP Drops
 
 ```bash
 scripts/dataset_specific_scripts/mvp/ingest_mvp_duckdb_fast.py \

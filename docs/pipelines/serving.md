@@ -96,7 +96,7 @@ gene search
   -> detail endpoints load full JSON/JSON.GZ artifacts only when needed
 ```
 
-The first lookup is small and index-oriented. The backend should not read a full
+The first lookup is small and index-oriented. The backend does not read a full
 per-gene association JSON blob just to answer whether a gene exists or to draw
 top-level `vc`, `msc`, `cs`, and `pvals` charts.
 
@@ -143,7 +143,7 @@ served from either:
   `overall_gene_payloads`
 - the JSON/JSON.GZ artifact recorded in each row's `source_path`
 
-For production-scale artifacts, DataHub should prefer the second mode whenever
+For production-scale artifacts, DataHub uses the second mode whenever
 possible. Reading a single very large DuckDB `VARCHAR` blob can be slower and
 more memory-heavy than resolving the artifact path and reading the corresponding
 compressed JSON file directly.
@@ -210,7 +210,7 @@ association/CVD/TTN.json.gz
 overall/TRAIT/TTN.json.gz
 ```
 
-Runtime consumers should treat that suffix as the portable artifact identity.
+Runtime consumers treat that suffix as the portable artifact identity.
 
 ### Why not only stream one giant JSON response?
 
@@ -233,7 +233,7 @@ detail or ancestry endpoint
   -> full/detail artifact only when needed
 ```
 
-Chart-specific artifacts can be added later, but they should represent stable
+Chart-specific artifacts can be added later, but they represent stable
 scientific modules, not every possible UI filter state.
 
 ## Important design rule
@@ -242,8 +242,8 @@ The serving builder is downstream of publication.
 
 That means:
 
-- it should preserve analyzed semantics defined by publication
-- it should not become a second independent scientific transformation layer
+- it preserves analyzed semantics defined by publication
+- it does not become a second independent scientific transformation layer
 
 The export manifest framework reinforces this rule.
 
@@ -251,8 +251,8 @@ Secondary analyses follow the same principle:
 
 - primary association publication defines the base analyzed contract
 - imported or derived secondary analyses can extend the serving artifact later
-- those extensions should update only their own tables and serving metadata
-- they should not silently rebuild or reinterpret association payloads
+- those extensions update only their own tables and serving metadata
+- they do not silently rebuild or reinterpret association payloads
 
 ## Build metadata
 
@@ -292,7 +292,7 @@ A compact DuckDB serving artifact is:
 - easier to version
 - better aligned with DataHub's role as an artifact-producing platform
 
-Redis can still exist as a cache or compatibility layer, but it should not be the only production story for large-scale analyzed outputs.
+Redis can still exist as a cache or compatibility layer, but it is not the only production story for large-scale analyzed outputs.
 
 ## Incremental secondary-analysis updates
 

@@ -25,4 +25,4 @@ Major HBP 3.0-relevant areas documented in this release:
 - drug-discovery payloads
 - clinical-guideline graph links consumed from HCG/HCG-KG outputs
 
-Third-party data remain subject to the original source licenses and terms. Restricted, controlled-access, or license-uncertain raw source files should not be redistributed through this release unless permissions are confirmed.
+Third-party data remain subject to the original source licenses and terms. Restricted, controlled-access, or license-uncertain raw source files are not redistributed through this release unless permissions are confirmed.

@@ -17,5 +17,5 @@ Current tracked artifact:
 
 Notes:
 
-- keep the file contents source-native; do not rewrite columns here
+- keep the file contents source-native; column rewriting happens in preparation code
 - if a new study is added, follow the same naming pattern

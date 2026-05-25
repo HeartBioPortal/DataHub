@@ -32,11 +32,11 @@ This manifest describes release-relevant repository areas for the HBP 3.0 NAR ma
 
 ## Data and generated artifacts
 
-- `raw_data/`: small source files or checked-in source seeds only. Do not add controlled, restricted, or license-uncertain bulk source data.
+- `raw_data/`: small source files or checked-in source seeds only. Controlled, restricted, or license-uncertain bulk source data stay outside this directory.
 - `analyzed_data/`: curated or generated artifacts that are small enough and permitted for repository distribution.
 - `secondary_analyses/`: generated secondary-analysis outputs may be very large and are not assumed to be release-ready unless explicitly documented and redistributable.
-- `datamart/`: serving DuckDB outputs are production artifacts and should be archived only when size and redistribution rights are confirmed.
+- `datamart/`: serving DuckDB outputs are production artifacts and are archived only when size and redistribution rights are confirmed.
 
 ## Generated versus committed
 
-Committed release-support files are metadata, docs, schemas, configs, small seed data, and scripts. Large generated artifacts, production DuckDB files, controlled individual-level data, raw DrugBank full data, and license-uncertain third-party data should be generated or staged outside the repository unless release approval is explicit.
+Committed release-support files are metadata, docs, schemas, configs, small seed data, and scripts. Large generated artifacts, production DuckDB files, controlled individual-level data, raw DrugBank full data, and license-uncertain third-party data are generated or staged outside the repository unless release approval is explicit.

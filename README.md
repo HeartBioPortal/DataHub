@@ -72,6 +72,7 @@ Test dependencies live under the `test` optional extra in `pyproject.toml`.
 - `scripts/dataset_specific_scripts/unified/build_dbsnp_frequency_index.py`
 - `scripts/dataset_specific_scripts/unified/build_dbsnp_frequency_parquet.py`
 - `scripts/dataset_specific_scripts/unified/canonicalize_variant_viewer_artifacts.py`
+- `scripts/dataset_specific_scripts/expression/run_expression_pipeline.py`
 - `scripts/report_artifact_qa.py`
 
 Editable installs also expose console commands such as:
@@ -85,7 +86,39 @@ Editable installs also expose console commands such as:
 - `datahub-run-gene-profile-pipeline`
 - `datahub-build-dbsnp-frequency-index`
 - `datahub-build-dbsnp-frequency-parquet`
+- `datahub-run-expression-pipeline`
 - `datahub-report-artifact-qa`
+
+## Expression v3 Runtime Setup
+
+Expression v3 uses Python for orchestration, metadata, validation, and DataHub
+artifact generation. GEO microarray differential-expression execution uses
+GEOquery, limma, and Biobase from Bioconductor through a local R library.
+
+On Ubuntu/AWS, the system libraries for R `curl` and `xml2` packages are
+installed before `GEOquery`:
+
+```bash
+cd /data/DataHub
+mkdir -p .r-lib
+
+sudo apt-get update
+sudo apt-get install -y libcurl4-openssl-dev libxml2-dev libssl-dev
+
+R_LIBS_USER="$PWD/.r-lib" Rscript -e ".libPaths(c(Sys.getenv('R_LIBS_USER'), .libPaths())); if (!requireNamespace('BiocManager', quietly=TRUE)) install.packages('BiocManager', repos='https://cloud.r-project.org')"
+
+R_LIBS_USER="$PWD/.r-lib" Rscript -e ".libPaths(c(Sys.getenv('R_LIBS_USER'), .libPaths())); install.packages(c('curl','xml2'), repos='https://cloud.r-project.org')"
+
+R_LIBS_USER="$PWD/.r-lib" Rscript -e ".libPaths(c(Sys.getenv('R_LIBS_USER'), .libPaths())); BiocManager::install(c('GEOquery','limma','Biobase'), ask=FALSE, update=FALSE)"
+```
+
+Verification:
+
+```bash
+R_LIBS_USER="$PWD/.r-lib" Rscript -e ".libPaths(c(Sys.getenv('R_LIBS_USER'), .libPaths())); pkgs <- c('BiocManager','GEOquery','limma','Biobase'); print(setNames(vapply(pkgs, requireNamespace, logical(1), quietly=TRUE), pkgs))"
+```
+
+All four packages print `TRUE` before we run approved GEO/limma jobs.
 
 ## Main Repository Areas
 
@@ -102,7 +135,7 @@ Config JSON files are validated by JSON Schemas in `config/schemas/`.
 ## Design Principles
 
 - Keep biological/analytical logic in DataHub, not in downstream application layers.
-- Preserve provenance as early as possible and avoid throwing detail away during normalization.
+- Preserve provenance as early as possible and keep source detail through normalization.
 - Make source-specific behavior explicit through config and adapters, not hidden conditionals.
 - Keep published outputs stable for consumers while allowing additive metadata evolution.
 - Separate concerns between raw preparation, canonical ingestion, analyzed publication, and serving artifacts.
@@ -124,7 +157,7 @@ Related HBP 3.0 repositories:
 
 ## Manuscript release
 
-This repository supports the HeartBioPortal 3.0 NAR Database Issue manuscript release (`v3.0.0-nar`). The release-support files in this repository describe source provenance, licensing constraints, generated artifacts, reproducibility expectations, and files that should or should not be included in a public archive.
+This repository supports the HeartBioPortal 3.0 NAR Database Issue manuscript release (`v3.0.0-nar`). The release-support files in this repository describe source provenance, licensing constraints, generated artifacts, reproducibility expectations, and which files we include or exclude from a public archive.
 
 Release metadata and manifests:
 
@@ -171,7 +204,7 @@ mkdocs build --strict
 datahub-report-artifact-qa --help
 ```
 
-Counts that cannot be verified from committed local artifacts should remain `TBD; verify from production QA`.
+Counts that we cannot verify from committed local artifacts remain `TBD; verify from production QA`.
 
 5. Generate release checksums for release-relevant static files:
 
@@ -187,7 +220,7 @@ scripts/generate_checksums.sh
 - small examples or seed metadata that are redistributable
 - generated release manifests and checksum files
 
-7. Do not include in Zenodo unless redistribution has been confirmed:
+7. Exclude from Zenodo unless redistribution has been confirmed:
 
 - controlled individual-level human data
 - API keys, credentials, tokens, or secrets
@@ -198,7 +231,7 @@ scripts/generate_checksums.sh
 
 ## Security and privacy
 
-No controlled individual-level human data should be committed to this repository. Do not commit API keys, credentials, protected data, tokens, or restricted source data. Source-specific licensing controls redistribution of third-party data; if redistribution rights are uncertain, document the source in `DATA_SOURCES.tsv` or `LICENSES.md` rather than committing the data.
+Controlled individual-level human data, API keys, credentials, protected data, tokens, and restricted source data stay out of this repository. Source-specific licensing controls redistribution of third-party data; when redistribution rights are uncertain, we document the source in `DATA_SOURCES.tsv` or `LICENSES.md` rather than committing the data.
 
 ## License
 

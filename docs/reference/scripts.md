@@ -331,13 +331,13 @@ continue.
 
 Payload source modes:
 
-- `auto`: prefer the recorded `source_path` JSON/JSON.GZ files and fall back to
+- `auto`: use the recorded `source_path` JSON/JSON.GZ files and fall back to
   DuckDB `payload_json`
 - `source-path`: require source files and fail fast if any payload file is
   missing
 - `duckdb`: read payloads only from the existing serving DB
 
-`auto` is the recommended mode for Big Red upgrades because reading each full
+`auto` is the Big Red upgrade mode because reading each full
 payload back from a 400+ GB DuckDB VARCHAR column can be much slower than
 streaming the original published JSON.GZ files.
 
@@ -561,4 +561,4 @@ DuckDB before the current points-table ingest/publish stages run.
 
 ## Script philosophy
 
-The scripts directory is intentionally operational. Business/scientific logic should live in `src/datahub/` when it can. Scripts should compose that logic and add environment/runtime concerns such as CLI parsing, checkpoints, and scheduler integration.
+The scripts directory is intentionally operational. Business/scientific logic lives in `src/datahub/` when it can. Scripts compose that logic and add environment/runtime concerns such as CLI parsing, checkpoints, and scheduler integration.

@@ -14,13 +14,13 @@ Use it for:
 - compact seed artifacts used to enrich or merge future ingestions
 - small reference payloads that make pipeline runs reproducible across machines
 
-Do not use it for:
+Not for:
 
 - large bulk outputs from routine local runs
 - temporary scratch artifacts
 - files that can be deterministically rebuilt and do not need to be versioned
 
-Recommended layout:
+Layout:
 
 - `analyzed_data/<source_id>/...`
 
@@ -29,10 +29,10 @@ Examples:
 - `analyzed_data/dbvar/dbvar_structural_variants_nstd102_seed.json.zip`
 - `analyzed_data/clinvar/...`
 
-Guidelines:
+Conventions:
 
-- prefer compressed archives for versioned JSON artifacts when that keeps repository size reasonable
+- use compressed archives for versioned JSON artifacts when that keeps repository size reasonable
 - treat tracked files here as curated baselines, not an append-only dump of every run
 - write fresh local outputs here when convenient, but only commit the ones worth preserving
 - name files so they identify the source, dataset kind, and artifact role
-- prefer names like `<source>_<dataset_kind>_<study_or_release>_<artifact_role>.<ext>`
+- use names like `<source>_<dataset_kind>_<study_or_release>_<artifact_role>.<ext>`

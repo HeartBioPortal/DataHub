@@ -15,4 +15,4 @@ Documentation-only schema for HBP 3.0 protein-context artifacts.
 | `features` | Ensembl, EBI Proteins, UniProt, and InterPro protein features. |
 | `provenance` | Source and transformation provenance object. |
 
-Protein features should include feature type, source, start/end amino-acid coordinates, IDs, labels, and source license where available.
+Protein features include feature type, source, start/end amino-acid coordinates, IDs, labels, and source license where available.

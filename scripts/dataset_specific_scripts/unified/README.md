@@ -8,7 +8,7 @@ Before adding or changing operational scripts, read the repository-level
 structured logging, resumable checkpoints, smoke-test controls, and an HPC/Slurm
 path when the workload is too large for the current host.
 
-## Profile-driven runner (recommended)
+## Profile-driven Runner
 
 Use the profile runner to keep one code path across laptop/AWS/HPC and only
 change execution profile:
@@ -116,7 +116,7 @@ Python runtime note:
 DuckDB temp note:
 
 - Direct CLI use defaults to `<db-dir>/_duckdb_tmp` so laptop/test runs do not require `/data`.
-- Production profiles should keep `paths.temp_directory` pointed at scratch storage.
+- Production profiles keep `paths.temp_directory` pointed at scratch storage.
 
 ## 0) Initialize working DuckDB lifecycle tables
 
@@ -190,7 +190,7 @@ python3 scripts/dataset_specific_scripts/unified/publish_unified_from_duckdb.py 
 
 Notes:
 
-- `--dedup-mode per_gene` is the default and recommended for very large datasets.
+- `--dedup-mode per_gene` is the default for very large datasets.
 - This mode avoids creating a full materialized unified table (lower disk pressure).
 - In `per_gene` mode, work is processed in deterministic hash shards, not one query per gene.
 - Start with `--per-gene-shards 512` (increase to `1024` if units still run too long).

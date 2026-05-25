@@ -48,6 +48,6 @@ mkdocs build --strict
 ## Notes
 
 - Direct DuckDB-heavy commands spill to `<db-dir>/_duckdb_tmp` by default.
-- Production profiles should set `paths.temp_directory` to scratch storage.
+- Production profiles set `paths.temp_directory` to scratch storage.
 - Use `sys.executable` in subprocess tests so test subprocesses stay inside the
   same virtual environment as `python -m pytest`.

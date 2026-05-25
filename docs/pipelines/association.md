@@ -165,8 +165,8 @@ Overall payloads are gene-level aggregates for one dataset type:
 }
 ```
 
-The overall payload exists because the unfiltered first search result should not
-have to reconstruct a gene-level aggregate at request time. It is a fast,
+The overall payload exists so the unfiltered first search result does not
+reconstruct a gene-level aggregate at request time. It is a fast,
 precomputed view that still follows the same variant-centric scientific rule:
 deduplicate by `variant_id`, select the best representative record, then count.
 
@@ -329,11 +329,11 @@ The serving builder can read the published outputs and create a compact DuckDB s
 
 For large full-dataset builds, the serving builder streams payload rows into DuckDB in batches rather than collecting the entire association corpus in Python memory first. This keeps the artifact build operationally feasible on HPC and medium-memory servers without changing the analyzed contract.
 
-If the published outputs were just regenerated from a clean canonical pipeline and no additional normalization is needed, the builder also supports a fast path through `--trust-published-payloads`. In that mode it stores published association/overall JSON text directly instead of reparsing and renormalizing every file. This is substantially faster, but it should only be used when those published outputs are already known to be canonical.
+If the published outputs were just regenerated from a clean canonical pipeline and no additional normalization is needed, the builder also supports a fast path through `--trust-published-payloads`. In that mode it stores published association/overall JSON text directly instead of reparsing and renormalizing every file. This is substantially faster, and we use it only when those published outputs are already known to be canonical.
 
 ## Why publication is still needed even with DuckDB
 
-The point of the publication stage is not just file creation. It is the point where DataHub defines the analyzed contract. The serving artifact should preserve that contract, not replace the meaning of it.
+The point of the publication stage is not just file creation. It is the point where DataHub defines the analyzed contract. The serving artifact preserves that contract rather than replacing the meaning of it.
 
 ## Current additive metadata path
 

@@ -44,6 +44,7 @@ datahub-prepare-association-raw = "datahub.cli._script_bridge:prepare_associatio
 datahub-publish-unified-from-duckdb = "datahub.cli._script_bridge:publish_unified_from_duckdb"
 datahub-report-artifact-qa = "datahub.cli._script_bridge:report_artifact_qa"
 datahub-run-ingestion = "datahub.cli._script_bridge:run_ingestion"
+datahub-run-expression-pipeline = "datahub.cli._script_bridge:run_expression_pipeline"
 datahub-run-gene-profile-pipeline = "datahub.cli._script_bridge:run_gene_profile_pipeline"
 datahub-run-secondary-analyses = "datahub.cli._script_bridge:run_secondary_analyses"
 datahub-run-structural-variant-ingestion = "datahub.cli._script_bridge:run_structural_variant_ingestion"

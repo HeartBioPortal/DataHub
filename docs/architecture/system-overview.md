@@ -24,11 +24,11 @@ The long-term target is for DataHub to own the full HBP data lifecycle: ingestin
 
 ### Source-normalized vs analysis-ready tables
 
-These stages can live in the same physical working DuckDB. They should remain logically separate because they answer different questions.
+These stages can live in the same physical working DuckDB. They remain logically separate because they answer different questions.
 
-The **source-normalized** layer is source-adjacent. It answers: "How do we express this source release in a stable HBP input schema?" Source-normalized rows should retain source identity, release identity, source row identity, file provenance, and source-specific leftovers such as `raw_payload_json` or `metadata_json`. This layer should not make final cross-source scientific decisions.
+The **source-normalized** layer is source-adjacent. It answers: "How do we express this source release in a stable HBP input schema?" Source-normalized rows retain source identity, release identity, source row identity, file provenance, and source-specific leftovers such as `raw_payload_json` or `metadata_json`. Final cross-source scientific decisions happen later.
 
-The **analysis-ready** layer is science-facing. It answers: "How should HBP reason scientifically about this evidence across sources?" This is where DataHub normalizes identifiers, phenotype paths, chart axes, ancestry labels, provenance semantics, and the keys needed for source-priority and variant-centric counting.
+The **analysis-ready** layer is science-facing. It answers: "How do we reason scientifically about this evidence across sources?" This is where DataHub normalizes identifiers, phenotype paths, chart axes, ancestry labels, provenance semantics, and the keys needed for source-priority and variant-centric counting.
 
 Raw releases can therefore remain source-native and versioned, while the working DuckDB provides stable logical stages needed to run HBP analysis in batches.
 
@@ -87,7 +87,7 @@ Examples:
 
 These are consumer-facing and intentionally shaped.
 
-Contributors should not confuse the two.
+We keep these two artifact classes distinct.
 
 ## Why the unified DuckDB-first path matters
 

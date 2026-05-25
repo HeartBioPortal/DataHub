@@ -4,7 +4,7 @@
 
 ## Association and phenotype evidence
 
-DataHub normalizes association rows from HBP legacy CVD/trait layers, Million Veteran Program summary-statistics inputs when available, GWAS Catalog when included, and other association profiles into canonical gene, variant, phenotype, p-value, ancestry, consequence, clinical-significance, and provenance fields. The final artifacts are association JSON/JSON.GZ payloads, variant-index payloads, phenotype rollups, and serving DuckDB tables. Source provenance should preserve input file, source dataset, source version, phenotype path, rsID/variant ID, p-value, genome build, and transformation notes. Controlled or non-public inputs must not be redistributed.
+DataHub normalizes association rows from HBP legacy CVD/trait layers, Million Veteran Program summary-statistics inputs when available, GWAS Catalog when included, and other association profiles into canonical gene, variant, phenotype, p-value, ancestry, consequence, clinical-significance, and provenance fields. The final artifacts are association JSON/JSON.GZ payloads, variant-index payloads, phenotype rollups, and serving DuckDB tables. We preserve input file, source dataset, source version, phenotype path, rsID/variant ID, p-value, genome build, and transformation notes in source provenance. Controlled or non-public inputs are not redistributed.
 
 ## Population-frequency context
 
@@ -24,7 +24,7 @@ Protein context connects variant associations to protein architecture through En
 
 ## Gene profiles
 
-Gene profiles integrate nomenclature, gene summaries, protein cross-references, ontology/pathway membership, and curated source metadata from sources such as HGNC, NCBI Gene, UniProtKB, GOA/Gene Ontology, Reactome, Human Protein Atlas, and ClinGen where included. DataHub should preserve source IDs, source versions, access dates, cross-reference IDs, and source-specific licensing notes.
+Gene profiles integrate nomenclature, gene summaries, protein cross-references, ontology/pathway membership, and curated source metadata from sources such as HGNC, NCBI Gene, UniProtKB, GOA/Gene Ontology, Reactome, Human Protein Atlas, and ClinGen where included. DataHub preserves source IDs, source versions, access dates, cross-reference IDs, and source-specific licensing notes.
 
 ## Clinical guidelines / guideline graph links
 
@@ -32,7 +32,7 @@ Clinical guideline artifacts are generated primarily by HCG and HCG-KG. DataHub 
 
 ## Drug-discovery / Drugs & Compounds layer
 
-The drugs and compounds layer uses Open Targets Platform GraphQL API v4 and licensed DrugBank v5.1.12 inputs where available. DataHub should preserve the GraphQL query, variables, access date, source field names, molecule source, molecule ID, target ID, source action type, indication, trial phase/status, source version, and source license. The raw DrugBank full database is license-restricted and must not be committed or archived unless redistribution permission is confirmed. The reported drug-layer total of 17,128 gene-drug records across 1,839 gene files and 1,454 unique molecule names requires production QA confirmation.
+The drugs and compounds layer uses Open Targets Platform GraphQL API v4 and licensed DrugBank v5.1.12 inputs where available. DataHub preserves the GraphQL query, variables, access date, source field names, molecule source, molecule ID, target ID, source action type, indication, trial phase/status, source version, and source license. The raw DrugBank full database is license-restricted and is not committed or archived unless redistribution permission is confirmed. The reported drug-layer total of 17,128 gene-drug records across 1,839 gene files and 1,454 unique molecule names requires production QA confirmation.
 
 ## Expression and shared-architecture layers
 
