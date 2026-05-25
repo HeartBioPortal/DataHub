@@ -22,11 +22,11 @@ DataHub deliberately separates the problem into layers.
 
 ### Preparation is not publication
 
-Raw preparation exists to stabilize dirty inputs. It should not decide final analyzed semantics.
+Raw preparation exists to stabilize dirty inputs. Final analyzed semantics are decided later, in the publication layer.
 
 ### Canonicalization is not frontend shaping
 
-Canonical records are the reusable scientific integration layer. They should not be contorted to one UI shape.
+Canonical records are the reusable scientific integration layer. They stay broader than any one UI shape.
 
 ### Publication is where analyzed contracts become explicit
 
@@ -34,7 +34,7 @@ The publish layer is where canonical data is converted into analyzed artifacts. 
 
 ### Serving artifacts are downstream of publication
 
-The serving DuckDB exists for runtime efficiency. It should preserve published semantics, not independently invent them.
+The serving DuckDB exists for runtime efficiency. It preserves published semantics rather than independently inventing them.
 
 ## Why there are so many config surfaces
 

@@ -94,4 +94,4 @@ A single all-purpose config would create several problems:
 - serving/publication semantics would mix with source registry metadata
 - validation policies would become dependent on operational deployment details
 
-The current split is deliberate and should be preserved.
+The current split is deliberate and preserved.

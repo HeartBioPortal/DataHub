@@ -4,7 +4,7 @@
 
 ## Contribution standard
 
-The repository should remain understandable to outside contributors. That means changes should be explicit, scoped, and testable.
+We keep the repository understandable to outside contributors. Changes are explicit, scoped, and testable.
 
 ## When making a change
 
@@ -15,7 +15,7 @@ The repository should remain understandable to outside contributors. That means 
 
 ## Review expectations
 
-A good contribution should answer these questions clearly:
+A good contribution answers these questions clearly:
 
 - What layer is changing?
 - Why does the change belong there?
@@ -31,10 +31,10 @@ A good contribution should answer these questions clearly:
 - New analyzed field: export manifest + helper + publisher/builder tests
 - New environment setup: runtime profile + orchestration tests if needed
 
-## What to avoid
+## Patterns We Avoid
 
 - hardcoding source-specific behavior into unrelated modules
-- backend-only scientific fixes that should live in DataHub
+- backend-only scientific fixes that belong in DataHub
 - adding new fields without deciding whether they belong in schema, metadata, or analyzed output
 - mixing runtime orchestration changes with scientific contract changes in one opaque edit
 
@@ -56,7 +56,7 @@ That includes:
 The published documentation is the project site at
 `https://heartbioportal.github.io/DataHub/`. The GitHub Actions workflow in
 `.github/workflows/docs.yml` builds and deploys it from `main`; in repository
-settings, GitHub Pages should use **GitHub Actions** as the source.
+settings, GitHub Pages uses **GitHub Actions** as the source.
 
 ## Documentation standard for algorithm changes
 
@@ -68,11 +68,11 @@ When a change modifies scientific or analytical behavior, the code change is not
 - What ambiguity or previous failure mode does the rule prevent?
 - What tests prove the intended semantics?
 
-For example, an association counting change should explicitly document whether the unit is:
+For example, an association counting change explicitly documents whether the unit is:
 
 - raw row
 - source-specific record
 - phenotype-level record
 - unique `variant_id`
 
-Do not assume future contributors will infer scientific intent from the implementation alone.
+We do not assume future contributors will infer scientific intent from the implementation alone.

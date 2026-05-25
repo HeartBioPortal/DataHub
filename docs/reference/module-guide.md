@@ -14,20 +14,20 @@ Defines the core canonical record shape.
 
 Define field policies and validation contracts.
 
-**Philosophy:** data quality expectations should be explicit, declarative, and testable.
+**Philosophy:** data quality expectations are explicit, declarative, and testable.
 
 ## `config_schemas.py`
 
 Validates repository JSON config against schemas in `config/schemas/`.
 
-**Philosophy:** malformed config should fail before ingestion, publication, or
+**Philosophy:** malformed config fails before ingestion, publication, or
 HPC submission begins.
 
 ## `prep/`
 
 Handles raw preparation for irregular association sources.
 
-**Philosophy:** normalize ugly raw inputs early, but do not let raw preparation become the place where final analyzed semantics are decided.
+**Philosophy:** normalize irregular raw inputs early, while final analyzed semantics stay in the publication layer.
 
 ## `adapters/`
 
@@ -39,25 +39,25 @@ Map source-specific inputs into canonical records.
 
 Contains source manifest definitions and the source registry.
 
-**Philosophy:** source identity and onboarding metadata should be first-class, separate from the code that parses records.
+**Philosophy:** source identity and onboarding metadata are first-class and separate from the code that parses records.
 
 ## `registry.py`
 
 Adapter plugin registry.
 
-**Philosophy:** community and future source expansion should not require rewriting core orchestration code.
+**Philosophy:** community and future source expansion does not require rewriting core orchestration code.
 
 ## `quality.py`
 
 Contract validation.
 
-**Philosophy:** bad records should be rejected or repaired by explicit policy, not by accidental downstream assumptions.
+**Philosophy:** bad records are rejected or repaired by explicit policy, not by accidental downstream assumptions.
 
 ## `enrichment.py`
 
 Holds enrichment and source-priority concepts.
 
-**Philosophy:** cross-source arbitration should be explicit and central, not duplicated in scattered scripts.
+**Philosophy:** cross-source arbitration is explicit and central, not duplicated in scattered scripts.
 
 ## `storage/`
 
@@ -70,13 +70,13 @@ Canonical storage backends.
 Shared helpers for unified DuckDB operational workflows.
 
 **Philosophy:** runtime behavior such as DuckDB temp directories and memory
-settings should be centralized, while CLI scripts remain orchestration shells.
+settings are centralized, while CLI scripts remain orchestration shells.
 
 ## `artifact_qa.py`
 
 Release QA report helpers.
 
-**Philosophy:** artifact handoffs should include machine-readable counts,
+**Philosophy:** artifact handoffs include machine-readable counts,
 checksums, and source-catalog status rather than relying on ad hoc notes.
 
 ## `publishers/`
@@ -101,7 +101,7 @@ This module is responsible for keeping semantically equivalent labels from fragm
 
 - `indel` vs `INDEL`
 - case variants of most severe consequence labels
-- list-like clinical significance payloads that should reduce to one canonical category
+- list-like clinical significance payloads that reduce to one canonical category
 
 ## `phenotype_paths.py`
 
@@ -113,19 +113,19 @@ Resolves canonical phenotype hierarchy paths.
 
 Handles ancestry normalization and source ancestry preservation.
 
-**Philosophy:** preserve raw/source ancestry identity when possible; do not collapse early unless the platform has explicitly chosen to do so.
+**Philosophy:** preserve raw/source ancestry identity when possible; early collapse happens only when the platform explicitly chooses it.
 
 ## `export_manifest.py` and `export_helpers.py`
 
 Manifest-driven preservation/derivation layer.
 
-**Philosophy:** analyzed export semantics should be explicit, configurable, and testable instead of hidden inside ad hoc publisher code.
+**Philosophy:** analyzed export semantics are explicit, configurable, and testable instead of hidden inside ad hoc publisher code.
 
 ## `secondary_analyses/`
 
 Secondary-analysis generation and serving-update support.
 
-**Philosophy:** imported modalities and derived post-association analyses should share one explicit extension layer instead of becoming one-off builder flags or backend hacks.
+**Philosophy:** imported modalities and derived post-association analyses share one explicit extension layer instead of becoming one-off builder flags or backend patches.
 
 This package is responsible for:
 

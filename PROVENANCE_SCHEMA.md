@@ -1,6 +1,6 @@
 # DataHub Provenance Schema
 
-DataHub artifacts should preserve enough provenance to trace an HBP field back to the source family, source version, access method, input record, and transformation.
+DataHub artifacts preserve enough provenance to trace an HBP field back to the source family, source version, access method, input record, and transformation.
 
 ## Standard fields
 
@@ -29,7 +29,7 @@ DataHub artifacts should preserve enough provenance to trace an HBP field back t
 
 ## Drug records
 
-Drug-discovery payloads should additionally preserve:
+Drug-discovery payloads also preserve:
 
 - `molecule_source`
 - `molecule_id`
@@ -43,7 +43,7 @@ For Open Targets records, also preserve the GraphQL endpoint, query, variables, 
 
 ## Structural variants
 
-Structural-variant payloads should additionally preserve:
+Structural-variant payloads also preserve:
 
 - `source_db`
 - `study_or_submission`
@@ -59,7 +59,7 @@ Structural-variant payloads should additionally preserve:
 
 ## Population frequencies
 
-Population-frequency rows should preserve:
+Population-frequency rows preserve:
 
 - `rsid`
 - `allele`

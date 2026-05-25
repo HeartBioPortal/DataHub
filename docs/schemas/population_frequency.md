@@ -15,4 +15,4 @@ Documentation-only schema for HBP 3.0 population-frequency artifacts.
 | `genome_build` | Genome assembly. |
 | `provenance` | Source and transformation provenance object. |
 
-Rows should preserve source-specific labels and avoid collapsing distinct cohorts without a provenance trail.
+Rows preserve source-specific labels and keep distinct cohorts separate unless a provenance trail records the collapse.

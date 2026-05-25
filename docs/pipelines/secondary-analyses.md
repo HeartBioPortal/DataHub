@@ -21,10 +21,10 @@ Secondary analyses are downstream of the primary association contract.
 
 That means:
 
-- they should not redefine association semantics
-- they should reuse cleaned canonical association identity where appropriate
-- they should be generated or imported explicitly
-- they should be attachable to an existing serving DB without rebuilding association tables
+- they do not redefine association semantics
+- they reuse cleaned canonical association identity where appropriate
+- they are generated or imported explicitly
+- they attach to an existing serving DB without rebuilding association tables
 
 ## Two analysis modes
 
@@ -193,7 +193,7 @@ For protein-context runs on BigRed, use the Slurm wrapper:
 
 Submit it as a capped array job, for example `sbatch --array=0-31%4 ...`, so no more than four API-fetch partitions run at once.
 
-Very large SGA runs should also be split into deterministic gene partitions:
+Very large SGA runs are split into deterministic gene partitions:
 
 - `--unit-partitions N`
 - `--unit-partition-index I`

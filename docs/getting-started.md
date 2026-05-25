@@ -4,7 +4,7 @@
 
 ## Prerequisites
 
-- Python 3.11+ recommended
+- Python 3.11+
 - `pip`
 - Git
 - Git LFS if you plan to work with large tracked artifacts

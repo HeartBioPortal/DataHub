@@ -70,8 +70,8 @@ Broadly reusable fields belong in explicit schema columns only if they are neede
 - filtering
 - publish logic
 
-Source-specific or lower-reuse fields should remain structured metadata.
+Source-specific or lower-reuse fields remain structured metadata.
 
 ## Design rule
 
-Publication is the canonical place where analyzed semantics are defined. The serving builder should preserve those semantics, not invent a new scientific contract.
+Publication is the canonical place where analyzed semantics are defined. The serving builder preserves those semantics rather than inventing a new scientific contract.

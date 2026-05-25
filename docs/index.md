@@ -15,7 +15,7 @@ DataHub owns four responsibilities:
 
 ## What DataHub is not
 
-DataHub is not the web application, not the long-term application database, and not a place to re-implement biological logic in multiple layers. The backend should consume artifacts created by DataHub. If business logic is needed to interpret raw data scientifically, it belongs here first.
+DataHub is not the web application, not the long-term application database, and not a place to re-implement biological logic in multiple layers. The backend consumes artifacts created by DataHub. Scientific interpretation logic belongs here first.
 
 ## Reader map
 
@@ -31,7 +31,7 @@ Use the documentation based on what you need:
 
 - **One canonical model, many source adapters**
 - **Publish once, serve many times**
-- **Prefer explicit config over hidden source-specific conditionals**
+- **Use explicit config over hidden source-specific conditionals**
 - **Keep provenance attached as long as possible**
 - **Keep legacy compatibility without freezing the architecture**
 
