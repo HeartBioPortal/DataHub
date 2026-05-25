@@ -1,0 +1,36 @@
+{
+  "analysis_id": "expression_v2",
+  "version": 1,
+  "mode": "derived",
+  "description": "Versioned differential-expression evidence model with row-level provenance and gene-phenotype summaries.",
+  "artifact_subdir": "expression_v2",
+  "default_thresholds": {
+    "adjusted_p_value_lt": 0.05,
+    "fdr_method": "BH",
+    "minimum_abs_log2_fold_change": null,
+    "minimum_case_samples": 2,
+    "minimum_control_samples": 2
+  },
+  "allowed_direction_values": [
+    "up",
+    "down",
+    "not_significant"
+  ],
+  "source_priority": [
+    "geo",
+    "expression_atlas",
+    "arrayexpress",
+    "gtex_baseline"
+  ],
+  "source_roles": {
+    "geo": "disease_case_control",
+    "expression_atlas": "disease_case_control_or_curated_de",
+    "arrayexpress": "disease_case_control_or_curated_de",
+    "gtex_baseline": "normal_tissue_baseline"
+  },
+  "notes": [
+    "Do not mix baseline GTEx records into disease-vs-control differential-expression counts.",
+    "Preserve original phenotype labels next to normalized ontology identifiers.",
+    "Keep legacy expression payloads unchanged until v2 outputs pass parity and provenance validation."
+  ]
+}
