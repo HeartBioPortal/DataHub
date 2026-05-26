@@ -12,7 +12,11 @@ except ImportError:  # pragma: no cover
     duckdb = None
 
 from datahub.expression.config import ExpressionBuildConfig
-from datahub.expression.curation import read_curation_manifest, write_curation_manifest
+from datahub.expression.curation import (
+    read_curation_manifest,
+    suggest_geo_curation_from_sample_metadata,
+    write_curation_manifest,
+)
 from datahub.expression.geo_discovery import (
     discover_geo_cvd_candidates,
     discover_geo_cvd_candidates_from_phenotype_tree,
@@ -228,6 +232,308 @@ def test_expression_v3_curation_manifest_from_candidates(tmp_path: Path) -> None
     assert "phenotype_tree_path" in rows[0]
     assert rows[0]["phenotype_label_normalized"] == "dilated_cardiomyopathy"
     assert rows[0]["analysis_method"] == "geoquery_limma"
+
+
+def _write_sample_metadata(path: Path, rows: list[dict[str, str]]) -> None:
+    fieldnames = sorted({key for row in rows for key in row})
+    with path.open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def test_geo_curation_suggestion_detects_case_control_and_non_mrna_assay(tmp_path: Path) -> None:
+    manifest = tmp_path / "manifest.csv"
+    with manifest.open("w", newline="") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=[
+                "approved",
+                "review_status",
+                "study_accession",
+                "source_database",
+                "source_url",
+                "matched_term",
+                "phenotype_tree_path",
+                "disease_name",
+                "disease_id",
+                "phenotype_label_original",
+                "phenotype_label_normalized",
+                "assay_type",
+                "platform",
+                "species",
+                "tissue",
+                "cell_type",
+                "case_group_label",
+                "control_group_label",
+                "case_sample_accessions",
+                "control_sample_accessions",
+                "n_case",
+                "n_control",
+                "contrast_name",
+                "analysis_method",
+                "notes",
+            ],
+        )
+        writer.writeheader()
+        writer.writerow(
+            {
+                "approved": "false",
+                "review_status": "needs_review",
+                "study_accession": "GSE144431",
+                "source_database": "GEO",
+                "source_url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE144431",
+                "matched_term": "abdominal aortic aneurysm",
+                "phenotype_tree_path": "CVD/aneurysm/abdominal_aortic_aneurysm",
+                "disease_name": "abdominal aortic aneurysm",
+                "phenotype_label_original": "abdominal aortic aneurysm",
+                "phenotype_label_normalized": "abdominal_aortic_aneurysm",
+                "assay_type": "microarray_or_processed_matrix",
+                "contrast_name": "case_vs_control",
+                "analysis_method": "geoquery_limma",
+            }
+        )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    _write_sample_metadata(
+        metadata_dir / "GSE144431_samples.csv",
+        [
+            {
+                "geo_accession": "GSM1",
+                "title": "Abdominal aortic aneurysm sample 1",
+                "description": "AAA 1",
+                "source_name_ch1": "full thickness abdominal aortic aneurysm tissue",
+                "tissue:ch1": "abdominal aorta",
+                "hyb_protocol": "Arraystar Human circRNA Arrays V2",
+            },
+            {
+                "geo_accession": "GSM2",
+                "title": "Abdominal aortic aneurysm sample 2",
+                "description": "AAA 2",
+                "source_name_ch1": "full thickness abdominal aortic aneurysm tissue",
+                "tissue:ch1": "abdominal aorta",
+                "hyb_protocol": "Arraystar Human circRNA Arrays V2",
+            },
+            {
+                "geo_accession": "GSM3",
+                "title": "Donor sample 1",
+                "description": "Control 1",
+                "source_name_ch1": "abdominal aorta",
+                "tissue:ch1": "abdominal aorta",
+                "hyb_protocol": "Arraystar Human circRNA Arrays V2",
+            },
+            {
+                "geo_accession": "GSM4",
+                "title": "Donor sample 2",
+                "description": "Control 2",
+                "source_name_ch1": "abdominal aorta",
+                "tissue:ch1": "abdominal aorta",
+                "hyb_protocol": "Arraystar Human circRNA Arrays V2",
+            },
+        ],
+    )
+
+    payload = suggest_geo_curation_from_sample_metadata(
+        curation_csv=manifest,
+        metadata_dir=metadata_dir,
+        output_csv=tmp_path / "suggested.csv",
+    )
+    rows = read_curation_manifest(payload["output_csv"])
+
+    assert payload["status_counts"] == {"suggested_non_mrna_case_control": 1}
+    assert rows[0]["approved"] == "false"
+    assert rows[0]["review_status"] == "suggested_non_mrna_case_control"
+    assert rows[0]["assay_type"] == "circRNA_microarray"
+    assert rows[0]["n_case"] == "2"
+    assert rows[0]["n_control"] == "2"
+    assert rows[0]["case_sample_accessions"] == "GSM1,GSM2"
+    assert rows[0]["control_sample_accessions"] == "GSM3,GSM4"
+
+
+def test_geo_curation_suggestion_keeps_disease_only_studies_unapproved(tmp_path: Path) -> None:
+    manifest = tmp_path / "manifest.csv"
+    with manifest.open("w", newline="") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=[
+                "approved",
+                "review_status",
+                "study_accession",
+                "source_database",
+                "source_url",
+                "matched_term",
+                "phenotype_tree_path",
+                "disease_name",
+                "disease_id",
+                "phenotype_label_original",
+                "phenotype_label_normalized",
+                "assay_type",
+                "platform",
+                "species",
+                "tissue",
+                "cell_type",
+                "case_group_label",
+                "control_group_label",
+                "case_sample_accessions",
+                "control_sample_accessions",
+                "n_case",
+                "n_control",
+                "contrast_name",
+                "analysis_method",
+                "notes",
+            ],
+        )
+        writer.writeheader()
+        writer.writerow(
+            {
+                "approved": "false",
+                "review_status": "needs_review",
+                "study_accession": "GSE165470",
+                "source_database": "GEO",
+                "source_url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE165470",
+                "matched_term": "abdominal aortic aneurysm",
+                "phenotype_tree_path": "CVD/aneurysm/abdominal_aortic_aneurysm",
+                "disease_name": "abdominal aortic aneurysm",
+                "phenotype_label_original": "abdominal aortic aneurysm",
+                "phenotype_label_normalized": "abdominal_aortic_aneurysm",
+                "assay_type": "microarray_or_processed_matrix",
+                "contrast_name": "case_vs_control",
+                "analysis_method": "geoquery_limma",
+            }
+        )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    _write_sample_metadata(
+        metadata_dir / "GSE165470_samples.csv",
+        [
+            {
+                "geo_accession": "GSM1",
+                "source_name_ch1": "Human abdominal aortic aneurysm tissue",
+                "tissue:ch1": "abdominal aortic aneurysm (AAA) tissue",
+                "hyb_protocol": "Affymetrix Clariom D Array",
+            },
+            {
+                "geo_accession": "GSM2",
+                "source_name_ch1": "Human abdominal aortic aneurysm tissue",
+                "tissue:ch1": "abdominal aortic aneurysm (AAA) tissue",
+                "hyb_protocol": "Affymetrix Clariom D Array",
+            },
+        ],
+    )
+
+    payload = suggest_geo_curation_from_sample_metadata(
+        curation_csv=manifest,
+        metadata_dir=metadata_dir,
+        output_csv=tmp_path / "suggested.csv",
+    )
+    rows = read_curation_manifest(payload["output_csv"])
+
+    assert payload["status_counts"] == {"needs_review_no_control": 1}
+    assert rows[0]["approved"] == "false"
+    assert rows[0]["review_status"] == "needs_review_no_control"
+    assert rows[0]["n_case"] == "2"
+    assert rows[0]["n_control"] == ""
+
+
+def test_geo_curation_suggestion_flags_possible_topic_mismatch(tmp_path: Path) -> None:
+    manifest = tmp_path / "manifest.csv"
+    with manifest.open("w", newline="") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=[
+                "approved",
+                "review_status",
+                "study_accession",
+                "source_database",
+                "source_url",
+                "matched_term",
+                "phenotype_tree_path",
+                "disease_name",
+                "disease_id",
+                "phenotype_label_original",
+                "phenotype_label_normalized",
+                "assay_type",
+                "platform",
+                "species",
+                "tissue",
+                "cell_type",
+                "case_group_label",
+                "control_group_label",
+                "case_sample_accessions",
+                "control_sample_accessions",
+                "n_case",
+                "n_control",
+                "contrast_name",
+                "analysis_method",
+                "notes",
+            ],
+        )
+        writer.writeheader()
+        writer.writerow(
+            {
+                "approved": "false",
+                "review_status": "needs_review",
+                "study_accession": "GSE59216",
+                "source_database": "GEO",
+                "source_url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE59216",
+                "matched_term": "stroke",
+                "phenotype_tree_path": "CVD/cerebrovascular/stroke",
+                "disease_name": "stroke",
+                "phenotype_label_original": "stroke",
+                "phenotype_label_normalized": "stroke",
+                "assay_type": "microarray_or_processed_matrix",
+                "contrast_name": "case_vs_control",
+                "analysis_method": "geoquery_limma",
+            }
+        )
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    _write_sample_metadata(
+        metadata_dir / "GSE59216_samples.csv",
+        [
+            {
+                "geo_accession": "GSM1",
+                "diagnosis:ch1": "patient",
+                "asd status:ch1": "ASD",
+                "tissue:ch1": "whole blood",
+                "data_processing": "Contrast analysis was performed by LIMMA.",
+            },
+            {
+                "geo_accession": "GSM2",
+                "diagnosis:ch1": "patient",
+                "asd status:ch1": "ASD",
+                "tissue:ch1": "whole blood",
+                "data_processing": "Contrast analysis was performed by LIMMA.",
+            },
+            {
+                "geo_accession": "GSM3",
+                "diagnosis:ch1": "healthy control",
+                "asd status:ch1": "non",
+                "tissue:ch1": "whole blood",
+                "data_processing": "Contrast analysis was performed by LIMMA.",
+            },
+            {
+                "geo_accession": "GSM4",
+                "diagnosis:ch1": "healthy control",
+                "asd status:ch1": "non",
+                "tissue:ch1": "whole blood",
+                "data_processing": "Contrast analysis was performed by LIMMA.",
+            },
+        ],
+    )
+
+    payload = suggest_geo_curation_from_sample_metadata(
+        curation_csv=manifest,
+        metadata_dir=metadata_dir,
+        output_csv=tmp_path / "suggested.csv",
+    )
+    rows = read_curation_manifest(payload["output_csv"])
+
+    assert payload["status_counts"] == {"needs_review_possible_topic_mismatch": 1}
+    assert rows[0]["approved"] == "false"
+    assert rows[0]["review_status"] == "needs_review_possible_topic_mismatch"
+    assert rows[0]["n_case"] == "2"
+    assert rows[0]["n_control"] == "2"
 
 
 def test_import_expression_v3_results_counts_not_significant(tmp_path: Path) -> None:

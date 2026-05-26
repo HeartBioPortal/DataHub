@@ -14,7 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from datahub.expression.config import ExpressionBuildConfig
-from datahub.expression.curation import write_curation_manifest
+from datahub.expression.curation import suggest_geo_curation_from_sample_metadata, write_curation_manifest
 from datahub.expression.geo_discovery import (
     GeoStudyCandidate,
     discover_geo_cvd_candidates,
@@ -77,6 +77,16 @@ def parse_args() -> argparse.Namespace:
     )
     manifest.add_argument("--candidates-csv", required=True)
     manifest.add_argument("--output-csv", required=True)
+
+    suggest = subparsers.add_parser(
+        "suggest-geo-curation",
+        help="Fill reviewable GEO curation rows from downloaded sample metadata CSVs.",
+    )
+    suggest.add_argument("--curation-csv", required=True)
+    suggest.add_argument("--metadata-dir", required=True)
+    suggest.add_argument("--output-csv", required=True)
+    suggest.add_argument("--min-case", type=int, default=2)
+    suggest.add_argument("--min-control", type=int, default=2)
 
     geo_de = subparsers.add_parser(
         "run-approved-geo-de",
@@ -203,6 +213,18 @@ def _run_build_curation_manifest(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_suggest_geo_curation(args: argparse.Namespace) -> int:
+    payload = suggest_geo_curation_from_sample_metadata(
+        curation_csv=args.curation_csv,
+        metadata_dir=args.metadata_dir,
+        output_csv=args.output_csv,
+        min_case=args.min_case,
+        min_control=args.min_control,
+    )
+    print(json.dumps(payload, indent=2))
+    return 0
+
+
 def _run_approved_geo_de(args: argparse.Namespace) -> int:
     script_path = Path(__file__).with_name("run_geo_limma_de.R")
     command = [
@@ -255,6 +277,8 @@ def main() -> int:
         return _run_download_geometadb(args)
     if args.command == "build-curation-manifest":
         return _run_build_curation_manifest(args)
+    if args.command == "suggest-geo-curation":
+        return _run_suggest_geo_curation(args)
     if args.command == "run-approved-geo-de":
         return _run_approved_geo_de(args)
     if args.command == "import-v3-results":

@@ -66,8 +66,27 @@ Discover CVD GEO candidates and seed the curation manifest:
 
 The default discovery path uses `config/phenotype_tree.json`, so each candidate
 keeps both the original matched GEO search term and the HBP phenotype tree path.
-Curate `data/interim/expression_v3/geo_cvd_curation_manifest.csv`. Approved rows
-include explicit case/control sample accessions, disease labels, tissue,
+Download or create sample metadata CSVs under
+`data/interim/expression_v3/sample_metadata`, named as
+`<GSE>_samples.csv`. Then generate a suggested curation sheet:
+
+```bash
+./.venv/bin/python scripts/dataset_specific_scripts/expression/run_expression_pipeline.py \
+  suggest-geo-curation \
+  --curation-csv data/interim/expression_v3/geo_cvd_curation_manifest.csv \
+  --metadata-dir data/interim/expression_v3/sample_metadata \
+  --output-csv data/interim/expression_v3/geo_cvd_curation_suggested.csv
+```
+
+This step reads GEO sample metadata and fills likely assay type, tissue,
+cell type, case/control labels, sample accessions, and sample sizes. It does
+not set `approved=true`. We keep approval as a deliberate review step because
+some GEO matches are not true CVD case/control studies, and some are miRNA,
+circRNA, single-condition, treated-control, or otherwise not directly
+comparable to gene-level mRNA differential-expression evidence.
+
+Review `data/interim/expression_v3/geo_cvd_curation_suggested.csv`. Approved
+rows include explicit case/control sample accessions, disease labels, tissue,
 platform, sample sizes, contrast direction, and the phenotype tree path we use
 for portal alignment.
 
@@ -77,7 +96,7 @@ Run approved GEO/limma contrasts:
 R_LIBS_USER="$PWD/.r-lib" \
 ./.venv/bin/python scripts/dataset_specific_scripts/expression/run_expression_pipeline.py \
   run-approved-geo-de \
-  --curation-csv data/interim/expression_v3/geo_cvd_curation_manifest.csv \
+  --curation-csv data/interim/expression_v3/geo_cvd_curation_suggested.csv \
   --output-csv data/interim/expression_v3/geo_limma_results.csv \
   --cache-dir data/cache/expression_v3/geo
 ```
