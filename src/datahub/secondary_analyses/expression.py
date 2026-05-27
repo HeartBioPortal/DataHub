@@ -6,9 +6,13 @@ import json
 import math
 import gzip
 from pathlib import Path
+from urllib.parse import quote
 
 from .artifacts import write_gene_payload_artifact, write_metadata
 from .base import SecondaryAnalysisManifest, SecondaryArtifactRow
+
+
+MAX_EXPRESSION_GENE_FILENAME_LENGTH = 180
 
 
 def _is_nan(value: object) -> bool:
@@ -45,6 +49,16 @@ def normalize_expression_entry(value: object) -> object:
     return normalized
 
 
+def is_supported_expression_gene_id(gene_id: object) -> bool:
+    gene = str(gene_id or "").strip()
+    if not gene:
+        return False
+    if "," in gene or "///" in gene:
+        return False
+    encoded_filename = f"{quote(gene, safe='')}.json.gz"
+    return len(encoded_filename) <= MAX_EXPRESSION_GENE_FILENAME_LENGTH
+
+
 def generate_expression_artifacts(
     *,
     expression_json_path: str | Path,
@@ -59,11 +73,13 @@ def generate_expression_artifacts(
     else:
         payload = json.loads(expression_path.read_text())
     rows: list[SecondaryArtifactRow] = []
+    skipped_gene_count = 0
 
     for gene_id, value in payload.items():
         gene = str(gene_id)
         normalized_gene = gene.upper()
-        if "," in gene:
+        if not is_supported_expression_gene_id(gene):
+            skipped_gene_count += 1
             continue
         if include_genes is not None and normalized_gene not in include_genes:
             continue
@@ -93,6 +109,8 @@ def generate_expression_artifacts(
             "source_path": str(expression_path),
             "row_count": len(rows),
             "filtered_gene_count": 0 if include_genes is None else len(include_genes),
+            "skipped_gene_count": skipped_gene_count,
+            "skip_reason": "Empty, comma-delimited, CardioQuilt multi-gene, or filename-unsafe legacy identifiers are not emitted as per-gene expression artifacts.",
         },
     )
     return rows

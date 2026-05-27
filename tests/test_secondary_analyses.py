@@ -250,6 +250,46 @@ def test_expression_secondary_preserves_enriched_payload_fields(tmp_path: Path) 
     assert payload["cardiomyopathy"]["minimum_adjusted_p_value"] == 0.001
 
 
+def test_expression_secondary_skips_legacy_multigene_ids_with_long_filenames(tmp_path: Path) -> None:
+    module = _load_script_module("run_secondary_analyses.py")
+    secondary_root = tmp_path / "secondary"
+    long_multigene_id = "1060P11.3" + "///KIR2DS2" * 40
+    expression_path = tmp_path / "expression_enriched.json"
+    expression_path.write_text(
+        json.dumps(
+            {
+                long_multigene_id: {"cardiomyopathy": {"up": 1, "down": 0}},
+                "ANK2": {"cardiomyopathy": {"up": 2, "down": 1}},
+            }
+        )
+    )
+
+    old_argv = sys.argv[:]
+    try:
+        sys.argv = [
+            "run_secondary_analyses.py",
+            "generate",
+            "--analyses",
+            "expression",
+            "--output-root",
+            str(secondary_root),
+            "--expression-json-path",
+            str(expression_path),
+            "--log-level",
+            "ERROR",
+        ]
+        assert module.main() == 0
+    finally:
+        sys.argv = old_argv
+
+    artifact_path = secondary_root / "final" / "expression" / "genes" / "ANK2.json.gz"
+    metadata_path = secondary_root / "final" / "expression" / "metadata.json"
+    assert artifact_path.exists()
+    metadata = json.loads(metadata_path.read_text())
+    assert metadata["row_count"] == 1
+    assert metadata["skipped_gene_count"] == 1
+
+
 def test_sga_secondary_generate_and_apply(tmp_path: Path) -> None:
     if duckdb is None:
         import pytest
