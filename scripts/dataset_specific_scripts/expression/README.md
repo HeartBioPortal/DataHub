@@ -45,6 +45,23 @@ and `GEOquery`.
 
 ## Build Commands
 
+Build the legacy-enriched expression payload used for the upgraded expression
+chart:
+
+```bash
+./.venv/bin/python scripts/dataset_specific_scripts/expression/run_expression_pipeline.py \
+  legacy-enriched \
+  --expression-json ../DataManager/analyzed_data/expression.json \
+  --cardioquilt-csv ../../cardioquilt/output/CREEDS-GEO/cardioquilt_CREEDS_GEO.csv \
+  --output-json data/processed/expression/expression_legacy_cardioquilt_enriched.json.gz
+```
+
+This combines the current production `expression.json` counts with recoverable
+CardioQuilt/CREEDS-GEO source-study provenance. The output keeps the old
+`up`/`down` chart fields and adds source study counts, accessions, GEO links,
+minimum adjusted p-value, median log2 fold change, and provenance status where
+the CardioQuilt rows can be matched.
+
 Download GEOmetadb:
 
 ```bash

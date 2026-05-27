@@ -22,6 +22,7 @@ from datahub.expression.geo_discovery import (
     download_geometadb_sqlite,
 )
 from datahub.expression.legacy_cardioquilt import read_cardioquilt_csv
+from datahub.expression.legacy_enriched import write_enriched_legacy_expression_payload
 from datahub.expression.pipeline import build_expression_outputs
 from datahub.expression.v3_results import read_expression_v3_results
 
@@ -39,6 +40,20 @@ def parse_args() -> argparse.Namespace:
     legacy.add_argument("--duckdb-path", default=None)
     legacy.add_argument("--adjusted-p-value-threshold", type=float, default=0.05)
     legacy.add_argument("--pipeline-version", default="1")
+
+    enriched = subparsers.add_parser(
+        "legacy-enriched",
+        help="Combine current expression.json counts with CardioQuilt row-level provenance summaries.",
+    )
+    enriched.add_argument("--expression-json", required=True)
+    enriched.add_argument("--cardioquilt-csv", required=True)
+    enriched.add_argument("--output-json", required=True)
+    enriched.add_argument("--adjusted-p-value-threshold", type=float, default=0.05)
+    enriched.add_argument(
+        "--current-only",
+        action="store_true",
+        help="Only enrich current expression.json pairs; do not add CardioQuilt-only pairs.",
+    )
 
     discover = subparsers.add_parser(
         "discover-geo",
@@ -126,6 +141,18 @@ def _run_legacy_cardioquilt(args: argparse.Namespace) -> int:
         duckdb_path=args.duckdb_path,
     )
     print(json.dumps(manifest, indent=2))
+    return 0
+
+
+def _run_legacy_enriched(args: argparse.Namespace) -> int:
+    payload = write_enriched_legacy_expression_payload(
+        expression_json_path=args.expression_json,
+        cardioquilt_csv_path=args.cardioquilt_csv,
+        output_json=args.output_json,
+        include_cardioquilt_only=not args.current_only,
+        adjusted_p_value_threshold=args.adjusted_p_value_threshold,
+    )
+    print(json.dumps(payload, indent=2))
     return 0
 
 
@@ -271,6 +298,8 @@ def main() -> int:
     args = parse_args()
     if args.command == "legacy-cardioquilt":
         return _run_legacy_cardioquilt(args)
+    if args.command == "legacy-enriched":
+        return _run_legacy_enriched(args)
     if args.command == "discover-geo":
         return _run_discover_geo(args)
     if args.command == "download-geometadb":

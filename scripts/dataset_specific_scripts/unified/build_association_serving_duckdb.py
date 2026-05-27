@@ -549,17 +549,22 @@ def _normalize_expression_entry(value: Any) -> Any:
             "down": 0 if _is_nan(regulation.get("downregulated", 0)) else regulation.get("downregulated", 0),
         }
 
+    if any(key in value for key in ("up", "down", "upregulated", "downregulated")):
+        up = value.get("up", value.get("upregulated", 0))
+        down = value.get("down", value.get("downregulated", 0))
+        normalized_value = dict(value)
+        normalized_value["up"] = 0 if _is_nan(up) else up
+        normalized_value["down"] = 0 if _is_nan(down) else down
+        normalized_value.setdefault("upregulated", normalized_value["up"])
+        normalized_value.setdefault("downregulated", normalized_value["down"])
+        return normalized_value
+
     normalized: dict[str, Any] = {}
     for disease, regulation in value.items():
         if not isinstance(regulation, dict):
             normalized[disease] = regulation
             continue
-        up = regulation.get("upregulated", 0)
-        down = regulation.get("downregulated", 0)
-        normalized[disease] = {
-            "up": 0 if _is_nan(up) else up,
-            "down": 0 if _is_nan(down) else down,
-        }
+        normalized[disease] = _normalize_expression_entry(regulation)
     return normalized
 
 
@@ -571,7 +576,11 @@ def _load_expression_rows(
     if expression_json_path is None or not expression_json_path.exists():
         return []
 
-    payload = json.loads(expression_json_path.read_text())
+    if expression_json_path.suffix == ".gz":
+        with gzip.open(expression_json_path, "rt", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    else:
+        payload = json.loads(expression_json_path.read_text())
     rows: list[tuple[str, str, str, str]] = []
     for gene_id, value in payload.items():
         normalized_gene = str(gene_id).upper()

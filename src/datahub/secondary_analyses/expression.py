@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import gzip
 from pathlib import Path
 
 from .artifacts import write_gene_payload_artifact, write_metadata
@@ -25,17 +26,22 @@ def normalize_expression_entry(value: object) -> object:
             "down": 0 if _is_nan(regulation.get("downregulated", 0)) else regulation.get("downregulated", 0),
         }
 
+    if any(key in value for key in ("up", "down", "upregulated", "downregulated")):
+        up = value.get("up", value.get("upregulated", 0))
+        down = value.get("down", value.get("downregulated", 0))
+        normalized_value = dict(value)
+        normalized_value["up"] = 0 if _is_nan(up) else up
+        normalized_value["down"] = 0 if _is_nan(down) else down
+        normalized_value.setdefault("upregulated", normalized_value["up"])
+        normalized_value.setdefault("downregulated", normalized_value["down"])
+        return normalized_value
+
     normalized: dict[str, object] = {}
     for disease, regulation in value.items():
         if not isinstance(regulation, dict):
             normalized[str(disease)] = regulation
             continue
-        up = regulation.get("upregulated", 0)
-        down = regulation.get("downregulated", 0)
-        normalized[str(disease)] = {
-            "up": 0 if _is_nan(up) else up,
-            "down": 0 if _is_nan(down) else down,
-        }
+        normalized[str(disease)] = normalize_expression_entry(regulation)
     return normalized
 
 
@@ -47,7 +53,11 @@ def generate_expression_artifacts(
     include_genes: set[str] | None = None,
 ) -> list[SecondaryArtifactRow]:
     expression_path = Path(expression_json_path)
-    payload = json.loads(expression_path.read_text())
+    if expression_path.suffix == ".gz":
+        with gzip.open(expression_path, "rt", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    else:
+        payload = json.loads(expression_path.read_text())
     rows: list[SecondaryArtifactRow] = []
 
     for gene_id, value in payload.items():

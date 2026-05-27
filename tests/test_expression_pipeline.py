@@ -24,6 +24,7 @@ from datahub.expression.geo_discovery import (
     load_cvd_terms_from_phenotype_tree,
 )
 from datahub.expression.legacy_cardioquilt import read_cardioquilt_csv
+from datahub.expression.legacy_enriched import build_enriched_legacy_expression_payload
 from datahub.expression.pipeline import build_expression_outputs
 from datahub.expression.v3_results import read_expression_v3_results
 
@@ -136,6 +137,39 @@ WHERE gene_id = 'ANK2'
         assert summary == (1, 1)
     finally:
         con.close()
+
+
+def test_legacy_enriched_expression_combines_current_counts_with_cardioquilt_details(tmp_path: Path) -> None:
+    expression_json = tmp_path / "expression.json"
+    expression_json.write_text(
+        json.dumps(
+            {
+                "ANK2": {
+                    "cardiomyopathy": {
+                        "upregulated": 2,
+                        "downregulated": 1,
+                    }
+                }
+            }
+        )
+    )
+    source_csv = tmp_path / "cardioquilt_CREEDS_GEO.csv"
+    _write_cardioquilt_csv(source_csv)
+
+    payload = build_enriched_legacy_expression_payload(
+        expression_json_path=expression_json,
+        cardioquilt_csv_path=source_csv,
+        adjusted_p_value_threshold=0.3,
+    )
+
+    cardiomyopathy = payload["ANK2"]["cardiomyopathy"]
+    assert cardiomyopathy["up"] == 2
+    assert cardiomyopathy["down"] == 1
+    assert cardiomyopathy["provenance_status"] == "matched_cardioquilt"
+    assert cardiomyopathy["source_study_count"] == 2
+    assert cardiomyopathy["source_studies"] == ["GSE1", "GSE2"]
+    assert cardiomyopathy["minimum_adjusted_p_value"] == 0.001
+    assert payload["TTN"]["hypertension"]["provenance_status"] == "cardioquilt_reconstruction_only"
 
 
 def test_geo_discovery_from_local_geometadb(tmp_path: Path) -> None:
