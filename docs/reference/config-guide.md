@@ -84,6 +84,13 @@ Validate the default tree with:
 python -c "from datahub.config_schemas import validate_default_config_tree, format_config_validation_issues; issues = validate_default_config_tree(); print(format_config_validation_issues(issues) if issues else 'config ok')"
 ```
 
+## `docs/schemas/`
+
+Defines human-readable module and artifact schemas. These pages explain field
+meaning, provenance expectations, portal-display semantics, and production
+readiness notes for module outputs. Machine validation stays under
+`config/schemas/`; module data dictionaries belong under `docs/schemas/`.
+
 ## `config/phenotype_tree.json`
 
 Defines canonical phenotype hierarchy.

@@ -119,3 +119,6 @@ Outputs:
 - `secondary_analyses/final/expression_v3/expression_legacy_compatible.json`
 - `secondary_analyses/final/expression_v3/expression_serving_summary.json`
 - `datamart/expression_v3.duckdb`
+
+The table and field contract is documented in
+`docs/schemas/expression_v3.md`.

@@ -108,13 +108,22 @@ without rerunning the full association pipeline.
 
 ## Expression semantics
 
-Expression is an imported secondary analysis.
+Expression has two documented forms:
 
-The current source is the legacy:
+- the legacy imported `expression.json` payload used by the current secondary-analysis runner
+- the expression v3 differential-expression datamart and artifacts
+
+The legacy path normalizes:
 
 - `expression.json`
 
-The secondary-analysis runner converts it into the runtime per-gene payload the frontend already expects. No association semantics are changed here; this is normalization and packaging only.
+into the runtime per-gene payload the frontend already expects. No association
+semantics are changed here; this is normalization and packaging only.
+
+Expression v3 is the curated public-source rebuild. It keeps row-level
+differential-expression evidence, gene-by-phenotype summaries, run metadata, and
+provenance in a separate contract. Its schema and field meanings are documented
+in [Expression v3 Schema](../schemas/expression_v3.md).
 
 ## Gene-profile semantics
 

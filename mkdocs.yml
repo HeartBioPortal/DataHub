@@ -67,4 +67,13 @@ nav:
       - Module Guide: reference/module-guide.md
       - Scripts Guide: reference/scripts.md
       - Config Guide: reference/config-guide.md
+  - Schemas:
+      - Overview: schemas/index.md
+      - Expression v3: schemas/expression_v3.md
+      - Gene Profile: schemas/gene_profile.md
+      - Protein Context: schemas/protein_context.md
+      - Structural Variant: schemas/structural_variant.md
+      - Population Frequency: schemas/population_frequency.md
+      - Drug Discovery: schemas/drug_discovery.md
+      - Guideline Signal: schemas/guideline_signal.md
   - Contributing: contributing.md
