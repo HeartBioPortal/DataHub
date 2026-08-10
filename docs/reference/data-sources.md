@@ -1,181 +1,137 @@
 # Data Sources
 
-This page is the human-readable source inventory for HeartBioPortal DataHub. It
-covers sources used by executable adapters and sources registered for planned
-integration. Release participation, adapter status, and catalog registration are
-different claims and are reported separately.
+This page lists external databases, studies, licensed datasets, and versioned
+handoffs that are demonstrably represented in current HeartBioPortal artifacts
+or active DataHub pipelines. It intentionally excludes databases that exist only
+as roadmap entries under `config/sources/`.
 
-## How to read source status
+A source being registered in configuration does not mean HBP uses its data.
+Release manifests, build metadata, source paths, and deployed artifact contents
+are the evidence for inclusion.
 
-| Status | Meaning |
-| --- | --- |
-| **Integrated** | DataHub has an executable source adapter or pipeline integration. This does not mean the source is included in every release. |
-| **Catalog only** | DataHub records source identity, access, license, and intended modalities, but no canonical adapter is active yet. |
-| **Imported or external handoff** | HBP consumes an artifact prepared outside the canonical source-adapter path. Drug payloads and HCG/HCG-KG exports currently use this pattern. |
-| **Derived** | DataHub calculates the layer from other versioned HBP artifacts rather than ingesting a new external database. |
+## Current source summary
 
-A source manifest is not proof that its data occur in the current production
-build. Release manifests, build metadata, and artifact QA determine what was
-actually published.
-
-## Sources represented by current HBP data layers
-
-| HBP layer | Sources or handoffs | Current role |
+| Source | HBP layer | How it enters HBP |
 | --- | --- | --- |
-| Association and phenotype evidence | Million Veteran Program summary statistics when authorized; NHGRI-EBI GWAS Catalog when selected; versioned HBP legacy CVD and trait inputs | Canonical associations, phenotype paths, p-values, variant identifiers, annotations, and variant-index artifacts. Inclusion is release-specific. |
-| Variant annotation | NCBI ClinVar, Ensembl Variation, NCBI dbSNP, and retained legacy annotations | Clinical significance, consequence, variation type, identifiers, coordinates, and provenance where available. |
-| Population-frequency context | NCBI dbSNP frequency exports carrying 37 source-provided study labels, plus separately provenanced legacy rows | Source-specific REF/ALT observations joined to association-selected rsIDs. The verified 2026-05-09 handoff contains 594,285,057 observations across 18,097,122 rsIDs. See [Population Frequency Schema](../schemas/population_frequency.md) for every study label and interpretation rules. |
-| Structural variants | NCBI dbVar nstd102/ClinVar SV seed; dbVar nstd229/TOPMed SV call set | Gene-centered SV payloads with event, study, interval, type, phenotype, and clinical assertion fields where supplied. |
-| Gene profiles | HGNC, NCBI Gene, UniProtKB, Gene Ontology Annotation, and optional HBP protein context | Gene identity, summaries, protein metadata, GO annotations, cross-references, and provenance. Reactome IDs currently arrive through UniProtKB cross-references. |
-| Protein context | Ensembl, EMBL-EBI Proteins API, InterPro, and UniProtKB cross-references | Isoforms, translated exons, protein features, domains, accessions, and amino-acid coordinates. |
-| Expression | Imported legacy payloads and source-accession-preserving public disease-versus-control studies selected for expression v3 | Differential-expression rows and gene-phenotype summaries. GEO, ArrayExpress, Expression Atlas, and GTEx are cataloged separately; catalog presence does not establish release inclusion. |
-| Drugs and compounds | Open Targets Platform GraphQL API and licensed DrugBank 5.1.12 data | Imported gene-drug records. A `merged` record combines complementary fields from both sources; it is not a third source or pooled score. Canonical adapters remain catalog-only. |
-| Clinical guideline context | Official ACC/AHA and ESC documents processed by external HCG/HCG-KG projects | Versioned graph handoffs consumed by HBP. HCG/HCG-KG own extraction and graph construction. |
-| Shared genetic architecture | DataHub association and variant-index artifacts | Derived cross-phenotype variant overlap; no additional external database is ingested. |
+| Million Veteran Program (MVP) summary statistics | CVD association evidence | Authorized summary-statistics inputs are normalized into gene-variant-phenotype rows. Current variant-index rows identify `million_veteran_program` explicitly. Controlled raw data are not redistributed. |
+| Versioned HBP legacy CVD and trait files | Association and trait evidence | Imported compatibility inputs retain source files, phenotype labels, rsIDs, p-values, ancestry fields, consequences, and clinical annotations where supplied. Current rows identify `legacy_cvd_raw` or `legacy_trait_raw`. |
+| NCBI dbSNP frequency exports | Population frequency | Three dbSNP frequency archive batches plus separately provenanced HBP legacy rows are normalized into the population-frequency datamart. Source-specific study and population labels remain separate. |
+| NCBI dbVar nstd102 and nstd229 | Structural variants | nstd102/ClinVar structural-variant seed records and the nstd229/TOPMed call set are published in the gene-centered SV contract. |
+| HGNC | Gene profiles | Approved symbols, names, aliases, locus information, HGNC identifiers, and external cross-references. |
+| NCBI Gene | Gene profiles | Long gene summaries and NCBI identifiers. |
+| UniProtKB | Gene and protein profiles | Reviewed protein names, accessions, lengths, function text, and cross-references. Reactome identifiers currently arrive through UniProtKB xrefs rather than a separate Reactome import. |
+| Gene Ontology Annotation (GOA) | Gene profiles | GO terms and evidence-aware annotation records. |
+| Ensembl REST | Protein context | Gene, transcript, translation, exon, canonical-isoform, and protein-coordinate context. |
+| EMBL-EBI Proteins API | Protein context | Protein sequence features and annotations linked through UniProt accessions. |
+| InterPro | Protein context | Protein domains, families, motifs, sites, and region annotations. |
+| NCBI GEO: GSE232911, GSE29532, and GSE7084 | Expression v3 | Curated disease-versus-control differential-expression rows. Study accession, platform, tissue, contrast, sample counts, effect size, p-values, and processing provenance are retained. |
+| Legacy CardioQuilt expression payload | Legacy-compatible expression | Imported and repackaged per gene for compatibility; it remains distinct from expression v3. |
+| Open Targets Platform GraphQL API | Drugs and compounds | Target, disease, mechanism, indication, trial, and molecule evidence imported into gene-drug payloads. |
+| DrugBank 5.1.12 licensed academic dataset | Drugs and compounds | Licensed molecule, target, action, pharmacology, classification, pathway, and identifier fields. Raw DrugBank files are not redistributed. |
+| Official ACC/AHA and ESC guideline documents | Clinical guideline context | Processed by the external HCG/HCG-KG projects and transferred to HBP as versioned graph artifacts. DataHub does not perform the guideline extraction itself. |
 
-## Executable source integrations
+## Association evidence
 
-These 11 manifests currently declare `integration_status: integrated`.
-Executable integration does not guarantee inclusion in every deployed release.
+The current association build combines MVP summary-statistics rows with
+versioned HBP legacy CVD and trait inputs. Representative deployed
+`variant_index` artifacts record these source labels:
 
-| Source | Data category | Modalities | Access | Recorded license/terms |
-| --- | --- | --- | --- | --- |
-| [EMBL-EBI Proteins API](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/ebi_proteins.json) | Protein context | proteomics, protein_feature, annotation | api | UniProt/EMBL-EBI terms of use |
-| [Ensembl Protein and Transcript Context](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/ensembl_protein_context.json) | Protein context | genomics, transcriptomics, proteomics, annotation | api | Ensembl Terms of Use |
-| [Ensembl Variation](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/ensembl_variation.json) | Population and reference variation | genomics, population_frequency, annotation | hybrid | Ensembl Terms of Use |
-| [Gene Ontology Annotation](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/goa.json) | Ontologies and standards | ontology, functional_annotation, evidence | hybrid | Gene Ontology Consortium data license |
-| [HGNC](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/hgnc.json) | Ontologies and standards | gene_identity, nomenclature, cross_reference | hybrid | HGNC data reuse terms |
-| [InterPro](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/interpro.json) | Protein context | proteomics, protein_domain, annotation | api | EMBL-EBI terms of use |
-| [NCBI ClinVar](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/clinvar.json) | Clinical variant interpretation | genomics, clinical_annotation | hybrid | NCBI Disclaimer and Copyright Notice |
-| [NCBI dbVar](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/dbvar.json) | Population and reference variation | genomics, structural_variant | download | NCBI Disclaimer and Copyright Notice |
-| [NCBI Gene](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/ncbi_gene.json) | Ontologies and standards | gene_summary, gene_identity, cross_reference | hybrid | NCBI public domain and usage guidelines |
-| [NHGRI-EBI GWAS Catalog](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/gwas_catalog.json) | GWAS and statistical genetics | genomics, association | download | EMBL-EBI Terms of Use |
-| [UniProtKB](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/uniprotkb.json) | Protein context | protein_function, protein_feature, annotation | hybrid | Creative Commons Attribution 4.0 International |
+- `million_veteran_program`
+- `legacy_cvd_raw`
+- `legacy_trait_raw`
 
-## Registered sources awaiting canonical integration
+The artifacts retain source-file provenance and phenotype keys. Fields such as
+rsID, variation type, consequence, clinical significance, ancestry, and p-value
+can be supplied by those upstream rows. The presence of a dbSNP, ClinVar, GWAS
+Catalog, or Ensembl source manifest does not mean every current association row
+was freshly queried from that service.
 
-These 50 manifests declare `integration_status: catalog_only`. They are part
-of the source registry and roadmap, but must not be described as production data
-without release-level evidence.
+## Population-frequency evidence
 
-### Bulk transcriptomics and molecular QTL
+The verified 2026-05-09 population-frequency handoff contains:
 
-| Source | Modalities | Access | Recorded license/terms |
-| --- | --- | --- | --- |
-| [ArrayExpress](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/arrayexpress.json) | bulk_rna, functional_genomics | download | EMBL-EBI terms of use |
-| [eQTL Catalogue](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/eqtl_catalogue.json) | eqtl, sqtl, molecular_qtl | hybrid | EMBL-EBI terms of use |
-| [Expression Atlas](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/expression_atlas.json) | bulk_rna, single_cell, differential_expression | hybrid | EMBL-EBI terms of use |
-| [GTEx Portal](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/gtex.json) | bulk_rna, eqtl, tissue_expression | hybrid | GTEx terms of use |
-| [NCBI GEO](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/geo.json) | bulk_rna, single_cell, epigenomics | hybrid | NCBI Disclaimer and Copyright Notice |
+- 594,285,057 source-specific frequency observations
+- 18,097,122 distinct rsIDs
+- 37 source-provided study labels
+- three NCBI dbSNP frequency archive batches
+- 7,893 separately provenanced legacy observations covering 228 rsIDs
 
-### Clinical variant interpretation
+The study labels carried by dbSNP include collections such as ALFA, gnomAD,
+TOPMed, 1000 Genomes, PAGE, ExAC, HapMap, HGDP-CEPH, SGDP, 38KJPN, and regional
+studies. HBP imported these as records from the dbSNP frequency export; this does
+not imply that DataHub independently downloaded and harmonized every upstream
+study.
 
-| Source | Modalities | Access | Recorded license/terms |
-| --- | --- | --- | --- |
-| [ClinGen](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/clingen.json) | clinical_annotation, genomics, evidence | hybrid | ClinGen terms and attribution policy |
+See [Population Frequency Schema](../schemas/population_frequency.md) for the
+complete 37-label list, fields, and interpretation rules.
 
-### Cohorts and CVD-focused portals
+## Structural-variant evidence
 
-| Source | Modalities | Access | Recorded license/terms |
-| --- | --- | --- | --- |
-| [dbGaP](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/dbgap.json) | genomics, clinical, cohort | hybrid | NCBI dbGaP access and data use policy |
-| [FinnGen](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/finngen.json) | genomics, association, cohort | download | FinnGen data access terms |
-| [NHLBI BioData Catalyst](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/biodata_catalyst.json) | genomics, cohort, multimodal | hybrid | NHLBI BioData Catalyst data access terms |
-| [UK Biobank](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/uk_biobank.json) | genomics, clinical, cohort | hybrid | UK Biobank access policy |
+The structural-variant layer uses:
 
-### Drugs, targets, and translational evidence
+- NCBI dbVar nstd102 / ClinVar structural-variant seed data
+- NCBI dbVar nstd229 / TOPMed structural-variant call-set data
 
-| Source | Modalities | Access | Recorded license/terms |
-| --- | --- | --- | --- |
-| [ChEMBL](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/chembl.json) | drug_target, compound_activity, assay | hybrid | EMBL-EBI terms of use |
-| [ClinicalTrials.gov](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/clinicaltrials_gov.json) | clinical_trials, intervention, outcomes | api | ClinicalTrials.gov data use policy |
-| [ClinPGx](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/clinpgx.json) | pharmacogenomics, clinical_annotation | download | ClinPGx terms of use |
-| [DrugBank](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/drugbank.json) | drug_target, compound_annotation, mechanism | hybrid | DrugBank licensing terms |
-| [Open Targets Platform](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/open_targets.json) | target_disease, evidence_integration, genetics | hybrid | Open Targets data licensing |
-| [PharmGKB](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/pharmgkb.json) | pharmacogenomics, clinical_annotation, drug_gene | hybrid | PharmGKB terms of use |
+The same event can occur in more than one gene payload when it overlaps multiple
+genes. Source presence is not a pathogenicity claim.
 
-### Epigenomics and regulatory evidence
+## Gene and protein context
 
-| Source | Modalities | Access | Recorded license/terms |
-| --- | --- | --- | --- |
-| [ENCODE](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/encode.json) | epigenomics, regulatory, functional_genomics | api | ENCODE data use policy |
-| [EpiMap](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/epimap.json) | epigenomics, enhancer, regulatory_annotation | download | EpiMap data usage terms |
-| [Roadmap Epigenomics](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/roadmap_epigenomics.json) | epigenomics, chromatin_state, methylation | download | NIH Roadmap data usage terms |
+The gene-profile build directly records snapshot paths for HGNC, NCBI Gene,
+reviewed UniProtKB, GOA, and the HBP protein-context output. The protein-context
+pipeline uses Ensembl, EMBL-EBI Proteins, and InterPro APIs, with UniProt
+accessions as a principal cross-reference.
 
-### Metabolomics and lipidomics
+Human Protein Atlas, ClinGen, Reactome, and other registered resources are not
+separate inputs to the current gene-profile build. Reactome IDs shown in gene
+profiles are currently carried through UniProtKB cross-references.
 
-| Source | Modalities | Access | Recorded license/terms |
-| --- | --- | --- | --- |
-| [Human Metabolome Database](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/hmdb.json) | metabolomics, compound_annotation, clinical_reference | download | HMDB license and terms of use |
-| [LIPID MAPS](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/lipidmaps.json) | lipidomics, compound_annotation, pathway | download | LIPID MAPS terms of use |
-| [MetaboLights](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/metabolights.json) | metabolomics, study_archive | hybrid | EMBL-EBI terms of use |
-| [Metabolomics Workbench](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/metabolomics_workbench.json) | metabolomics, study_archive, assay_metadata | hybrid | Metabolomics Workbench data use policy |
+## Expression evidence
 
-### Ontologies and standards
+Expression v3 currently contains three NCBI GEO studies:
 
-| Source | Modalities | Access | Recorded license/terms |
-| --- | --- | --- | --- |
-| [Biolink Model](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/biolink_model.json) | semantic_model, knowledge_graph, standardization | download | Biolink Model license |
-| [Experimental Factor Ontology](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/efo.json) | ontology, trait_mapping, standardization | download | Creative Commons Attribution 4.0 |
-| [Human Phenotype Ontology](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/hpo.json) | ontology, phenotype_mapping, standardization | download | HPO data license |
-| [MONDO Disease Ontology](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/mondo.json) | ontology, disease_mapping, standardization | download | CC-BY 4.0 |
-| [NCI Thesaurus](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/ncit.json) | ontology, terminology, mapping | download | NCI terms of use |
-| [Uberon Anatomy Ontology](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/uberon.json) | ontology, anatomy_mapping, standardization | download | CC-BY 4.0 |
+| Source database | Study accession |
+| --- | --- |
+| GEO | GSE232911 |
+| GEO | GSE29532 |
+| GEO | GSE7084 |
 
-### Pathways, interactions, and networks
+The expression v3 manifest reports 518,987 differential-expression rows,
+336,001 gene-phenotype summary rows, and seven normalized phenotypes. Legacy
+CardioQuilt-compatible expression is served separately and must not be described
+as part of the expression v3 evidence contract.
 
-| Source | Modalities | Access | Recorded license/terms |
-| --- | --- | --- | --- |
-| [BioGRID](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/biogrid.json) | protein_interaction, genetic_interaction, network | download | BioGRID terms of use |
-| [IntAct](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/intact.json) | molecular_interaction, network, curated_evidence | hybrid | EMBL-EBI terms of use |
-| [KEGG](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/kegg.json) | pathway, network, compound_annotation | hybrid | KEGG licensing terms |
-| [Pathway Commons](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/pathway_commons.json) | pathway, interaction_network, knowledge_graph | api | Pathway Commons data source licenses |
-| [Reactome](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/reactome.json) | pathway, network, knowledge_graph | hybrid | Reactome open license |
-| [STRING](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/string_db.json) | protein_interaction, network, functional_association | api | STRING license terms |
-| [WikiPathways](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/wikipathways.json) | pathway, community_curation, knowledge_graph | hybrid | Creative Commons license |
+ArrayExpress, Expression Atlas, GTEx, and single-cell resources are not inputs
+to the current expression v3 build.
 
-### Population and reference variation
+## Drugs, compounds, and guidelines
 
-| Source | Modalities | Access | Recorded license/terms |
-| --- | --- | --- | --- |
-| [1000 Genomes Project](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/thousand_genomes.json) | genomics, population_frequency, reference | download | 1000 Genomes data use policy |
-| [gnomAD](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/gnomad.json) | genomics, population_frequency, reference | hybrid | gnomAD terms of use |
-| [NCBI ALFA](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/alfa.json) | genomics, population_frequency, reference | hybrid | NCBI Disclaimer and Copyright Notice |
-| [NCBI dbSNP](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/dbsnp.json) | genomics, reference, annotation | hybrid | NCBI Disclaimer and Copyright Notice |
-| [TOPMed BRAVO](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/topmed_bravo.json) | genomics, population_frequency, reference | api | TOPMed / NHLBI data access policy |
+The drugs and compounds layer combines imported Open Targets Platform GraphQL
+records with licensed DrugBank 5.1.12 records. A payload marked `merged`
+contains complementary fields from both sources for the same gene-molecule
+entry; it is not a third database or a pooled evidence score.
 
-### Protein context
+Clinical guideline context comes from official ACC/AHA and ESC documents through
+versioned HCG/HCG-KG graph exports. Recommendation class and level of evidence
+are source-guideline metadata. Extraction confidence, when present, describes
+the extraction or relationship-assignment process and is not a clinical evidence
+grade.
 
-| Source | Modalities | Access | Recorded license/terms |
-| --- | --- | --- | --- |
-| [MobiDB](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/mobidb.json) | proteomics, protein_disorder, annotation | api | MobiDB terms of use |
+## Derived layers
 
-### Proteomics
+Cross-phenotype relationships / shared genetic architecture is derived from
+DataHub association and variant-index artifacts. It does not introduce another
+external database.
 
-| Source | Modalities | Access | Recorded license/terms |
-| --- | --- | --- | --- |
-| [CPTAC Data Portal](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/cptac.json) | proteomics, proteogenomics | hybrid | CPTAC / PDC data usage terms |
-| [Human Protein Atlas](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/human_protein_atlas.json) | proteomics, tissue_expression, antibody_based | download | Human Protein Atlas terms of use |
-| [PRIDE](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/pride.json) | proteomics, mass_spectrometry | hybrid | EMBL-EBI terms of use |
-| [ProteomeXchange](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/proteomexchange.json) | proteomics, repository_index | hybrid | ProteomeXchange terms and partner repository licenses |
+## Developer source registry
 
-### Single-cell and spatial evidence
+The files under
+[`config/sources/`](https://github.com/HeartBioPortal/DataHub/tree/main/config/sources)
+include both active integrations and catalog-only roadmap candidates. They are
+useful for engineering planning, but catalog-only entries are deliberately not
+listed above as HBP data sources.
 
-| Source | Modalities | Access | Recorded license/terms |
-| --- | --- | --- | --- |
-| [CZ CELLxGENE](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/cellxgene.json) | single_cell, rna_seq, cell_metadata | api | CELLxGENE terms of use |
-| [HuBMAP](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/hubmap.json) | single_cell, spatial, multiomics | hybrid | HuBMAP data usage policy |
-| [Human Cell Atlas](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/human_cell_atlas.json) | single_cell, rna_seq, cell_atlas | hybrid | Human Cell Atlas data use policy |
-| [Single Cell Expression Atlas](https://github.com/HeartBioPortal/DataHub/blob/main/config/sources/single_cell_expression_atlas.json) | single_cell, rna_seq, atlas | hybrid | EMBL-EBI terms of use |
-
-## Machine-readable inventories and update rule
-
-- [`DATA_SOURCES.tsv`](https://github.com/HeartBioPortal/DataHub/blob/main/DATA_SOURCES.tsv) records release-facing source, access, licensing, artifact, and provenance information.
-- [`DATA_SOURCES.md`](https://github.com/HeartBioPortal/DataHub/blob/main/DATA_SOURCES.md) summarizes source families by modality.
-- [`config/sources/`](https://github.com/HeartBioPortal/DataHub/tree/main/config/sources) contains one manifest per registered source.
-
-When a source is added, removed, upgraded, or integrated, update its manifest
-and this page together. A release must separately record the actual version,
-access date, input checksum or source-record identity, license/terms,
-transformation version, and published artifact. Unknown values remain explicit;
-they must not be inferred from a catalog entry.
+The broader
+[`DATA_SOURCES.tsv`](https://github.com/HeartBioPortal/DataHub/blob/main/DATA_SOURCES.tsv)
+also contains release candidates and entries awaiting source/version/license
+confirmation. It must not be used alone to claim production inclusion.

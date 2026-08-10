@@ -1,10 +1,10 @@
 # Data Sources Summary
 
-`DATA_SOURCES.tsv` is the machine-readable source inventory for the HBP 3.0 NAR release. This companion file summarizes the source families by HBP layer.
+`DATA_SOURCES.tsv` is a broader engineering inventory that includes active sources, imported handoffs, release candidates, and catalog entries awaiting confirmation. It is not by itself evidence that every listed source is present in production. This companion file summarizes source families and states current inclusion limits.
 
 ## Association and phenotype evidence
 
-DataHub normalizes association rows from HBP legacy CVD/trait layers, Million Veteran Program summary-statistics inputs when available, GWAS Catalog when included, and other association profiles into canonical gene, variant, phenotype, p-value, ancestry, consequence, clinical-significance, and provenance fields. The final artifacts are association JSON/JSON.GZ payloads, variant-index payloads, phenotype rollups, and serving DuckDB tables. We preserve input file, source dataset, source version, phenotype path, rsID/variant ID, p-value, genome build, and transformation notes in source provenance. Controlled or non-public inputs are not redistributed.
+The current association artifacts normalize HBP legacy CVD/trait layers and Million Veteran Program summary-statistics inputs into canonical gene, variant, phenotype, p-value, ancestry, consequence, clinical-significance, and provenance fields. The final artifacts are association JSON/JSON.GZ payloads, variant-index payloads, phenotype rollups, and serving DuckDB tables. We preserve input file, source dataset, source version, phenotype path, rsID/variant ID, p-value, genome build, and transformation notes in source provenance. Controlled or non-public inputs are not redistributed.
 
 ## Population-frequency context
 
@@ -12,11 +12,11 @@ The verified 2026-05-09 population-frequency build contains 594,285,057 source-s
 
 ## Variant annotation
 
-Variant annotation uses dbSNP, ClinVar, Ensembl Variation, ClinGen where included, and source-specific legacy fields. DataHub preserves rsID/variant IDs as variant-level keys for chart aggregation and records clinical significance, variation type, most-severe-consequence-like fields, source record IDs, source dataset, genome build, and transformation steps. Source licenses follow the original providers.
+Current association and variant-index artifacts preserve rsID/variant IDs and source-carried clinical significance, variation type, consequence, source record IDs, genome build, and transformation details where supplied by MVP or legacy inputs. Executable or cataloged dbSNP, ClinVar, Ensembl Variation, and ClinGen manifests do not establish that every deployed row was freshly enriched from those services.
 
 ## Structural-variant evidence
 
-Structural-variant evidence is currently represented by dbVar nstd102/ClinVar structural-variant seed payloads and dbVar nstd229/TOPMed structural-variant call-set artifacts. DataHub normalizes source DB, study/submission, SV ID, SV type, coordinates, event length, clinical significance when present, gene overlap, transcript overlap, and exon overlap. The local nstd229 report verifies 3,072,942 records, 3,040,582 variants, and 75,192 gene-level payloads. TOPMed-related licensing and redistribution constraints require final review before public archival of source or derived bulk artifacts.
+Structural-variant evidence is currently represented by dbVar nstd102/ClinVar structural-variant seed payloads and dbVar nstd229/TOPMed structural-variant call-set artifacts. The legacy output retains variant ID, study/submission, variant type, phenotype, clinical significance when present, assembly, and variant interval. Optional exon enrichment adds canonical-transcript exon coordinates at gene level. The local nstd229 report verifies 3,072,942 records, 3,040,582 variants, and 75,192 gene-level payloads. TOPMed-related licensing and redistribution constraints require final review before public archival of source or derived bulk artifacts.
 
 ## Protein context
 
@@ -24,7 +24,7 @@ Protein context connects variant associations to protein architecture through En
 
 ## Gene profiles
 
-Gene profiles assemble HGNC identity and nomenclature, NCBI Gene summaries, UniProtKB protein metadata, GOA annotations, and optional HBP protein-context evidence. Reactome IDs are currently carried through UniProtKB cross-references rather than a separate Reactome ingest in the gene-profile builder. Human Protein Atlas and ClinGen are cataloged sources, not inputs to the current gene-profile implementation. Field-level provenance identifies which source supplied each payload section.
+Gene profiles assemble HGNC identity and nomenclature, NCBI Gene summaries, UniProtKB protein metadata, GOA annotations, and optional HBP protein-context evidence. Reactome IDs are currently carried through UniProtKB cross-references rather than a separate Reactome ingest in the gene-profile builder. Human Protein Atlas and ClinGen are not inputs to the current gene-profile implementation. Field-level provenance identifies which source supplied each payload section.
 
 ## Clinical guidelines / guideline graph links
 
@@ -36,4 +36,4 @@ The imported drugs and compounds layer combines Open Targets Platform GraphQL re
 
 ## Expression and shared-architecture layers
 
-DataHub supports two expression paths: imported legacy-compatible per-gene payloads and the curation-gated expression v3 workflow for public disease-versus-control studies. Expression v3 preserves study accession, sample groups, tissue/cell context, platform, effect size, raw and adjusted p-values, direction, method, and provenance at row level before generating gene-phenotype summaries. Shared genetic architecture is derived from cleaned gene-level CVD and trait variant sets and reports cross-phenotype rsID overlap. Both layers inherit source redistribution constraints and preserve their build method and input provenance.
+DataHub supports two expression paths: imported legacy-compatible per-gene payloads and expression v3 rows from NCBI GEO studies GSE232911, GSE29532, and GSE7084. Expression v3 preserves study accession, sample groups, tissue/cell context, platform, effect size, raw and adjusted p-values, direction, method, and provenance at row level before generating gene-phenotype summaries. Shared genetic architecture is derived from cleaned gene-level CVD and trait variant sets and reports cross-phenotype rsID overlap. Both layers inherit source redistribution constraints and preserve their build method and input provenance.

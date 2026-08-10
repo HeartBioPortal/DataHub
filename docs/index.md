@@ -73,10 +73,10 @@ raw files / source APIs
 - **Structural-variant publication**: dbVar records normalized into the legacy
   gene-centered SV contract, with optional exon enrichment.
 
-The [Data Sources](reference/data-sources.md) inventory distinguishes
-`integrated` sources, which have an executable DataHub ingestion path, from
-`catalog_only` sources, which document source identity and intended provenance
-but still require an adapter or importer.
+The [Data Sources](reference/data-sources.md) inventory lists sources that are
+demonstrably represented in current artifacts or active pipelines. The broader
+developer registry also contains `catalog_only` roadmap entries; those entries
+do not imply production inclusion.
 
 ## Documentation website
 
