@@ -1,6 +1,9 @@
 # HeartBioPortal DataHub
 
-HeartBioPortal DataHub is the data integration and publishing layer behind HeartBioPortal. It standardizes heterogeneous cardiovascular genomics and omics datasets, preserves provenance, performs raw-level integration, and emits both legacy-compatible analyzed outputs and newer serving artifacts.
+HeartBioPortal DataHub is the data integration, scientific normalization, and
+artifact-publication layer behind HeartBioPortal. It preserves source
+provenance while producing legacy-compatible outputs, versioned analytical
+artifacts, and query-oriented DuckDB datamarts.
 
 ## Documentation
 
@@ -124,8 +127,10 @@ All four packages print `TRUE` before we run approved GEO/limma jobs.
 
 - `src/datahub/`: reusable pipeline, adapter, config, validation, storage, and publisher code
 - `config/`: profiles, manifests, runtime configs, phenotype hierarchy, output contracts, and export manifests
-- `raw_data/`: small checked-in standalone source files organized by source ID
-- `analyzed_data/`: curated analyzed artifacts and merge/metadata seed payloads organized by source ID
+- `raw_data/`: source-native inputs; most production-scale and restricted contents are local or external, not committed
+- `analyzed_data/`: published and legacy-compatible outputs, plus small redistributable seeds where permitted
+- `secondary_analyses/`: versioned expression, SGA, protein-context, and gene-profile outputs
+- `datamart/`: generated DuckDB analytical and serving databases
 - `scripts/`: operational entrypoints for preparation, ingest, publish, and orchestration
 - `tests/`: focused coverage for adapters, manifests, publishers, runners, and serving builders
 - `docs/`: contributor-facing documentation published at `https://heartbioportal.github.io/DataHub/`

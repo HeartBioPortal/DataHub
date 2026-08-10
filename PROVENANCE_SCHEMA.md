@@ -19,8 +19,8 @@ DataHub artifacts preserve enough provenance to trace an HBP field back to the s
 | `source_dataset` | Dataset, study, cohort, or source subcollection. |
 | `cohort_or_study` | Cohort, study, submission, or trial label. |
 | `population_label` | Original population label. |
-| `population_group` | Harmonized population group when available. |
-| `sample_size` | Sample count, allele count, or source-provided denominator. |
+| `population_group` | Source-provided population group in the current dbSNP frequency contract. Use a separately named canonical field if a future pipeline adds reviewed harmonization. |
+| `sample_size` | Source-provided sample size or denominator. Its statistical unit can differ by source and must not be assumed to be patient count. |
 | `genome_build` | Genome assembly, such as GRCh38. |
 | `transformation` | DataHub transformation label. |
 | `normalization_steps` | Summary of normalization applied. |
@@ -62,12 +62,13 @@ Structural-variant payloads also preserve:
 Population-frequency rows preserve:
 
 - `rsid`
-- `allele`
-- `frequency`
-- `population_label`
-- `population_group`
+- `study`, `population`, and source-provided `population_group`
 - `sample_size`
-- `study` or `resource`
-- `BioProject` or `BioSample` if available
-- `build`
-- `provenance`
+- parsed `ref_allele`, `ref_frequency`, `alt_allele`, and `alt_frequency`
+- original `ref_allele_raw` and `alt_allele_raw` strings
+- `bioproject_id` and `biosample_id` when available
+- `source_system`, `source_archive`, `source_member`, and `source_url`
+- `ncbi_build`, release, organism, position, and variation type when supplied
+
+The current datamart does not contain phenotype or disease fields. Those are
+association-context joins performed by the consuming application.

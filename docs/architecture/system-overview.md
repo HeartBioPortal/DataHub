@@ -54,11 +54,18 @@ This is where large-scale merged processing happens, especially in the DuckDB-fi
 
 ### 4. Publication layer
 
-Publishers create consumer-facing artifacts. In the current repository this mainly means:
+Publishers create consumer-facing artifacts with contracts suited to each data
+modality. Current publication surfaces include:
 
-- legacy-compatible analyzed JSON
-- phenotype rollup outputs
-- serving DuckDB artifacts
+- legacy-compatible association JSON and phenotype rollups
+- per-gene secondary-analysis JSON/JSON.GZ artifacts
+- Parquet partitions for large intermediate or portable releases
+- the association serving DuckDB
+- dedicated datamarts such as population frequency and expression v3
+
+A single serving database is not the contract for every modality. Each published
+artifact must identify its schema, provenance, build metadata, and intended
+consumer.
 
 ### 5. Orchestration layer
 
@@ -83,9 +90,13 @@ These are rich, operational, and not necessarily optimized for direct serving.
 Examples:
 
 - legacy-compatible `.json` / `.json.gz`
-- compact serving DuckDB
+- per-gene gene-profile and protein-context payloads
+- dbSNP frequency Parquet partitions and the population-frequency DuckDB
+- expression v3 summary/detail tables and its dedicated DuckDB
+- the compact association serving DuckDB
 
-These are consumer-facing and intentionally shaped.
+These are consumer-facing and intentionally shaped. They do not all share one
+physical format or update cadence.
 
 We keep these two artifact classes distinct.
 

@@ -1,29 +1,32 @@
 # Module Schemas
 
-These pages are documentation schemas for DataHub modules and published
-artifacts. They complement machine-validated JSON Schemas under
-`config/schemas/`.
+These pages are the human-readable contracts for DataHub artifacts and
+companion evidence layers. They complement machine-validated schemas under
+`config/schemas/`, but the two collections are not identical: some legacy or
+externally owned payloads have a documented interface without a complete JSON
+Schema in this repository.
 
-For each module, we keep the human-facing contract in this section:
+Each page states:
 
-- what each output table or payload represents
-- what each field means
-- what provenance must be preserved
-- which fields are safe for portal display
-- which limitations must be reviewed before production use
+- the scientific unit represented by a row or object
+- field and coordinate semantics
+- provenance and source ownership
+- aggregation and join rules
+- limitations that affect interpretation
+- whether DataHub builds the artifact, imports it, or only documents a consumer contract
 
-When we add a new module or a new published artifact shape, we add or update a
-page here as part of the same change. The goal is that a future DataHub run can
-be understood from the artifact and its schema page without relying on chat
-history or source-code archaeology.
+A source manifest marked `catalog_only` is not evidence that the source is in a
+production build. Likewise, a documented interface does not imply that DataHub
+owns the upstream extraction process.
 
-Current module schema pages:
+Current contracts:
 
-- [Expression v3](expression_v3.md)
-- [Gene Profile](gene_profile.md)
-- [Protein Context](protein_context.md)
-- [Structural Variant](structural_variant.md)
-- [Population Frequency](population_frequency.md)
-- [Drug Discovery](drug_discovery.md)
-- [Guideline Signal](guideline_signal.md)
-
+| Contract | DataHub role |
+| --- | --- |
+| [Expression v3](expression_v3.md) | Curation-gated builder and dedicated datamart. |
+| [Gene Profile](gene_profile.md) | Versioned multi-source artifact builder. |
+| [Protein Context](protein_context.md) | API-backed protein-coordinate artifact builder. |
+| [Structural Variant](structural_variant.md) | dbVar normalization and legacy-compatible publisher. |
+| [Population Frequency](population_frequency.md) | Parquet handoff and DuckDB index builder. |
+| [Drug Discovery](drug_discovery.md) | Imported per-gene payload and source-provenance contract; upstream merge code is not yet a canonical DataHub adapter. |
+| [Guideline Signal](guideline_signal.md) | Consumer/interface contract for HCG/HCG-KG outputs; graph extraction is externally owned. |

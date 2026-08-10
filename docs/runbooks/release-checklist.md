@@ -138,13 +138,18 @@ generated Parquet, DuckDB, checkpoint, raw archive, or analyzed artifact files.
 
 ## Secondary analyses
 
-Generate secondary artifacts before applying them to the serving DB. Current
-secondary-analysis manifests are:
+Generate standardized per-gene secondary artifacts before applying them to the
+association serving DB. The generic generate/apply path supports:
 
 - `expression`
 - `sga`
 - `protein_context`
 - `gene_profile`
+
+Expression v2/v3 manifests also exist, but expression v3 uses the independent
+workflow under `scripts/dataset_specific_scripts/expression/`. Build and
+validate `expression_v3.duckdb` separately; do not pass `expression_v3` to
+`run_secondary_analyses.py apply`.
 
 For gene profile, run the one-command pipeline after protein-context artifacts
 exist if they should be folded into dossier payloads:
@@ -159,6 +164,11 @@ python scripts/dataset_specific_scripts/unified/run_gene_profile_pipeline.py \
 
 When serving HBP, make sure the backend environment points
 `HBP_GENE_PROFILE_PATH` at `secondary_analyses/final/gene_profile/v1`.
+
+For expression v3, follow the curation and build checks in
+[Expression v3 Schema](../schemas/expression_v3.md). Preserve the approved
+curation manifest, row-level output, run manifest, and DuckDB build metadata as
+one release unit.
 
 ## QA report
 

@@ -1,13 +1,11 @@
 site_name: HeartBioPortal DataHub
-site_description: Modular cardiovascular genomics and omics data integration platform for HeartBioPortal.
+site_description: Data integration, provenance, analysis, and serving-artifact pipelines behind HeartBioPortal.
 site_url: https://heartbioportal.github.io/DataHub/
 repo_url: https://github.com/HeartBioPortal/DataHub
 repo_name: HeartBioPortal/DataHub
-edit_uri: edit/main/
+edit_uri: edit/main/docs/
 theme:
   name: material
-  logo: null
-  favicon: null
   palette:
     - scheme: default
       primary: custom
@@ -64,6 +62,7 @@ nav:
       - Local Smoke Test: runbooks/local-smoke-test.md
       - Release Checklist: runbooks/release-checklist.md
   - Reference:
+      - Data Sources: reference/data-sources.md
       - Module Guide: reference/module-guide.md
       - Scripts Guide: reference/scripts.md
       - Config Guide: reference/config-guide.md

@@ -2,20 +2,30 @@
 
 ![Abstract overview of source data becoming canonical records and published artifacts](assets/hero/overview-datahub.png){ .overview-hero }
 
-HeartBioPortal DataHub is the cardiovascular data engineering and publication layer behind HeartBioPortal. It exists to solve one problem cleanly: different biomedical sources all describe related biology, but they do so with different schemas, different semantics, different quality guarantees, and different operational constraints. DataHub provides the structure that turns those incompatible inputs into coherent, reproducible analyzed artifacts.
+HeartBioPortal DataHub is the data engineering, scientific integration, and
+artifact-publication layer behind HeartBioPortal. Biomedical sources describe
+related biology with different identifiers, schemas, units, population labels,
+quality guarantees, and access constraints. DataHub preserves those source
+distinctions while producing reproducible contracts that the portal can query
+and display.
 
 ## What DataHub is responsible for
 
-DataHub owns four responsibilities:
+DataHub owns five responsibilities:
 
 1. **Preparation**: bring irregular raw files into stable, auditable intermediate shapes.
 2. **Canonicalization**: map heterogeneous sources into one reusable record model.
 3. **Publication**: convert unified records into analyzed outputs that downstream systems can serve.
-4. **Orchestration**: run the same logical pipeline on a laptop, a cloud VM, or an HPC cluster.
+4. **Serving preparation**: build query-oriented DuckDBs, indexes, and compact per-gene artifacts without changing their scientific semantics.
+5. **Orchestration**: run the same logical pipeline on a laptop, a cloud VM, or an HPC cluster with observable, restartable jobs.
 
 ## What DataHub is not
 
-DataHub is not the web application, not the long-term application database, and not a place to re-implement biological logic in multiple layers. The backend consumes artifacts created by DataHub. Scientific interpretation logic belongs here first.
+DataHub is not the web application or the account/content database. The HBP
+backend consumes DataHub artifacts and may cache or shape responses, but
+scientific aggregation, normalization, and provenance rules belong in DataHub.
+DataHub also catalogs sources that are not yet integrated; a source manifest is
+not proof that its data are present in a production release.
 
 ## Reader map
 
@@ -23,7 +33,7 @@ Use the documentation based on what you need:
 
 - New contributor: start with [Getting Started](getting-started.md) and [Repository Tour](repository-tour.md)
 - Data engineer: read [System Overview](architecture/system-overview.md), [Configuration Surfaces](architecture/configuration.md), and [Unified DuckDB Pipeline](pipelines/unified.md)
-- Scientist trying to understand the artifact model: read [Data Model](architecture/data-model.md), [Association Pipeline](pipelines/association.md), and [Serving Artifacts](pipelines/serving.md)
+- Scientist trying to understand the artifact model: read [Data Sources](reference/data-sources.md), [Data Model](architecture/data-model.md), [Association Pipeline](pipelines/association.md), and [Serving Artifacts](pipelines/serving.md)
 - Someone extending the platform: read [New Source Onboarding](extending/new-source.md) and [Export Manifest Framework](extending/export-manifests.md)
 - Someone preparing a run: use [Local Smoke Test](runbooks/local-smoke-test.md) or [Release Checklist](runbooks/release-checklist.md)
 
@@ -41,9 +51,9 @@ Use the documentation based on what you need:
 raw files / source APIs
   -> preparation profiles
   -> adapters
-  -> canonical records / unified DuckDB points
-  -> analyzed publication (.json/.json.gz)
-  -> serving DuckDB
+  -> source-normalized and analysis-ready records
+  -> analyzed publication (.json/.json.gz/Parquet)
+  -> serving DuckDBs and indexed artifacts
   -> backend / web application
 ```
 
@@ -52,16 +62,21 @@ raw files / source APIs
 - **Legacy-compatible association build**: direct publish from prepared/legacy inputs
 - **MVP dataset-specific pipeline**: canonical ingest plus legacy-compatible publish
 - **Unified DuckDB-first pipeline**: merged MVP + legacy points, source-priority dedup, publish from DuckDB, optional serving artifact build
-- **Secondary analyses**: expression, SGA, protein context, and gene profile
-  artifacts that can be generated or attached without rebuilding association
-  publication
+- **Secondary and companion evidence**: legacy expression packaging, curated
+  expression v3, SGA, protein context, and gene-profile artifacts. Only the
+  standardized per-gene secondary artifacts are attached through the generic
+  secondary-analysis serving updater.
 - **Population-frequency indexing**: dbSNP archive and legacy frequency rows
   normalized into Parquet handoff artifacts and a provenance-preserving DuckDB
-  index
+  index. Population observations do not contain disease associations; the
+  portal joins them to association-selected rsIDs at query time.
+- **Structural-variant publication**: dbVar records normalized into the legacy
+  gene-centered SV contract, with optional exon enrichment.
 
-The source catalog distinguishes `integrated` sources, which can create
-canonical records today, from `catalog_only` sources, which document curated
-future integration targets.
+The [Data Sources](reference/data-sources.md) inventory distinguishes
+`integrated` sources, which have an executable DataHub ingestion path, from
+`catalog_only` sources, which document source identity and intended provenance
+but still require an adapter or importer.
 
 ## Documentation website
 

@@ -69,7 +69,28 @@ Use when:
 - moving from laptop to AWS or HPC
 - standardizing operational execution
 
-## 5. Export manifests
+## 5. Secondary-analysis manifests
+
+Location:
+
+- `config/secondary_analyses/`
+
+Purpose:
+
+- identify a companion analysis and its version
+- distinguish imported, assembled, and derived modes
+- define the artifact subdirectory used by its implementation
+
+Use when:
+
+- adding or versioning a secondary evidence layer
+- registering an artifact family for generation or serving updates
+
+These small manifests do not define every field in a module output. Human-readable
+field contracts live under `docs/schemas/`; machine schemas live under
+`config/schemas/` where implemented.
+
+## 6. Export manifests
 
 Location:
 
@@ -93,5 +114,6 @@ A single all-purpose config would create several problems:
 - raw-column mapping would mix with runtime scheduler concerns
 - serving/publication semantics would mix with source registry metadata
 - validation policies would become dependent on operational deployment details
+- secondary-analysis identity would be mixed with row-level scientific schemas
 
 The current split is deliberate and preserved.

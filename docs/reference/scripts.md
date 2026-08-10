@@ -198,6 +198,27 @@ For array jobs, keep `--sleep-seconds` nonzero so parallel partitions do not
 hit Ensembl in the same burst. The shared API client also retries `429 Too Many
 Requests` responses using `Retry-After` when Ensembl provides it.
 
+## Expression scripts
+
+### `scripts/dataset_specific_scripts/expression/run_expression_pipeline.py`
+
+Run the curation-gated expression workflow and its compatibility builders.
+Subcommands cover:
+
+- enriching the legacy expression payload with recoverable CardioQuilt/CREEDS-GEO provenance
+- downloading GEOmetadb and discovering cardiovascular study candidates
+- generating curation suggestions from GEO sample metadata
+- running approved GEO disease-versus-control contrasts with GEOquery/limma
+- importing reviewed row-level results into expression v3 CSV/JSON artifacts and an optional DuckDB
+
+Automated discovery and curation suggestions do not approve studies. A
+production expression v3 row requires an approved curation record with an
+explicit contrast direction, case/control samples, phenotype label, tissue and
+platform metadata where available, and source provenance.
+
+See [Expression v3 Schema](../schemas/expression_v3.md) and the operational
+README at `scripts/dataset_specific_scripts/expression/README.md`.
+
 ## MVP scripts
 
 ### `scripts/dataset_specific_scripts/mvp/ingest_mvp_duckdb_fast.py`
@@ -365,7 +386,7 @@ Use this when:
 
 - you want to derive `sga` from the cleaned unified association DuckDB
 - you want to normalize `expression` into the standard secondary-analysis artifact layout
-- you want to derive `protein_context` artifacts for the splicing viewer from Ensembl, EBI Proteins, and InterPro
+- you want to derive `protein_context` artifacts for the Protein Consequence Viewer from Ensembl, EBI Proteins, and InterPro
 - you want to update an existing serving DuckDB with secondary analyses without rebuilding association tables
 
 Operational note:

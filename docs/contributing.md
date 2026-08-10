@@ -31,12 +31,13 @@ A good contribution answers these questions clearly:
 - New analyzed field: export manifest + helper + publisher/builder tests
 - New environment setup: runtime profile + orchestration tests if needed
 
-## Patterns We Avoid
+## Patterns we avoid
 
 - hardcoding source-specific behavior into unrelated modules
 - backend-only scientific fixes that belong in DataHub
 - adding new fields without deciding whether they belong in schema, metadata, or analyzed output
 - mixing runtime orchestration changes with scientific contract changes in one opaque edit
+- adding a long-running script without progress, logging, smoke-mode, and restart behavior defined by [`SCRIPT_MANIFESTO.md`](https://github.com/HeartBioPortal/DataHub/blob/main/SCRIPT_MANIFESTO.md)
 
 ## Documentation rule
 

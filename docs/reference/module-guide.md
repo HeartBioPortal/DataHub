@@ -133,12 +133,16 @@ This package is responsible for:
 - artifact generation for imported and derived analyses
 - in-place updates to an existing serving DuckDB
 
-Current analyses:
+Current standardized per-gene analyses:
 
-- `expression` as an imported secondary analysis
-- `gene_profile` as a derived gene dossier/header analysis
-- `protein_context` as a derived protein-coordinate context analysis
-- `sga` as a derived post-association analysis
+- `expression`: imported legacy-compatible expression payloads
+- `gene_profile`: assembled HGNC/NCBI/UniProtKB/GOA gene dossier evidence
+- `protein_context`: assembled protein-coordinate isoform and feature evidence
+- `sga`: derived post-association cross-phenotype relationships
+
+The separate `src/datahub/expression/` package owns expression v3 discovery,
+curation, differential-expression row models, summaries, and its dedicated
+DuckDB/JSON outputs.
 
 ## `variant_viewer_canonicalization.py`
 

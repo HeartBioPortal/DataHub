@@ -51,6 +51,17 @@ Typical contents:
 - scheduler and Slurm settings
 - step-specific command settings
 
+## `config/secondary_analyses/`
+
+Declares secondary and companion analysis identities, versions, modes, and
+artifact subdirectories. The current directory includes the standardized
+per-gene analyses (`expression`, `sga`, `protein_context`, and `gene_profile`)
+as well as the separate expression v2/v3 evidence contracts.
+
+A manifest does not by itself make an analysis compatible with
+`run_secondary_analyses.py apply`. That updater currently maps only the four
+standardized per-gene analyses to tables in the association serving DuckDB.
+
 ## `config/export_manifests/`
 
 Defines analyzed export behavior.
@@ -108,5 +119,6 @@ This file influences:
 - Validation issue: `profiles`
 - Source identity / defaults issue: `sources`
 - Environment execution issue: `runtime_profiles`
+- Secondary-analysis identity or artifact location: `secondary_analyses`
 - Published analyzed field issue: `export_manifests`
 - Hierarchy / grouping issue: `phenotype_tree.json`

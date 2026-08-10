@@ -20,9 +20,9 @@ The serving artifact is optimized for:
 - predictable backend retrieval
 - avoiding large in-memory Redis preloads
 
-## Current serving artifact
+## Current serving artifacts
 
-The main serving artifact is a compact DuckDB database built by:
+Association search uses a compact DuckDB database built by:
 
 - `scripts/dataset_specific_scripts/unified/build_association_serving_duckdb.py`
 
@@ -40,8 +40,15 @@ It currently contains tables such as:
 - `build_metadata`
 - `secondary_analysis_metadata`
 
-Published association artifacts also include `variant_index/<DATASET_TYPE>/<GENE>.json.gz`.
-That artifact is not just another summary. It preserves one row per
+Population frequency and expression v3 use separate datamarts because their row
+units and query patterns differ from the association payload tables:
+
+- `dbsnp_frequency*.duckdb`: source-specific allele-frequency observations
+- `expression_v3.duckdb`: row-level differential-expression evidence and gene-by-phenotype summaries
+
+Published association artifacts also include, relative to the configured final
+artifact root, `variant_index/<DATASET_TYPE>/<GENE>.json.gz`. That artifact is
+not just another summary. It preserves one row per
 `variant_id` and phenotype path so filtered charts can deduplicate rsIDs using
 the same variant-centric rule as overall publication.
 
@@ -49,11 +56,13 @@ the same variant-centric rule as overall publication.
 
 ## Serving contract
 
-The serving DuckDB contract is declared in:
+The base association serving contract is declared in:
 
 - `config/output_contracts/association_serving_duckdb.json`
 
-The contract names the primary runtime tables, required columns, query
+The builder and incremental secondary-analysis updater add operational tables
+beyond the base contract, including protein-context and gene-profile payloads.
+The contract names the stable association tables, required columns, query
 expectations, and compatibility notes. The most important rule is that serving
 payload JSON preserves published semantics; it does not reinterpret association
 or overall payloads.
@@ -122,12 +131,16 @@ The full payload remains available through the published JSON/JSON.GZ artifact.
 
 ### Variant index payloads
 
-Variant index payloads live outside the serving DuckDB under:
+Variant-index payloads live outside the serving DuckDB under the configured
+association final root:
 
 ```text
-association/final/variant_index/CVD/<GENE>.json.gz
-association/final/variant_index/TRAIT/<GENE>.json.gz
+<artifact-root>/variant_index/CVD/<GENE>.json.gz
+<artifact-root>/variant_index/TRAIT/<GENE>.json.gz
 ```
+
+For the current AWS layout, `<artifact-root>` is typically
+`/data/DataHub/analyzed_data/association_new/final`.
 
 They are the intended source for phenotype-filtered chart aggregation. The
 backend filters rows by phenotype path, collapses them by `variant_id`, chooses
@@ -280,8 +293,11 @@ datahub-build-serving-duckdb \
   --qa-report-json /data/hbp/state/association_serving.qa.json
 ```
 
-That report includes row counts for serving tables, the serving DB checksum,
-published payload counts, and source-catalog integration status.
+That report includes row counts for association serving tables, the serving DB
+checksum, published payload counts, and source-catalog integration status. The
+population-frequency and expression v3 datamarts require their own build
+metadata or module-specific QA; they are not counted automatically as tables in
+the association serving DB.
 
 ## Why this is better than Redis-only bulk load
 

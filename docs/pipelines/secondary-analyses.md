@@ -8,10 +8,14 @@ This page documents the secondary-analysis layer that sits downstream of the pri
 
 Not every consumer-facing payload is a primary source ingest.
 
-Some artifacts are:
+The layer covers several different provenance classes:
 
-- imported side modalities such as expression
-- derived post-association analyses such as shared genetic architecture (SGA)
+- imported compatibility payloads, such as legacy expression
+- assembled enrichments, such as gene profiles and protein context
+- derived post-association analyses, such as shared genetic architecture (SGA)
+
+Expression v3 is related companion evidence but uses its own row-level,
+summary, and DuckDB contract rather than the generic per-gene artifact updater.
 
 Treating them all as ad hoc special cases inside the serving builder makes the system harder to reason about and harder to extend. The secondary-analysis layer gives them one explicit home.
 
@@ -26,25 +30,32 @@ That means:
 - they are generated or imported explicitly
 - they attach to an existing serving DB without rebuilding association tables
 
-## Two analysis modes
+## Analysis modes and contracts
 
-### Imported
+### Imported per-gene payloads
 
-These analyses normalize an existing non-association source into a standard per-gene artifact shape.
+`expression` packages an existing expression payload into the standard
+per-gene secondary-artifact layout used by the current portal.
 
-Current example:
+### Assembled enrichments
 
-- `expression`
+`gene_profile` assembles versioned HGNC, NCBI Gene, UniProtKB, GOA, and
+optional protein-context snapshots. `protein_context` resolves isoforms and
+protein-coordinate features from Ensembl, EBI Proteins, and InterPro. These are
+not computed from association overlap, so calling them simply “derived” hides
+their external-source provenance.
 
-### Derived
+### Derived association analysis
 
-These analyses are computed from the cleaned association layer after ingest, merge, and deduplication.
+`sga` computes cross-phenotype relationships from cleaned CVD and trait
+variant sets after association ingest, merge, and deduplication.
 
-Current examples:
+### Independent expression v3 contract
 
-- `gene_profile`
-- `protein_context`
-- `sga`
+`expression_v3` is a curation-gated differential-expression workflow with
+row-level evidence, gene-by-phenotype summaries, exported JSON/CSV, and an
+optional dedicated DuckDB. It is not loaded by the generic
+`run_secondary_analyses.py apply` path.
 
 ## Config surface
 
@@ -55,16 +66,19 @@ Secondary analyses are declared under:
 Current manifests:
 
 - `config/secondary_analyses/expression.json`
+- `config/secondary_analyses/expression_v2.json`
+- `config/secondary_analyses/expression_v3.json`
 - `config/secondary_analyses/gene_profile.json`
 - `config/secondary_analyses/protein_context.json`
 - `config/secondary_analyses/sga.json`
 
-These manifests declare:
+The registry used by the generic secondary-analysis runner supports
+`expression`, `gene_profile`, `protein_context`, and `sga`. The
+expression v2/v3 manifests describe separate expression evidence contracts.
 
-- analysis ID
-- version
-- mode
-- artifact subdirectory
+These manifests declare analysis identity, version, mode, description, and
+artifact subdirectory. They are routing metadata, not complete scientific field
+schemas.
 
 ## Runtime package
 
@@ -77,7 +91,7 @@ Important modules:
 - `registry.py`
   - loads and validates secondary-analysis manifests
 - `expression.py`
-  - imports and normalizes expression payloads
+  - imports and normalizes the legacy-compatible per-gene expression payload
 - `gene_profile.py` and `gene_profile_sources.py`
   - download source snapshots and assemble gene dossier/profile artifacts
 - `protein_context.py`
@@ -91,13 +105,22 @@ Important modules:
 
 ## Artifact shape
 
-Secondary analyses publish standardized per-gene artifacts under:
+The generic secondary-analysis runner publishes standardized per-gene artifacts
+under:
 
-- `secondary_root/final/<analysis>/genes/<GENE>.json.gz`
+- `secondary_root/final/<artifact_subdir>/genes/<GENE>.json.gz`
 
-They also emit analysis metadata under:
+and metadata under:
 
-- `secondary_root/final/<analysis>/metadata.json`
+- `secondary_root/final/<artifact_subdir>/metadata.json`
+
+The manifest's `artifact_subdir` is authoritative. For example, gene profiles
+use `gene_profile/v1`, so their gene payloads live under
+`final/gene_profile/v1/genes/`.
+
+Expression v3 does not use this per-gene layout. It writes row-level and summary
+CSV/JSON files under `final/expression_v3/` and can build a separate
+`expression_v3.duckdb`.
 
 This keeps generation and serving-update concerns decoupled:
 
@@ -151,7 +174,7 @@ The backend should point `HBP_GENE_PROFILE_PATH` at
 
 ## Protein-context semantics
 
-Protein context is a derived secondary analysis for the splicing viewer.
+Protein context is an assembled secondary analysis for the Protein Consequence Viewer.
 
 The contract is:
 
@@ -162,9 +185,10 @@ The contract is:
 - EBI Proteins and InterPro add protein feature, domain, topology, and region annotations when a UniProt accession can be resolved
 
 The generated artifact is intentionally separate from structural-variant genomic
-exon backfills. SV exon data can help as a fallback, but the splicing viewer's
-scientific axis is protein residue position, so the primary artifact must be
-protein-coordinate and isoform-aware.
+exon backfills. Structural-variant coordinates are genomic intervals, while the
+Protein Consequence Viewer uses amino-acid positions on a selected protein
+isoform. Protein-context features therefore remain protein-coordinate and
+isoform-aware.
 
 ## SGA semantics
 
@@ -261,4 +285,5 @@ Typical pattern:
 - keep `--log-level INFO` enabled for production applies; the command logs a durable progress line every `--progress-interval` artifact files and logs when the `gene_catalog` refresh starts and completes
 - the apply is transactional: if a corrupt artifact or database error occurs, the target secondary table and `gene_catalog` update are rolled back instead of being left half-applied
 
-This avoids copying the full unified DuckDB or rebuilding the full 400GB serving artifact from scratch.
+This avoids copying the full unified analytical DuckDB or rebuilding a large
+association serving database from scratch.

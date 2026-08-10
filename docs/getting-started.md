@@ -107,6 +107,18 @@ datahub-report-artifact-qa \
 The report summarizes source catalog status, published payload counts and sample
 checksums, working DuckDB tables, and serving DuckDB table counts.
 
+## Long-running script standard
+
+Before creating or running a large import, aggregation, or export, read
+[`SCRIPT_MANIFESTO.md`](https://github.com/HeartBioPortal/DataHub/blob/main/SCRIPT_MANIFESTO.md).
+Operational scripts must provide visible progress, structured logging, a smoke
+mode, and restart-safe checkpoints where technically possible. Workloads that
+are too large for the serving host should use Slurm/HPC and write portable,
+mergeable outputs for transfer back to the web server.
+
+These controls are part of reproducibility, not optional interface polish. A
+long job without progress or resumability is not production-ready.
+
 ## Recommended mental model
 
 Read the repository in this order:
@@ -124,3 +136,4 @@ Read the repository in this order:
 - Reconstructing biological logic in the backend instead of promoting it into DataHub
 - Mixing environment/runtime profile concerns with scientific/data-model concerns
 - Adding fields ad hoc without defining where they belong: prep, canonical schema, metadata, published payload, or serving artifact
+- Launching a large pipeline without progress reporting, a smoke test, checkpoint semantics, and a documented HPC decision
