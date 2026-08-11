@@ -4,7 +4,7 @@
 
 ## Association and phenotype evidence
 
-The current association artifacts normalize HBP legacy CVD/trait layers and Million Veteran Program summary-statistics inputs into canonical gene, variant, phenotype, p-value, ancestry, consequence, clinical-significance, and provenance fields. The final artifacts are association JSON/JSON.GZ payloads, variant-index payloads, phenotype rollups, and serving DuckDB tables. We preserve input file, source dataset, source version, phenotype path, rsID/variant ID, p-value, genome build, and transformation notes in source provenance. Controlled or non-public inputs are not redistributed.
+The current association artifacts normalize NHGRI-EBI GWAS Catalog-derived HBP legacy CVD/trait snapshots and Million Veteran Program summary-statistics inputs into canonical gene, variant, phenotype, p-value, ancestry, consequence, clinical-significance, and provenance fields. The final artifacts are association JSON/JSON.GZ payloads, variant-index payloads, phenotype rollups, and serving DuckDB tables. We preserve input file, source dataset, source version, phenotype path, rsID/variant ID, p-value, genome build, and transformation notes in source provenance. Controlled or non-public inputs are not redistributed.
 
 ## Population-frequency context
 

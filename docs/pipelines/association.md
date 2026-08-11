@@ -9,9 +9,13 @@ This page covers the association-oriented path that produces legacy-compatible a
 Association inputs currently arrive from multiple paths:
 
 - legacy aggregated CSVs
-- legacy raw CVD / trait files
+- legacy raw CVD / trait snapshots derived from NHGRI-EBI GWAS Catalog records
 - MVP long-form aggregated phenotype files
 - future association-like external sources through adapters
+
+`legacy_cvd_raw` and `legacy_trait_raw` are DataHub ingestion identifiers. The
+underlying legacy files are versioned snapshots derived from the NHGRI-EBI GWAS
+Catalog; they are not independent source databases.
 
 ## The logical stages
 

@@ -14,7 +14,7 @@ are the evidence for inclusion.
 | Source | HBP layer | How it enters HBP |
 | --- | --- | --- |
 | Million Veteran Program (MVP) summary statistics | CVD association evidence | Authorized summary-statistics inputs are normalized into gene-variant-phenotype rows. Current variant-index rows identify `million_veteran_program` explicitly. Controlled raw data are not redistributed. |
-| Versioned HBP legacy CVD and trait files | Association and trait evidence | Imported compatibility inputs retain source files, phenotype labels, rsIDs, p-values, ancestry fields, consequences, and clinical annotations where supplied. Current rows identify `legacy_cvd_raw` or `legacy_trait_raw`. |
+| NHGRI-EBI GWAS Catalog-derived legacy CVD and trait files | Association and trait evidence | Versioned GWAS Catalog-derived snapshots are imported through the compatibility pipeline. They retain source files, phenotype labels, rsIDs, p-values, ancestry fields, consequences, and clinical annotations where supplied. Current rows identify the pipeline source as `legacy_cvd_raw` or `legacy_trait_raw`. |
 | NCBI dbSNP frequency exports | Population frequency | Three dbSNP frequency archive batches plus separately provenanced HBP legacy rows are normalized into the population-frequency datamart. Source-specific study and population labels remain separate. |
 | NCBI dbVar nstd102 and nstd229 | Structural variants | nstd102/ClinVar structural-variant seed records and the nstd229/TOPMed call set are published in the gene-centered SV contract. |
 | HGNC | Gene profiles | Approved symbols, names, aliases, locus information, HGNC identifiers, and external cross-references. |
@@ -33,18 +33,24 @@ are the evidence for inclusion.
 ## Association evidence
 
 The current association build combines MVP summary-statistics rows with
-versioned HBP legacy CVD and trait inputs. Representative deployed
+versioned HBP legacy CVD and trait snapshots derived from NHGRI-EBI GWAS
+Catalog records. Representative deployed
 `variant_index` artifacts record these source labels:
 
 - `million_veteran_program`
 - `legacy_cvd_raw`
 - `legacy_trait_raw`
 
+The two legacy labels identify DataHub ingestion routes, not separate upstream
+databases. Their upstream source is the NHGRI-EBI GWAS Catalog; DataHub ingests
+versioned local snapshots rather than downloading the catalog again during each
+association build.
+
 The artifacts retain source-file provenance and phenotype keys. Fields such as
 rsID, variation type, consequence, clinical significance, ancestry, and p-value
-can be supplied by those upstream rows. The presence of a dbSNP, ClinVar, GWAS
-Catalog, or Ensembl source manifest does not mean every current association row
-was freshly queried from that service.
+can be supplied by those upstream rows. The presence of a dbSNP, ClinVar, or
+Ensembl source manifest does not mean every current association row was freshly
+queried from that service.
 
 ## Population-frequency evidence
 

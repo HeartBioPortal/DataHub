@@ -241,7 +241,9 @@ Export prepared raw MVP rows for audit or downstream merge workflows.
 
 ### `scripts/dataset_specific_scripts/unified/ingest_legacy_raw_duckdb.py`
 
-Ingest legacy raw CVD/trait files into the shared DuckDB points table.
+Ingest versioned CVD/trait snapshots derived from the NHGRI-EBI GWAS Catalog
+into the shared DuckDB points table. The `legacy_cvd_raw` and
+`legacy_trait_raw` values are pipeline source IDs, not upstream database names.
 
 ### `scripts/dataset_specific_scripts/unified/manage_working_duckdb.py`
 
