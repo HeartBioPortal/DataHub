@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the resumable unavailable-provider source-summary serving index."""
+"""Build the resumable first-class MVP source-summary association index."""
 
 from __future__ import annotations
 

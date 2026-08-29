@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-SCHEMA_VERSION = "2.2.0-rc1"
+SCHEMA_VERSION = "2.3.0-rc2"
 
 SOURCE_DETAIL_UNAVAILABLE_FIELDS = (
     "effect_allele",
@@ -15,9 +15,12 @@ SOURCE_DETAIL_UNAVAILABLE_FIELDS = (
 
 PROVIDER_DETAIL_AVAILABLE = "available"
 PROVIDER_DETAIL_UNAVAILABLE = "unavailable"
+PROVIDER_DETAIL_NOT_APPLICABLE = "not_applicable"
 
 ASSOCIATION_RECORD_KIND_PROVIDER = "source_association_observation"
-ASSOCIATION_RECORD_KIND_SOURCE_SUMMARY = "source_summary"
+ASSOCIATION_RECORD_KIND_SOURCE_SUMMARY = "source_summary_association"
+EVIDENCE_GRANULARITY_PROVIDER_RECORD = "provider_record"
+EVIDENCE_GRANULARITY_SOURCE_SUMMARY = "source_summary"
 
 SOURCE_PRIORITY = (
     "legacy_cvd_raw",

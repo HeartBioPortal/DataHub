@@ -14,10 +14,10 @@ from typing import Any
 
 import duckdb
 
-SOURCE_TABLE = "unavailable_provider_summaries_by_gene"
-BASE_TABLE = "unavailable_provider_summary_base_by_gene"
-PHENOTYPE_TABLE = "unavailable_provider_phenotype_counts_by_gene"
-CONTRACT = "retained_compact_source_summary_rollup_v1"
+SOURCE_TABLE = "source_summary_associations_by_gene"
+BASE_TABLE = "source_summary_association_base_by_gene"
+PHENOTYPE_TABLE = "source_summary_association_phenotype_counts_by_gene"
+CONTRACT = "source_summary_association_rollup_v2"
 
 
 def _utc_now() -> str:
@@ -71,9 +71,9 @@ class SourceSummaryRollupBuilder:
         if _sha256(manifest_path) != expected:
             raise RuntimeError("Serving manifest checksum failed before source-summary rollup.")
         source = (manifest.get("tables") or {}).get(SOURCE_TABLE) or {}
-        if manifest.get("schema_version") != "2.7.0-rc1":
-            raise RuntimeError("Source-summary rollup requires completed schema 2.7.0-rc1.")
-        if source.get("contract") != "retained_compact_source_summary_index_v1":
+        if manifest.get("schema_version") != "2.9.0-rc2":
+            raise RuntimeError("Source-summary rollup requires completed schema 2.9.0-rc2.")
+        if source.get("contract") != "source_summary_association_index_v2":
             raise RuntimeError("Unexpected source-summary input contract.")
         if int(source.get("files") or 0) != int(source.get("source_artifacts") or -1):
             raise RuntimeError("Source-summary files do not reconcile with registered artifacts.")
@@ -111,8 +111,16 @@ COPY (
   SELECT gene_id, dataset_type, variant_id,
          min(try_cast(reported_p_value AS DOUBLE)) AS p_value,
          to_json(list_sort(list(DISTINCT phenotype_path_json))) AS phenotype_paths_json,
+         count(*)::UBIGINT AS association_record_count,
+         count(*)::UBIGINT AS source_summary_association_count,
          count(*)::UBIGINT AS retained_source_summary_count,
+         list(association_record_id ORDER BY
+              try_cast(reported_p_value AS DOUBLE) NULLS LAST,
+              association_record_id)[1]
+             AS minimum_reported_p_value_association_record_id,
          first(source ORDER BY source) AS source,
+         first(source_display_name ORDER BY source) AS source_display_name,
+         first(evidence_granularity ORDER BY source) AS evidence_granularity,
          first(provider_detail_status ORDER BY source) AS provider_detail_status,
          first(provider_detail_reason ORDER BY source) AS provider_detail_reason,
          first(missing_fields_json ORDER BY source) AS missing_fields_json,
@@ -129,6 +137,10 @@ COPY (
          count(DISTINCT variant_id)::UBIGINT AS distinct_variant_count,
          to_json(list_sort(list(DISTINCT variant_id))) AS variant_ids_json,
          min(try_cast(reported_p_value AS DOUBLE)) AS minimum_reported_p_value,
+         list(association_record_id ORDER BY
+              try_cast(reported_p_value AS DOUBLE) NULLS LAST,
+              association_record_id)[1]
+             AS minimum_reported_p_value_association_record_id,
          substr(sha256(gene_id), 1, 16) AS gene_key
   FROM read_parquet('{source_glob}', hive_partitioning=true, union_by_name=true)
   GROUP BY gene_id, dataset_type, phenotype_path_json, phenotype_path_key
@@ -229,7 +241,7 @@ COPY (
             "files": sum(int(row["phenotype_files"]) for row in completed.values()),
             "unit": "gene_dataset_exact_phenotype_path",
         }
-        manifest["schema_version"] = "2.8.0-rc1"
+        manifest["schema_version"] = "2.10.0-rc2"
         manifest["source_summary_rollup_built_at"] = _utc_now()
         manifest["source_summary_rollup_runtime"] = {
             "python": platform.python_version(),

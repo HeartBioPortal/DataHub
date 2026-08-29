@@ -39,7 +39,7 @@ def test_index_is_gene_keyed_and_does_not_create_provider_rows(tmp_path: Path) -
         [
             "artifact-1", "million_veteran_program", "CVD", "TTN",
             "variant_index/CVD/TTN.json.gz", "json.gz", stat.st_size,
-            stat.st_mtime_ns, "unavailable", "provider rows unavailable",
+            stat.st_mtime_ns, "not_applicable", None,
             json.dumps(["effect_allele", "sample_size"]),
             "retained_compact_variant_index_v1", "gene_scoped_on_demand",
         ],
@@ -62,16 +62,20 @@ def test_index_is_gene_keyed_and_does_not_create_provider_rows(tmp_path: Path) -
     assert result["selected_source_rows"] == 2
     assert result["unique_summary_rows"] == 1
     manifest = json.loads((serving_root / "serving-manifest.json").read_text())
-    table = manifest["tables"]["unavailable_provider_summaries_by_gene"]
-    assert table["provider_detail_status"] == "unavailable"
+    table = manifest["tables"]["source_summary_associations_by_gene"]
+    assert table["provider_detail_status"] == "not_applicable"
+    assert table["record_kind"] == "source_summary_association"
+    assert table["evidence_granularity"] == "source_summary"
     rows = duckdb.connect().execute(
-        f"SELECT source, variant_id, provider_detail_status, "
+        f"SELECT source, source_display_name, variant_id, record_kind, "
+        f"evidence_granularity, provider_detail_status, reported_p_value, "
         f"retained_source_summary_artifact FROM read_parquet("
-        f"'{serving_root / 'tables/unavailable_provider_summaries_by_gene/**/*.parquet'}')"
+        f"'{serving_root / 'tables/source_summary_associations_by_gene/**/*.parquet'}')"
     ).fetchall()
     assert rows == [
         (
-            "million_veteran_program", "rsMVP", "unavailable",
-            "variant_index/CVD/TTN.json.gz",
+            "million_veteran_program", "MVP", "rsMVP",
+            "source_summary_association", "source_summary", "not_applicable",
+            "1e-09", "variant_index/CVD/TTN.json.gz",
         )
     ]

@@ -17,24 +17,24 @@ from datahub.association_evidence_v2.source_summary_rollup import (
 
 def test_rollup_preserves_variant_and_exact_phenotype_counts(tmp_path: Path) -> None:
     serving = tmp_path / "serving"
-    source = serving / "tables" / "unavailable_provider_summaries_by_gene" / "gene_bucket=00" / "gene_key=fixture"
+    source = serving / "tables" / "source_summary_associations_by_gene" / "gene_bucket=00" / "gene_key=fixture"
     source.mkdir(parents=True)
     connection = duckdb.connect()
     connection.execute(
         """COPY (SELECT * FROM (VALUES
-          ('mvp','CVD','HMGCR','rs1','[\"vascular\",\"hypertension\"]','vascular > hypertension','1e-6','unavailable','reason','[\"effect_allele\"]','variant_index/CVD/HMGCR.json.gz','gene_scoped_on_demand'),
-          ('mvp','CVD','HMGCR','rs1','[\"vascular\",\"cad\"]','vascular > cad','1e-9','unavailable','reason','[\"effect_allele\"]','variant_index/CVD/HMGCR.json.gz','gene_scoped_on_demand'),
-          ('mvp','CVD','HMGCR','rs2','[\"vascular\",\"hypertension\"]','vascular > hypertension','0.2','unavailable','reason','[\"effect_allele\"]','variant_index/CVD/HMGCR.json.gz','gene_scoped_on_demand')
-        ) t(source,dataset_type,gene_id,variant_id,phenotype_path_json,phenotype_path_key,reported_p_value,provider_detail_status,provider_detail_reason,missing_fields_json,retained_source_summary_artifact,publication_mode))
+          ('a1','mvp','MVP','source_summary','CVD','HMGCR','rs1','[\"vascular\",\"hypertension\"]','vascular > hypertension','1e-6','not_applicable',NULL,'[\"effect_allele\"]','variant_index/CVD/HMGCR.json.gz','gene_scoped_on_demand'),
+          ('a2','mvp','MVP','source_summary','CVD','HMGCR','rs1','[\"vascular\",\"cad\"]','vascular > cad','1e-9','not_applicable',NULL,'[\"effect_allele\"]','variant_index/CVD/HMGCR.json.gz','gene_scoped_on_demand'),
+          ('a3','mvp','MVP','source_summary','CVD','HMGCR','rs2','[\"vascular\",\"hypertension\"]','vascular > hypertension','0.2','not_applicable',NULL,'[\"effect_allele\"]','variant_index/CVD/HMGCR.json.gz','gene_scoped_on_demand')
+        ) t(association_record_id,source,source_display_name,evidence_granularity,dataset_type,gene_id,variant_id,phenotype_path_json,phenotype_path_key,reported_p_value,provider_detail_status,provider_detail_reason,missing_fields_json,retained_source_summary_artifact,publication_mode))
         TO ? (FORMAT PARQUET)""",
         [str(source / "part.parquet")],
     )
     connection.close()
     manifest = {
         "contract": "association_evidence_v2_partitioned_serving",
-        "schema_version": "2.7.0-rc1",
-        "tables": {"unavailable_provider_summaries_by_gene": {
-            "contract": "retained_compact_source_summary_index_v1",
+        "schema_version": "2.9.0-rc2",
+        "tables": {"source_summary_associations_by_gene": {
+            "contract": "source_summary_association_index_v2",
             "files": 1,
             "source_artifacts": 1,
         }},
@@ -49,7 +49,7 @@ def test_rollup_preserves_variant_and_exact_phenotype_counts(tmp_path: Path) -> 
     assert result["phenotype_rows"] == 2
     check = duckdb.connect()
     base = check.execute(
-        "SELECT variant_id,p_value,retained_source_summary_count FROM read_parquet(?) ORDER BY variant_id",
+        "SELECT variant_id,p_value,source_summary_association_count,minimum_reported_p_value_association_record_id FROM read_parquet(?) ORDER BY variant_id",
         [str(serving / "tables" / BASE_TABLE / "gene_bucket=00" / "gene_key=*" / "*.parquet")],
     ).fetchall()
     phenotypes = check.execute(
@@ -57,7 +57,7 @@ def test_rollup_preserves_variant_and_exact_phenotype_counts(tmp_path: Path) -> 
         [str(serving / "tables" / PHENOTYPE_TABLE / "gene_bucket=00" / "gene_key=*" / "*.parquet")],
     ).fetchall()
     check.close()
-    assert base == [("rs1", 1e-9, 2), ("rs2", 0.2, 1)]
+    assert base == [("rs1", 1e-9, 2, "a2"), ("rs2", 0.2, 1, "a3")]
     assert phenotypes == [
         ("vascular > cad", 1, '["rs1"]'),
         ("vascular > hypertension", 2, '["rs1","rs2"]'),

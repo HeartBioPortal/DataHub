@@ -207,8 +207,8 @@ def test_full_separation_and_provenance_contract(tmp_path: Path) -> None:
         FROM source_summary_artifacts WHERE source='million_veteran_program'
         """
     ).fetchone()
-    assert mvp[0] == "unavailable"
-    assert "unavailable on AWS" in mvp[1]
+    assert mvp[0] == "not_applicable"
+    assert mvp[1] is None
     assert "effect_allele" in json.loads(mvp[2])
     assert mvp[3].endswith("TTN.json.gz")
     assert mvp[4] == "gene_scoped_on_demand"
@@ -384,9 +384,9 @@ def test_partitioned_serving_preserves_provider_rows_and_associations(tmp_path: 
         progress_interval=1,
     ).build()
     passthrough_names = (
-        "unavailable_provider_summaries_by_gene",
-        "unavailable_provider_phenotype_counts_by_gene",
-        "unavailable_provider_summary_base_by_gene",
+        "source_summary_associations_by_gene",
+        "source_summary_association_phenotype_counts_by_gene",
+        "source_summary_association_base_by_gene",
     )
     for logical_name in passthrough_names:
         table_root = coarse_root / "tables" / logical_name / "gene_bucket=00"

@@ -3,8 +3,8 @@
 
 The builder is resumable at source-file and derived-phase boundaries. It writes
 only to the explicitly supplied sidecar database, checkpoint, manifest, and log
-paths. Provider-unavailable sources are represented by retained source summaries
-without reconstructing source studies.
+paths. MVP compact evidence is represented as first-class source-summary associations
+without fabricating provider or study records.
 """
 
 from __future__ import annotations

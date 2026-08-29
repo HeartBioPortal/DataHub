@@ -10,8 +10,8 @@ legacy association serving database during release-candidate validation.
 | --- | --- | --- |
 | `variants` | Canonical variant identifier | Stores unordered source allele and coordinate contexts. REF, ALT, and effect allele remain unresolved unless an authoritative association source supplies them. |
 | `provider_records` | Exact archived input row | Stable ID from source, logical file, line number, and row checksum. Raw source columns are preserved without cross-row field filling. |
-| `association_records` | Source association observation | Contains only recoverable `record_kind=source_association_observation` rows. Identity includes source, study identifiers/title, PMID, summary path, build, variant, phenotype, and exact p-value; it never fills those fields across unlike rows. It links to every exact contributing provider row. |
-| `source_summary_artifacts` | Retained gene/dataset compact artifact | Registers one logical variant-index artifact per gene and dataset type when provider detail is unavailable. Registry rows never become study or association records. A resumable gene-keyed serving index materializes only their filterable compact-summary fields so requests do not repeatedly parse large JSON artifacts. |
+| `association_records` | Source association evidence | Recoverable legacy rows use `record_kind=source_association_observation` and link to exact provider rows. MVP compact rows use `record_kind=source_summary_association`, `evidence_granularity=source_summary`, source `million_veteran_program`, display name `MVP`, and `provider_detail_status=not_applicable`. Neither contract fills absent fields across records. |
+| `source_summary_artifacts` | Retained MVP gene/dataset artifact | Registers the immutable compact artifact supplying MVP source-summary associations. Provider-row lineage is not applicable, but every retained variant-phenotype summary is valid association evidence. The gene-keyed serving index preserves deterministic record IDs, exact phenotype paths, p-values, variation type and other retained compact fields without creating study/provider records. |
 | `consequence_annotations` | Source/version-scoped annotation | Preserves each consequence/transcript/source combination. The version field is explicit and may be unavailable for legacy snapshots. No lexical minimum or implicit severity selection is performed. |
 | `clinical_assertions` | Source clinical assertion | Preserves each source-reported term independently, with condition and version when recoverable. |
 | `population_observations` | Source/cohort/allele/build observation | Keeps recoverable association-source frequency fields separate. The API joins the full dbSNP frequency sidecar by rsID and labels the association allele unresolved. |
@@ -37,14 +37,23 @@ provider-link tables in a bundle resolve to an included provider row.
 ## Summary count fields
 
 - `source_observation_count` counts exact recoverable provider rows.
-- `association_record_count` and `provider_association_record_count` count separated
-  recoverable association observations in the sidecar.
-- `retained_source_summary_count` is zero in persisted provider summaries. At request
-  time the backend reports the number of matching compact summary entries read from
-  the registered gene artifact, separately from association records.
+- `association_record_count` counts both provider-level legacy associations and first-class MVP source-summary associations.
+- `provider_association_record_count` counts only associations with provider-row lineage.
+- `source_summary_association_count` counts MVP summary associations; `retained_source_summary_count` remains a compatibility alias during migration.
 - `minimum_reported_p_value` is an aggregate;
   `minimum_reported_p_value_association_record_id` and the tied-record ID list identify
   its exact supplier.
+
+## MVP evidence contract
+
+MVP is one source: machine identifier million_veteran_program and display label MVP.
+Each natural key consists of source, dataset type, gene, variant ID, and exact
+phenotype path, plus retained artifact context. MVP and legacy records remain separate
+even when they share a variant and phenotype. Distinct-variant charts may count the
+variant once within an active scope, but drill-downs and exports retain every
+source-specific record. Missing effect alleles, effects, standard errors, sample
+sizes, study ancestry, fine-mapping values, study IDs, and provider rows are recorded
+as not provided in the current MVP summary; they do not make MVP evidence unavailable.
 
 ## Source completeness
 
@@ -139,7 +148,7 @@ PYTHONPATH=src .venv/bin/python \\
   --verbose
 ```
 
-Then build the unavailable-provider source-summary index from the registered immutable artifacts:
+Then build the first-class MVP source-summary association index from the registered immutable artifacts:
 
 ```bash
 PYTHONPATH=src .venv/bin/python \
@@ -166,10 +175,10 @@ PYTHONPATH=src .venv/bin/python \
   --verbose
 ~~~
 
-The rollup advances the serving schema to **2.8.0-rc1** and writes two immutable,
-gene-keyed physical projections. **unavailable_provider_summary_base_by_gene**
+The rollup advances the serving schema to **2.10.0-rc2** and writes two immutable,
+gene-keyed physical projections. **source_summary_association_base_by_gene**
 contains one row per gene, dataset type, and variant for default chart summaries.
-**unavailable_provider_phenotype_counts_by_gene** contains one row per gene,
+**source_summary_association_phenotype_counts_by_gene** contains one row per gene,
 dataset type, and exact phenotype path, including the exact sorted variant-ID set.
 Those sets permit a deduplicated union with recoverable provider evidence; counts
 must never be added across the two sources. The rollups are query accelerators only.
@@ -205,7 +214,7 @@ Provider rows lacking `variant_id_raw` remain preserved in the normalized sideca
 
 ## Full runtime count audit
 
-The portal-wide comparison must include unavailable-provider compact membership
+The portal-wide comparison must include MVP source-summary association membership
 without converting compact entries into association records. Run the resumable audit
 in staging:
 

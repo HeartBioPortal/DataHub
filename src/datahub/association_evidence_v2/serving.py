@@ -33,9 +33,9 @@ FINE_VARIANT_TABLES = {
 }
 
 COARSE_PASSTHROUGH_TABLES = (
-    "unavailable_provider_summaries_by_gene",
-    "unavailable_provider_phenotype_counts_by_gene",
-    "unavailable_provider_summary_base_by_gene",
+    "source_summary_associations_by_gene",
+    "source_summary_association_phenotype_counts_by_gene",
+    "source_summary_association_base_by_gene",
 )
 
 
@@ -704,7 +704,7 @@ COPY (
                 },
             },
             "limitations": [
-                "MVP provider rows are not reconstructed when provider inputs are unavailable.",
+                "MVP source summaries are first-class associations; provider rows are not fabricated.",
                 "Provider provenance partitions contain only recoverable AWS source rows.",
                 "Global ART indexes are intentionally not built for hundred-million/billion-row provenance links.",
             ],

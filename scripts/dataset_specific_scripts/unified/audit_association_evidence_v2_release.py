@@ -511,15 +511,15 @@ def materialize_indexed_compact_membership(
     file_manifest_path = serving_root / "source-summary-index-files.jsonl"
     manifest = json.loads(manifest_path.read_text())
     table = (manifest.get("tables") or {}).get(
-        "unavailable_provider_summaries_by_gene"
+        "source_summary_associations_by_gene"
     ) or {}
-    compatible_schemas = {"2.7.0-rc1", "2.8.0-rc1"}
+    compatible_schemas = {"2.9.0-rc2", "2.10.0-rc2"}
     if manifest.get("schema_version") not in compatible_schemas:
         raise RuntimeError(
             "Source-summary serving index is not a completed compatible release "
             f"({', '.join(sorted(compatible_schemas))})."
         )
-    if table.get("contract") != "retained_compact_source_summary_index_v1":
+    if table.get("contract") != "source_summary_association_index_v2":
         raise RuntimeError("Unexpected source-summary serving-index contract.")
     if int(table.get("files") or 0) != int(table.get("source_artifacts") or -1):
         raise RuntimeError("Source-summary index file/artifact counts do not reconcile.")
@@ -530,12 +530,12 @@ def materialize_indexed_compact_membership(
         raise RuntimeError("Source-summary index file manifest is missing.")
 
     rollup_table = (manifest.get("tables") or {}).get(
-        "unavailable_provider_summary_base_by_gene"
+        "source_summary_association_base_by_gene"
     ) or {}
     use_rollup = (
-        manifest.get("schema_version") == "2.8.0-rc1"
+        manifest.get("schema_version") == "2.10.0-rc2"
         and rollup_table.get("contract")
-        == "retained_compact_source_summary_rollup_v1"
+        == "source_summary_association_rollup_v2"
     )
     if use_rollup and not (
         serving_root / "source-summary-rollup-files.jsonl"

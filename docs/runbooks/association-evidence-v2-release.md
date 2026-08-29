@@ -9,12 +9,12 @@ scientific, reconciliation, performance, and browser gates.
 - Every DataHub QA check passes.
 - The manifest records the exact `--provider-chunk-rows` policy used for oversized sources.
 - Source-completeness statuses match the archived inputs.
-- The complete gene-keyed unavailable-provider source-summary index, file manifest, and checksums verify; no compact row is promoted to a provider association record.
-- The schema 2.8 default-summary rollups, exact phenotype variant-ID sets, file manifest, and checksums verify against the complete source-summary index.
+- The complete gene-keyed MVP source-summary association index, file manifest, and checksums verify; compact rows are first-class association evidence and no provider or study rows are fabricated.
+- The schema 2.10 default-summary rollups, exact phenotype variant-ID sets, file manifest, and checksums verify against the complete source-summary index.
 - Five bounded multiplicity fixtures reconcile provider rows, source
   observations, annotations, assertions, summaries, and exports.
 - All v1/v2 category differences are classified and reviewed.
-- The full comparison audit reuses the verified schema 2.8 distinct-membership rollup; it does not rescan compact source artifacts.
+- The full comparison audit reuses the verified schema 2.10 distinct-membership rollup; it does not rescan compact source artifacts.
 - Summary, detail, selected-rsID drill-down, and ZIP export use the same filter scope.
 - Default search and explicit p-value searches pass performance limits.
 - Browser tests pass for HMGCR and at least one high-volume gene.
@@ -33,7 +33,7 @@ HBP_ASSOC_ARTIFACT_ROOT=/data/DataHub/analyzed_data/association_new/final
 
 Do not overwrite `association_serving_slim.duckdb`. Keep the prior backend
 environment and v1 artifacts available until post-deployment validation completes.
-The backend opens the normalized sidecar and serving package read-only. It resolves registered unavailable-provider summaries from the staged gene-keyed index and retains `HBP_ASSOC_ARTIFACT_ROOT` only as a pre-release fallback when that index is absent. Production v2 validation requires the complete index; request-time parsing of large compact JSON artifacts is not an accepted deployment state. The backend retains an explicit v1 fallback. It never reconstructs MVP provider or study records.
+The backend opens the normalized sidecar and serving package read-only. It resolves first-class MVP source-summary associations from the staged gene-keyed index and retains `HBP_ASSOC_ARTIFACT_ROOT` only as a pre-release fallback when that index is absent. Production v2 validation requires the complete index; request-time parsing of large compact JSON artifacts is not an accepted deployment state. The backend retains an explicit v1 fallback. MVP records use evidence_granularity=source_summary and provider_detail_status=not_applicable; provider and study rows are never fabricated.
 
 Build the release-candidate serving tree with
 `--variant-bucket-characters 3` and a checksum-verified
@@ -42,7 +42,7 @@ Build the release-candidate serving tree with
 the serving manifest and read by the backend. This changes only physical query
 partitioning, not normalized evidence, counts, filters, or provenance.
 
-After the complete source-summary index verifies, run **build_association_evidence_v2_source_summary_rollup.py**. Production validation requires **schema_version=2.8.0-rc1**. The backend may use these rollups only for an unfiltered default summary and exact CVD phenotype counting. Any phenotype-path or explicit p-value filter, drill-down, export, or provenance request continues to use the full indexed rows.
+After the complete source-summary index verifies, run **build_association_evidence_v2_source_summary_rollup.py**. Production validation requires **schema_version=2.10.0-rc2**. The backend may use these rollups only for an unfiltered default summary and exact CVD phenotype counting. Any phenotype-path or explicit p-value filter, drill-down, export, or provenance request continues to use the full indexed rows.
 
 ## Approved migration sequence
 

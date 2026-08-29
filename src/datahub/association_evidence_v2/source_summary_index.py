@@ -1,8 +1,8 @@
-"""Build a resumable serving index for unavailable-provider source summaries.
+"""Build a resumable serving index for first-class MVP summary associations.
 
-The retained compact variant-index artifacts are source summaries, not provider
-association records. This module indexes only the fields needed to filter and
-identify those summaries. It never promotes them to reconstructed study rows.
+The retained compact variant-index artifacts are valid source-summary association
+records. They are indexed without fabricating provider, study, allele, effect,
+sample-size, ancestry, or fine-mapping detail that the compact artifact omits.
 """
 
 from __future__ import annotations
@@ -22,8 +22,8 @@ from typing import Any, Iterator
 import duckdb
 
 LOGGER = logging.getLogger(__name__)
-TABLE_NAME = "unavailable_provider_summaries_by_gene"
-CONTRACT = "retained_compact_source_summary_index_v1"
+TABLE_NAME = "source_summary_associations_by_gene"
+CONTRACT = "source_summary_association_index_v2"
 
 
 def _utc_now() -> str:
@@ -142,19 +142,29 @@ def _process_artifact(task: tuple[Any, ...]) -> dict[str, Any]:
         writer = csv.writer(stream)
         writer.writerow(
             (
+                "association_record_id",
                 "source_summary_id",
+                "record_kind",
+                "evidence_granularity",
                 "source",
+                "source_display_name",
                 "dataset_type",
                 "gene_id",
                 "variant_id",
+                "phenotype_raw",
                 "phenotype_path_json",
                 "phenotype_path_key",
+                "label_key",
                 "reported_p_value",
+                "variation_type",
+                "ancestry_json",
+                "metadata_json",
                 "representative_source",
                 "provider_detail_status",
                 "provider_detail_reason",
                 "missing_fields_json",
                 "retained_source_summary_artifact",
+                "retained_source_summary_json",
                 "content_contract",
                 "publication_mode",
                 "source_row_ordinal",
@@ -196,19 +206,36 @@ def _process_artifact(task: tuple[Any, ...]) -> dict[str, Any]:
             seen_summary_ids.add(source_summary_id)
             writer.writerow(
                 (
+                    "association-source-summary:"
+                    + source_summary_id.partition(":")[2],
                     source_summary_id,
-                    source,
+                    "source_summary_association",
+                    "source_summary",
+                    "million_veteran_program",
+                    "MVP",
                     dataset_type,
                     gene,
                     variant_id,
+                    entry.get("phenotype") or phenotype_path[-1],
                     json.dumps(phenotype_path, separators=(",", ":"), ensure_ascii=True),
                     " > ".join(phenotype_path),
+                    entry.get("label_key"),
                     p_value,
+                    entry.get("variation_type"),
+                    json.dumps(entry.get("ancestry"), separators=(",", ":"), ensure_ascii=True)
+                    if entry.get("ancestry") is not None else None,
+                    json.dumps(entry.get("metadata"), separators=(",", ":"), ensure_ascii=True)
+                    if entry.get("metadata") is not None else None,
                     representative_source or None,
-                    "unavailable",
-                    provider_detail_reason,
+                    "not_applicable",
+                    None,
                     missing_fields_json,
                     logical_artifact,
+                    json.dumps(
+                        {key: value for key, value in entry.items() if value is not None},
+                        separators=(",", ":"),
+                        ensure_ascii=True,
+                    ),
                     content_contract,
                     publication_mode,
                     ordinal,
@@ -223,7 +250,7 @@ def _process_artifact(task: tuple[Any, ...]) -> dict[str, Any]:
         connection.execute(
             f"""
 COPY (
-    SELECT * EXCLUDE (source_row_ordinal)
+    SELECT *
     FROM read_csv('{escaped_csv}', header=true, all_varchar=true)
 ) TO '{escaped_parquet}'
 (FORMAT PARQUET, COMPRESSION ZSTD, ROW_GROUP_SIZE 50000)
@@ -305,7 +332,7 @@ class SourceSummaryIndexBuilder:
                       modified_at_ns, provider_detail_reason, missing_fields_json,
                       content_contract, publication_mode
             FROM source_summary_artifacts
-            WHERE provider_detail_status='unavailable'
+            WHERE provider_detail_status IN ('not_applicable', 'unavailable')
               AND publication_mode='gene_scoped_on_demand'
             ORDER BY dataset_type, gene_id, logical_artifact"""
         ).fetchall()
@@ -411,9 +438,11 @@ class SourceSummaryIndexBuilder:
             "gene_key_function": "sha256(gene_id)[0:16]",
             "directory_layout": "nested_gene_key",
             "contract": CONTRACT,
-            "provider_detail_status": "unavailable",
+            "provider_detail_status": "not_applicable",
+            "record_kind": "source_summary_association",
+            "evidence_granularity": "source_summary",
         }
-        manifest["schema_version"] = "2.7.0-rc1"
+        manifest["schema_version"] = "2.9.0-rc2"
         manifest["source_summary_index_built_at"] = _utc_now()
         temporary = manifest_path.with_suffix(".json.tmp")
         temporary.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")

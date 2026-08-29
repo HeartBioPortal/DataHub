@@ -605,14 +605,14 @@ Publishes the checksum-linked, bounded Parquet serving package from a verified n
 
 ### `scripts/dataset_specific_scripts/unified/build_association_evidence_v2_source_summary_index.py`
 
-Streams every registered unavailable-provider compact artifact into a resumable gene-keyed Parquet index. It preserves stable source-summary IDs, filter fields, missing-field status, and immutable artifact provenance; it never creates provider, study, or association records.
+Streams every registered MVP compact artifact into a resumable gene-keyed Parquet association index. It emits deterministic association-record IDs, record_kind=source_summary_association, evidence_granularity=source_summary, exact phenotype paths, reported p-values, retained compact fields, and immutable artifact provenance. It never fabricates provider or study records.
 
 ### build_association_evidence_v2_source_summary_rollup.py
 
 Builds resumable gene-keyed default-summary and exact-phenotype projections from
 the completed source-summary index. It records exact phenotype variant-ID sets so
-recoverable and unavailable-provider evidence can be unioned without duplicate
-inflation. It advances the serving manifest to schema **2.8.0-rc1**; it does not
+provider-level legacy and source-summary MVP evidence can be unioned without duplicate
+inflation. It advances the serving manifest to schema **2.10.0-rc2**; it does not
 replace the source-summary index or create inferred provider records.
 
 ### `scripts/dataset_specific_scripts/unified/audit_association_evidence_v2_release.py`

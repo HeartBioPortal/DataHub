@@ -176,7 +176,7 @@ def test_artifact_reader_preserves_selected_count_and_deduplicates_membership(
 def test_indexed_membership_reuses_completed_serving_contract(tmp_path: Path) -> None:
     module = _module()
     serving = tmp_path / "serving"
-    table_root = serving / "tables" / "unavailable_provider_summaries_by_gene"
+    table_root = serving / "tables" / "source_summary_associations_by_gene"
     connection = duckdb.connect()
     manifest_rows = []
     for bucket in range(256):
@@ -203,10 +203,10 @@ def test_indexed_membership_reuses_completed_serving_contract(tmp_path: Path) ->
         "\n".join(manifest_rows) + "\n"
     )
     manifest = {
-        "schema_version": "2.7.0-rc1",
-        "tables": {"unavailable_provider_summaries_by_gene": {
-            "path": "tables/unavailable_provider_summaries_by_gene",
-            "contract": "retained_compact_source_summary_index_v1",
+        "schema_version": "2.9.0-rc2",
+        "tables": {"source_summary_associations_by_gene": {
+            "path": "tables/source_summary_associations_by_gene",
+            "contract": "source_summary_association_index_v2",
             "files": 256,
             "source_artifacts": 256,
             "selected_source_rows": 256,
@@ -218,19 +218,19 @@ def test_indexed_membership_reuses_completed_serving_contract(tmp_path: Path) ->
     (serving / "serving-manifest.json.sha256").write_text(
         f"{checksum}  serving-manifest.json\n"
     )
-    for schema_version in ("2.7.0-rc1", "2.8.0-rc1"):
+    for schema_version in ("2.9.0-rc2", "2.10.0-rc2"):
         manifest["schema_version"] = schema_version
-        if schema_version == "2.8.0-rc1":
-            manifest["tables"]["unavailable_provider_summary_base_by_gene"] = {
-                "path": "tables/unavailable_provider_summaries_by_gene",
-                "contract": "retained_compact_source_summary_rollup_v1",
+        if schema_version == "2.10.0-rc2":
+            manifest["tables"]["source_summary_association_base_by_gene"] = {
+                "path": "tables/source_summary_associations_by_gene",
+                "contract": "source_summary_association_rollup_v2",
                 "files": 256,
                 "rows": 256,
             }
             (serving / "source-summary-rollup-files.jsonl").write_text("{}\n")
         else:
             manifest["tables"].pop(
-                "unavailable_provider_summary_base_by_gene", None
+                "source_summary_association_base_by_gene", None
             )
         manifest_path.write_text(json.dumps(manifest))
         checksum = hashlib.sha256(manifest_path.read_bytes()).hexdigest()

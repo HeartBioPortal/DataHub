@@ -23,6 +23,7 @@ from .contracts import (
     ASSOCIATION_RECORD_KIND_SOURCE_SUMMARY,
     POPULATION_FIELDS,
     PROVIDER_DETAIL_AVAILABLE,
+    PROVIDER_DETAIL_NOT_APPLICABLE,
     PROVIDER_DETAIL_UNAVAILABLE,
     SCHEMA_VERSION,
     SOURCE_DETAIL_UNAVAILABLE_FIELDS,
@@ -388,7 +389,7 @@ class EvidenceV2Builder:
                 _canonical_json(runtime),
                 _canonical_json(
                     [
-                        "MVP provider-level inputs are unavailable on AWS.",
+                        "MVP provider-row lineage is not applicable to compact source-summary associations.",
                         "Legacy gnomAD frequency fields do not identify REF, ALT, or association effect allele.",
                         "Legacy SnpEff and ClinVar enrichment versions are not retained in source rows.",
                     ]
@@ -468,14 +469,14 @@ class EvidenceV2Builder:
             (
                 "million_veteran_program",
                 '["CVD", "TRAIT"]',
-                PROVIDER_DETAIL_UNAVAILABLE,
-                "Provider-level MVP input is not present in the AWS DataHub snapshot.",
+                PROVIDER_DETAIL_NOT_APPLICABLE,
+                None,
                 _canonical_json(SOURCE_DETAIL_UNAVAILABLE_FIELDS),
                 "variant_index",
                 _canonical_json([str(self.variant_index_root)]),
                 None,
                 None,
-                "Only retained compact variant-index source summaries are published; no studies are reconstructed.",
+                "MVP compact variant-phenotype summaries are first-class source-summary associations; provider-row lineage does not apply.",
             ),
         ]
         self.connection.executemany("INSERT INTO source_completeness VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", rows)
@@ -707,6 +708,7 @@ COPY (
            source, source_file_logical, variant_id_raw, phenotype_raw, phenotype_slug,
            study_id_raw, study_raw, pmid_raw, gwas_summary_path_raw,
            study_genome_build_raw, p_value_raw, gene_id_raw,
+           source_variation_type_raw,
            substr(association_record_id, 13, 2) AS relation_bucket
     FROM provider_records
     WHERE coalesce(trim(variant_id_raw), '') <> ''
@@ -776,6 +778,8 @@ INSERT INTO association_records
 SELECT
     p.association_record_id,
     {_sql_literal(ASSOCIATION_RECORD_KIND_PROVIDER)},
+    'provider_record',
+    p.source,
     arg_min(p.dataset_id, p.provider_record_id),
     p.dataset_type,
     p.source,
@@ -791,6 +795,7 @@ SELECT
     arg_min(nullif(trim(p.gwas_summary_path_raw), ''), p.provider_record_id),
     arg_min(nullif(trim(p.study_genome_build_raw), ''), p.provider_record_id),
     min(try_cast(p.p_value_raw AS DOUBLE)),
+    arg_min(nullif(trim(p.source_variation_type_raw), ''), p.provider_record_id),
     NULL, 'unavailable',
     NULL, NULL, 'unavailable',
     NULL, 'unavailable',
@@ -845,7 +850,7 @@ GROUP BY association_record_id, trim(gene_id_raw)
                 )
 
     def _load_source_summary_records(self) -> None:
-        """Register unavailable-provider artifacts without inventing study rows."""
+        """Register MVP source-summary associations without inventing study rows."""
 
         assert self.connection is not None
         files: list[tuple[str, Path]] = []
@@ -899,10 +904,7 @@ GROUP BY association_record_id, trim(gene_id_raw)
             temporary.replace(state_path)
 
         missing_fields = _canonical_json(SOURCE_DETAIL_UNAVAILABLE_FIELDS)
-        reason = (
-            "Provider-level MVP input is unavailable on AWS; the retained compact "
-            "variant-index file is a source-summary artifact, not a study record."
-        )
+        reason = None
         rows = []
         for dataset_type, path in files:
             logical = f"variant_index/{dataset_type}/{path.name}"
@@ -923,7 +925,7 @@ GROUP BY association_record_id, trim(gene_id_raw)
                     "json.gz" if path.name.endswith(".json.gz") else "json",
                     stat.st_size,
                     stat.st_mtime_ns,
-                    PROVIDER_DETAIL_UNAVAILABLE,
+                    PROVIDER_DETAIL_NOT_APPLICABLE,
                     reason,
                     missing_fields,
                     "retained_compact_variant_index_v1",
@@ -936,7 +938,8 @@ GROUP BY association_record_id, trim(gene_id_raw)
             # Remove rows left by the superseded per-entry materialization attempt.
             self.connection.execute(
                 "CREATE OR REPLACE TABLE association_records AS "
-                "SELECT * FROM association_records WHERE record_kind<>'source_summary'"
+                "SELECT * FROM association_records "
+                "WHERE record_kind<>'source_summary_association'"
             )
             self.connection.execute(
                 "CREATE OR REPLACE TABLE association_record_genes AS "
@@ -2069,12 +2072,12 @@ WHERE e.summary_id IS NULL
             "summary_association_links_are_unique": "SELECT count(*)=count(DISTINCT variant_phenotype_summary_id || chr(31) || association_record_id) FROM summary_association_records",
             "summary_consequence_links_are_unique": "SELECT count(*)=count(DISTINCT variant_phenotype_summary_id || chr(31) || consequence_annotation_id) FROM summary_consequence_annotations",
             "summary_clinical_links_are_unique": "SELECT count(*)=count(DISTINCT variant_phenotype_summary_id || chr(31) || clinical_assertion_id) FROM summary_clinical_assertions",
-            "unavailable_sources_have_no_provider_links": "SELECT count(*)=0 FROM association_records a JOIN association_record_provider_records l USING(association_record_id) WHERE a.provider_detail_status='unavailable'",
+            "not_applicable_sources_have_no_provider_links": "SELECT count(*)=0 FROM association_records a JOIN association_record_provider_records l USING(association_record_id) WHERE a.provider_detail_status='not_applicable'",
             "all_association_variants_resolve": "SELECT count(*)=0 FROM association_records a LEFT JOIN variants v ON v.variant_id=a.variant_id WHERE v.variant_id IS NULL",
             "source_summary_paths_are_logical": "SELECT count(*)=0 FROM source_summary_artifacts WHERE logical_artifact LIKE '/%'",
             "source_summary_registry_is_unique": "SELECT count(*)=count(DISTINCT source || chr(31) || dataset_type || chr(31) || gene_id || chr(31) || logical_artifact) FROM source_summary_artifacts",
-            "source_summary_registry_is_unavailable": "SELECT count(*)=0 FROM source_summary_artifacts WHERE provider_detail_status<>'unavailable' OR publication_mode<>'gene_scoped_on_demand'",
-            "no_unavailable_provider_rows_reconstructed": "SELECT count(*)=0 FROM association_records WHERE provider_detail_status='unavailable' OR record_kind='source_summary'",
+            "source_summary_registry_is_first_class": "SELECT count(*)=0 FROM source_summary_artifacts WHERE provider_detail_status<>'not_applicable' OR publication_mode<>'gene_scoped_on_demand'",
+            "no_fake_mvp_provider_rows": "SELECT count(*)=0 FROM association_records WHERE source='million_veteran_program' AND record_kind<>'source_summary_association'",
             "clinical_assertion_links_resolve": "SELECT count(*)=0 FROM clinical_assertion_provider_records l LEFT JOIN clinical_assertions c USING(clinical_assertion_id) WHERE c.clinical_assertion_id IS NULL",
             "available_associations_have_provider_links": "SELECT count(*)=0 FROM association_records a WHERE a.provider_detail_status='available' AND NOT EXISTS (SELECT 1 FROM association_record_provider_records l WHERE l.association_record_id=a.association_record_id)",
             "consequence_link_counts_reconcile": """
