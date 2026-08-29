@@ -374,7 +374,7 @@ def test_partitioned_serving_preserves_provider_rows_and_associations(tmp_path: 
     source_digest = build_script.sha256_file(source_db)
     build_script.write_sha256_sidecar(source_db, source_digest)
     coarse_root = tmp_path / "serving-coarse"
-    AssociationEvidenceV2ServingBuilder(
+    coarse_manifest = AssociationEvidenceV2ServingBuilder(
         source_db=tmp_path / "evidence.duckdb",
         intermediate_root=tmp_path / "duckdb_tmp",
         output_root=coarse_root,
@@ -383,6 +383,26 @@ def test_partitioned_serving_preserves_provider_rows_and_associations(tmp_path: 
         variant_bucket_characters=2,
         progress_interval=1,
     ).build()
+    passthrough_names = (
+        "unavailable_provider_summaries_by_gene",
+        "unavailable_provider_phenotype_counts_by_gene",
+        "unavailable_provider_summary_base_by_gene",
+    )
+    for logical_name in passthrough_names:
+        table_root = coarse_root / "tables" / logical_name / "gene_bucket=00"
+        table_root.mkdir(parents=True)
+        (table_root / "part-0.parquet").write_bytes(b"fixture")
+        coarse_manifest["tables"][logical_name] = {
+            "path": f"tables/{logical_name}",
+            "partition_key": "gene_id",
+            "bucket_function": "sha256(gene_id)[0:2]",
+            "bucket_characters": 2,
+            "rows": 1,
+            "files": 1,
+        }
+    (coarse_root / "serving-manifest.json").write_text(
+        json.dumps(coarse_manifest, indent=2, sort_keys=True) + "\n"
+    )
     serving_root = tmp_path / "serving"
     manifest = AssociationEvidenceV2ServingBuilder(
         source_db=tmp_path / "evidence.duckdb",
@@ -394,6 +414,25 @@ def test_partitioned_serving_preserves_provider_rows_and_associations(tmp_path: 
         progress_interval=1,
         coarse_serving_root=coarse_root,
     ).build()
+    finer_root = tmp_path / "serving-finer"
+    finer_manifest = AssociationEvidenceV2ServingBuilder(
+        source_db=tmp_path / "evidence.duckdb",
+        intermediate_root=tmp_path / "duckdb_tmp",
+        output_root=finer_root,
+        memory_limit="1GB",
+        threads=1,
+        variant_bucket_characters=4,
+        progress_interval=1,
+        coarse_serving_root=serving_root,
+    ).build()
+    for logical_name in passthrough_names:
+        assert manifest["tables"][logical_name]["rows"] == 1
+        assert finer_manifest["tables"][logical_name]["rows"] == 1
+        coarse_file = next((coarse_root / "tables" / logical_name).rglob("*.parquet"))
+        serving_file = next((serving_root / "tables" / logical_name).rglob("*.parquet"))
+        finer_file = next((finer_root / "tables" / logical_name).rglob("*.parquet"))
+        assert coarse_file.stat().st_ino == serving_file.stat().st_ino
+        assert serving_file.stat().st_ino == finer_file.stat().st_ino
     assert manifest["contract"] == "association_evidence_v2_partitioned_serving"
     assert manifest["source_db_sha256"] == source_digest
     assert manifest["tables"]["provider_records"]["normalized_source_rows"] == result["counts"]["provider_records"]
@@ -406,6 +445,7 @@ def test_partitioned_serving_preserves_provider_rows_and_associations(tmp_path: 
     )
     assert manifest["schema_version"] == "2.6.0-rc1"
     assert manifest["variant_bucket_count"] == 4096
+    assert finer_manifest["variant_bucket_count"] == 65536
     assert manifest["tables"]["provider_records"]["bucket_characters"] == 3
     assert manifest["tables"]["association_records"]["bucket_characters"] == 3
     assert manifest["tables"]["variant_phenotype_summaries"]["bucket_characters"] == 3
@@ -421,6 +461,16 @@ def test_partitioned_serving_preserves_provider_rows_and_associations(tmp_path: 
         path.name.startswith("coarse_bucket=")
         for path in (serving_root / "tables" / "association_records").iterdir()
     )
+    for logical_name in (
+        "provider_records",
+        "association_records",
+        "variant_phenotype_summaries",
+        "consequence_annotations",
+        "clinical_assertions",
+        "population_observations",
+    ):
+        assert finer_manifest["tables"][logical_name]["bucket_characters"] == 4
+        assert finer_manifest["tables"][logical_name]["directory_layout"] == "nested_coarse_fine"
     assert (
         manifest["tables"]["consequence_annotations_by_gene"]["rows"]
         == result["counts"]["consequence_annotations"]
@@ -436,6 +486,11 @@ def test_partitioned_serving_preserves_provider_rows_and_associations(tmp_path: 
         f"FROM read_parquet('{serving_root / 'tables/association_records/**/*.parquet'}') "
         "ORDER BY association_record_id"
     ).fetchall()
+    finer_association_rows = connection.execute(
+        f"SELECT association_record_id, variant_id, reported_p_value "
+        f"FROM read_parquet('{finer_root / 'tables/association_records/**/*.parquet'}') "
+        "ORDER BY association_record_id"
+    ).fetchall()
     gene_consequences = connection.execute(
         f"SELECT gene_id, variant_id, consequence "
         f"FROM read_parquet('{serving_root / 'tables/consequence_annotations_by_gene/**/*.parquet'}') "
@@ -444,6 +499,7 @@ def test_partitioned_serving_preserves_provider_rows_and_associations(tmp_path: 
     assert len(provider_rows) == result["counts"]["provider_records"]
     assert all(row[1] >= 2 and len(row[2]) == 64 for row in provider_rows)
     assert len(association_rows) == result["counts"]["association_records"]
+    assert finer_association_rows == association_rows
     assert len(gene_consequences) == result["counts"]["consequence_annotations"]
     assert {row[0] for row in gene_consequences} == {"GENE1"}
     connection.close()

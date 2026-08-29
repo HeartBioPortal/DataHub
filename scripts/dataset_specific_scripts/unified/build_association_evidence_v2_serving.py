@@ -36,8 +36,8 @@ def main() -> int:
         "--coarse-serving-root",
         type=Path,
         help=(
-            "Existing two-character serving package used as the bounded input "
-            "when --variant-bucket-characters is greater than 2."
+            "Existing verified lower-width serving package used as the bounded "
+            "input when --variant-bucket-characters is greater than 2."
         ),
     )
     parser.add_argument("--verbose", action="store_true")

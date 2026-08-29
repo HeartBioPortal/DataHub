@@ -32,6 +32,12 @@ FINE_VARIANT_TABLES = {
     "population_observations": ("population_observations", "variant_id"),
 }
 
+COARSE_PASSTHROUGH_TABLES = (
+    "unavailable_provider_summaries_by_gene",
+    "unavailable_provider_phenotype_counts_by_gene",
+    "unavailable_provider_summary_base_by_gene",
+)
+
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -152,10 +158,10 @@ class AssociationEvidenceV2ServingBuilder:
         temporary.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n")
         temporary.replace(self.checkpoint_path)
 
-    def _coarse_table_root(self, logical_name: str) -> Path:
+    def _partition_source(self, logical_name: str) -> tuple[Path, int, str]:
         if self.coarse_serving_root is None:
             raise RuntimeError(
-                "A two-character --coarse-serving-root is required when publishing "
+                "A lower-width --coarse-serving-root is required when publishing "
                 "more than 256 runtime buckets."
             )
         manifest_path = self.coarse_serving_root / "serving-manifest.json"
@@ -173,9 +179,17 @@ class AssociationEvidenceV2ServingBuilder:
             )
         characters = int(table.get("bucket_characters") or 2)
         layout = str(table.get("directory_layout") or "flat_variant_bucket")
-        if characters != 2 or layout != "flat_variant_bucket":
+        expected_layout = (
+            "flat_variant_bucket" if characters == 2 else "nested_coarse_fine"
+        )
+        if (
+            characters < 2
+            or characters >= self.variant_bucket_characters
+            or layout != expected_layout
+        ):
             raise RuntimeError(
-                f"Expected a flat two-character coarse table for {logical_name}; "
+                f"Expected a compatible lower-width partition table for {logical_name}; "
+                f"target_characters={self.variant_bucket_characters} "
                 f"found characters={characters} layout={layout}"
             )
         root = (self.coarse_serving_root / str(table["path"])).resolve()
@@ -183,7 +197,7 @@ class AssociationEvidenceV2ServingBuilder:
             raise RuntimeError(f"Coarse serving table escapes its root: {root}")
         if not root.is_dir():
             raise FileNotFoundError(f"Coarse serving table is missing: {root}")
-        return root
+        return root, characters, layout
 
     def _reuse_coarse_generated_table(
         self,
@@ -238,10 +252,14 @@ class AssociationEvidenceV2ServingBuilder:
             ).fetchone()[0]
         )
         previous = completed.get(logical_name) or {}
-        coarse_source = None
+        partition_source = None
         if self.variant_bucket_characters > 2:
-            coarse_source = self._coarse_table_root(logical_name)
-        source_token = str(coarse_source or self.source_db)
+            partition_source = self._partition_source(logical_name)
+        source_token = (
+            "|".join(str(value) for value in partition_source)
+            if partition_source
+            else str(self.source_db)
+        )
         configuration_matches = (
             previous.get("rows") == count
             and previous.get("variant_bucket_characters")
@@ -299,15 +317,23 @@ COPY (
         work_root = self.output_root / ".serving-work" / logical_name
         work_root.mkdir(parents=True, exist_ok=True)
         done = set(previous.get("completed_coarse_buckets") or [])
+        source_root, source_characters, source_layout = partition_source
+        source_directory_prefix = (
+            "variant_bucket="
+            if source_layout == "flat_variant_bucket"
+            else "coarse_bucket="
+        )
         coarse_directories = sorted(
             path
-            for path in coarse_source.iterdir()
+            for path in source_root.iterdir()
             if path.is_dir()
-            and path.name.startswith("variant_bucket=")
+            and path.name.startswith(source_directory_prefix)
             and len(path.name.rsplit("=", 1)[-1]) == 2
         )
         if not coarse_directories:
-            raise RuntimeError(f"No two-character coarse partitions found: {coarse_source}")
+            raise RuntimeError(
+                f"No two-character coarse units found in partition source: {source_root}"
+            )
         for index, source_directory in enumerate(coarse_directories, start=1):
             coarse_bucket = source_directory.name.rsplit("=", 1)[-1]
             final_unit = target / f"coarse_bucket={coarse_bucket}"
@@ -320,7 +346,13 @@ COPY (
             temporary_unit = work_root / f"coarse_bucket={coarse_bucket}.incomplete"
             if temporary_unit.exists():
                 shutil.rmtree(temporary_unit)
-            source_glob = str(source_directory / "*.parquet").replace("'", "''")
+            if source_characters == 2:
+                source_glob_path = source_directory / "*.parquet"
+                excluded_partition_columns = "variant_bucket"
+            else:
+                source_glob_path = source_directory / "variant_bucket=*" / "*.parquet"
+                excluded_partition_columns = "variant_bucket, coarse_bucket"
+            source_glob = str(source_glob_path).replace("'", "''")
             LOGGER.info(
                 "%s fine partition start coarse_bucket=%s unit=%d/%d",
                 logical_name,
@@ -336,7 +368,7 @@ COPY (
                 connection.execute(
                     f"""
 COPY (
-    SELECT * EXCLUDE (variant_bucket),
+    SELECT * EXCLUDE ({excluded_partition_columns}),
            substr(sha256({key_column}), 1, {self.variant_bucket_characters}) AS variant_bucket
     FROM read_parquet('{source_glob}', hive_partitioning=true)
 ) TO '{str(temporary_unit).replace("'", "''")}'
@@ -473,6 +505,22 @@ COPY (
                     "directory_layout": "nested_coarse_fine",
                     **completed[logical_name],
                 }
+        passthrough_tables: dict[str, Any] = {}
+        if self.coarse_serving_root is not None:
+            coarse_manifest_path = self.coarse_serving_root / "serving-manifest.json"
+            coarse_manifest = json.loads(coarse_manifest_path.read_text())
+            for logical_name in COARSE_PASSTHROUGH_TABLES:
+                source_metadata = (coarse_manifest.get("tables") or {}).get(logical_name)
+                if not isinstance(source_metadata, dict):
+                    continue
+                self._reuse_coarse_generated_table(logical_name, state)
+                source_table = dict(source_metadata)
+                source_table["path"] = str(
+                    (self.tables_root / logical_name).relative_to(self.output_root)
+                )
+                source_table["reused_from_manifest"] = str(coarse_manifest_path)
+                source_table.update(completed[logical_name])
+                passthrough_tables[logical_name] = source_table
         self._reuse_coarse_generated_table("summary_base_by_gene", state)
         summary_gene_root = self.tables_root / "summary_base_by_gene"
         summary_gene_state = completed.get("summary_base_by_gene") or {}
@@ -581,6 +629,7 @@ COPY (
             },
             "tables": {
                 **reused,
+                **passthrough_tables,
                 **fine_variant_tables,
                 "provider_records": {
                     "path": str(provider_root.relative_to(self.output_root)),
