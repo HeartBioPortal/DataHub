@@ -342,3 +342,12 @@ The point of the publication stage is not just file creation. It is the point wh
 ## Current additive metadata path
 
 The association export manifest framework adds reserved `_datahub` metadata blocks to published outputs. These blocks are additive and allow the project to carry forward provenance and future coverage fields without breaking existing payload consumers.
+
+## Association evidence v2 sidecar
+
+The release-candidate v2 model separates exact provider rows, source association
+observations, canonical variants, consequence annotations, clinical assertions,
+population observations, and variant-phenotype summaries. It replaces the
+legacy representative-row annotation contract only when the backend is explicitly
+configured for v2. See [Association Evidence v2](../schemas/association_evidence_v2.md)
+for counting, source completeness, build, migration, and rollback semantics.

@@ -585,3 +585,39 @@ DuckDB before the current points-table ingest/publish stages run.
 ## Script philosophy
 
 The scripts directory is intentionally operational. Business/scientific logic lives in `src/datahub/` when it can. Scripts compose that logic and add environment/runtime concerns such as CLI parsing, checkpoints, and scheduler integration.
+
+## Association evidence v2
+
+### `scripts/dataset_specific_scripts/unified/build_association_evidence_v2.py`
+
+Builds the resumable non-composite association sidecar from archived CVD/trait
+provider rows and registers retained variant-index artifacts for gene-scoped runtime
+access when provider detail is unavailable. It writes only to explicit
+output, checkpoint, manifest, temporary, and log paths. Use `--dry-run` to inspect
+the plan and `--checksum-inputs` only when a second full read of source files is
+acceptable. `--provider-chunk-rows 0` uses direct inserts for inputs up to 2 GB
+and bounded one-million-row chunks for oversized inputs; set a positive value to
+force bounded chunks for every provider file.
+
+### `scripts/dataset_specific_scripts/unified/build_association_evidence_v2_serving.py`
+
+Publishes the checksum-linked, bounded Parquet serving package from a verified normalized sidecar. The production release candidate uses 4,096 variant buckets for exact variant evidence and gene-keyed projections for summary requests.
+
+### `scripts/dataset_specific_scripts/unified/build_association_evidence_v2_source_summary_index.py`
+
+Streams every registered unavailable-provider compact artifact into a resumable gene-keyed Parquet index. It preserves stable source-summary IDs, filter fields, missing-field status, and immutable artifact provenance; it never creates provider, study, or association records.
+
+### build_association_evidence_v2_source_summary_rollup.py
+
+Builds resumable gene-keyed default-summary and exact-phenotype projections from
+the completed source-summary index. It records exact phenotype variant-ID sets so
+recoverable and unavailable-provider evidence can be unioned without duplicate
+inflation. It advances the serving manifest to schema **2.8.0-rc1**; it does not
+replace the source-summary index or create inferred provider records.
+
+### `scripts/dataset_specific_scripts/unified/audit_association_evidence_v2_release.py`
+
+Reproduces portal-wide v1/v2 count and category comparisons using the normalized sidecar plus distinct compact-source membership, with a resumable runtime checkpoint.
+
+See the [v2 schema](../schemas/association_evidence_v2.md) for the full
+command and scientific contract.
