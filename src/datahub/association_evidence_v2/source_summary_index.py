@@ -24,6 +24,29 @@ import duckdb
 LOGGER = logging.getLogger(__name__)
 TABLE_NAME = "source_summary_associations_by_gene"
 CONTRACT = "source_summary_association_index_v2"
+MVP_DATASET_ID = "hbp_mvp_association"
+PRIVATE_SOURCE_PATH_FIELDS = {"source_file", "source_files"}
+
+
+def _without_private_source_paths(value: Any) -> Any:
+    """Return the public compact-summary fields without host-local paths."""
+
+    if isinstance(value, dict):
+        return {
+            str(key): cleaned
+            for key, item in value.items()
+            if str(key) not in PRIVATE_SOURCE_PATH_FIELDS
+            and (cleaned := _without_private_source_paths(item)) is not None
+        }
+    if isinstance(value, list):
+        return [
+            cleaned
+            for item in value
+            if (cleaned := _without_private_source_paths(item)) is not None
+        ]
+    if isinstance(value, str) and value.startswith("/"):
+        return None
+    return value
 
 
 def _utc_now() -> str:
@@ -148,13 +171,15 @@ def _process_artifact(task: tuple[Any, ...]) -> dict[str, Any]:
                 "evidence_granularity",
                 "source",
                 "source_display_name",
+                "dataset_id",
                 "dataset_type",
                 "gene_id",
                 "variant_id",
                 "phenotype_raw",
+                "phenotype_slug",
+                "phenotype_kind",
                 "phenotype_path_json",
                 "phenotype_path_key",
-                "label_key",
                 "reported_p_value",
                 "variation_type",
                 "ancestry_json",
@@ -205,6 +230,10 @@ def _process_artifact(task: tuple[Any, ...]) -> dict[str, Any]:
                 continue
             seen_summary_ids.add(source_summary_id)
             row_missing_fields = json.loads(missing_fields_json)
+            public_metadata = _without_private_source_paths(entry.get("metadata"))
+            public_entry = _without_private_source_paths(
+                {key: value for key, value in entry.items() if value is not None}
+            )
             if entry.get("ancestry") is not None:
                 row_missing_fields = [
                     field for field in row_missing_fields if field != "ancestry"
@@ -218,26 +247,28 @@ def _process_artifact(task: tuple[Any, ...]) -> dict[str, Any]:
                     "source_summary",
                     "million_veteran_program",
                     "MVP",
+                    MVP_DATASET_ID,
                     dataset_type,
                     gene,
                     variant_id,
                     entry.get("phenotype") or phenotype_path[-1],
+                    phenotype_path[-1],
+                    entry.get("label_key"),
                     json.dumps(phenotype_path, separators=(",", ":"), ensure_ascii=True),
                     " > ".join(phenotype_path),
-                    entry.get("label_key"),
                     p_value,
                     entry.get("variation_type"),
                     json.dumps(entry.get("ancestry"), separators=(",", ":"), ensure_ascii=True)
                     if entry.get("ancestry") is not None else None,
-                    json.dumps(entry.get("metadata"), separators=(",", ":"), ensure_ascii=True)
-                    if entry.get("metadata") is not None else None,
+                    json.dumps(public_metadata, separators=(",", ":"), ensure_ascii=True)
+                    if public_metadata is not None else None,
                     representative_source or None,
                     "not_applicable",
                     None,
                     json.dumps(row_missing_fields, separators=(",", ":")),
                     logical_artifact,
                     json.dumps(
-                        {key: value for key, value in entry.items() if value is not None},
+                        public_entry,
                         separators=(",", ":"),
                         ensure_ascii=True,
                     ),
@@ -447,7 +478,7 @@ class SourceSummaryIndexBuilder:
             "record_kind": "source_summary_association",
             "evidence_granularity": "source_summary",
         }
-        manifest["schema_version"] = "2.9.0-rc2"
+        manifest["schema_version"] = "2.9.1-rc3"
         manifest["source_summary_index_built_at"] = _utc_now()
         temporary = manifest_path.with_suffix(".json.tmp")
         temporary.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")

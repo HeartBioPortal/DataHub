@@ -65,25 +65,28 @@ provider rows, but their exact upstream snapshot release is unavailable. They do
 contain effect allele, effect size, standard error, sample size, association ancestry,
 or fine-mapping fields. Those values and statuses are explicitly unavailable.
 
-Provider-level MVP inputs are not present in the AWS snapshot. MVP records use the
-same v2 contract with:
+Provider-level MVP inputs are not present in the AWS snapshot, but the retained
+compact MVP variant-phenotype rows are first-class source-summary association evidence.
+They use `record_kind=source_summary_association`,
+`evidence_granularity=source_summary`, and
+`provider_detail_status=not_applicable`. We do not fabricate provider, study, allele,
+effect, sample-size, ancestry, or fine-mapping fields that are absent from the retained
+summary.
 
-- `provider_detail_status: unavailable`
-- a reason and missing-field list
-- one `source_summary_artifacts` registry row for each retained gene/dataset
-  `variant_index` artifact
-- a gene-keyed serving summary with its logical artifact and stable summary ID
-- zero reconstructed provider, study, association, consequence, or clinical records
+Every public MVP row identifies `dataset_id=hbp_mvp_association`, preserves the exact
+phenotype path, exposes its leaf as `phenotype_slug`, and keeps the source
+classification in `phenotype_kind` (`disease` or `trait`). Public API and export
+records retain the logical artifact identifier, such as
+`variant_index/CVD/PCSK9.json.gz`, but omit internal host and scratch paths. Raw source
+path metadata remains confined to controlled build inputs and is not part of the public
+serving contract.
 
-The compact entry is not duplicated into the global association tables. Runtime
-responses expose it under `unavailable_provider_summaries`; its compact p-value is
-usable only when the retained entry identifies MVP as its representative source.
-Compact variation, consequence, and clinical fields are not promoted into v2
-annotations because provider/version provenance is unavailable. If a compact-summary
-variant also has a recoverable provider/versioned annotation elsewhere in the archived
-provider rows, that annotation can be attached by variant and gene and is labeled as
-annotation provenance only; it does not become an MVP association record. The immutable
-source artifact remains the evidence available for checksum/count verification.
+MVP rows participate in primary association responses, variant-phenotype summaries,
+source filters, drill-downs, and exports. MVP and legacy records remain separate when
+they share a variant and phenotype, while distinct-variant charts count the variant once
+inside the active scope. Canonical consequence and clinical entities may be linked as
+annotation provenance when independently available; they do not become fabricated MVP
+provider records.
 
 ## Build
 

@@ -20,6 +20,13 @@ def test_index_is_gene_keyed_and_does_not_create_provider_rows(tmp_path: Path) -
         "sources": ["million_veteran_program"],
         "p_value": 1e-9,
         "ancestry": {"European": 1},
+        "label_key": "disease",
+        "metadata": {
+            "phenotype_keys": ["Phe_425_11"],
+            "source_files": [
+                "/N/scratch/kvand/aws_import/aggregated_phenotypes/cardiomyopathy.csv.gz"
+            ],
+        },
     }
     with gzip.open(artifact, "wt", encoding="utf-8") as stream:
         json.dump([payload, payload, {**payload, "sources": ["legacy_cvd_raw"]}], stream)
@@ -68,16 +75,26 @@ def test_index_is_gene_keyed_and_does_not_create_provider_rows(tmp_path: Path) -
     assert table["record_kind"] == "source_summary_association"
     assert table["evidence_granularity"] == "source_summary"
     rows = duckdb.connect().execute(
-        f"SELECT source, source_display_name, variant_id, record_kind, "
-        f"evidence_granularity, provider_detail_status, reported_p_value, "
-        f"retained_source_summary_artifact, ancestry_json, missing_fields_json FROM read_parquet("
+        f"SELECT source, source_display_name, dataset_id, variant_id, "
+        f"phenotype_slug, phenotype_kind, record_kind, evidence_granularity, "
+        f"provider_detail_status, reported_p_value, retained_source_summary_artifact, "
+        f"ancestry_json, missing_fields_json, metadata_json, "
+        f"retained_source_summary_json FROM read_parquet("
         f"'{serving_root / 'tables/source_summary_associations_by_gene/**/*.parquet'}')"
     ).fetchall()
     assert rows == [
         (
-            "million_veteran_program", "MVP", "rsMVP",
-            "source_summary_association", "source_summary", "not_applicable",
-            "1e-09", "variant_index/CVD/TTN.json.gz",
-            '{"European":1}', '["effect_allele","sample_size"]',
+            "million_veteran_program", "MVP", "hbp_mvp_association", "rsMVP",
+            "cardiomyopathy", "disease", "source_summary_association",
+            "source_summary", "not_applicable", "1e-09",
+            "variant_index/CVD/TTN.json.gz", '{"European":1}',
+            '["effect_allele","sample_size"]',
+            '{"phenotype_keys":["Phe_425_11"]}',
+            '{"variant_id":"rsMVP","phenotype":"cardiomyopathy",'
+            '"phenotype_path":["cardiomyopathies","cardiomyopathy"],'
+            '"source":"million_veteran_program",'
+            '"sources":["million_veteran_program"],"p_value":1e-09,'
+            '"ancestry":{"European":1},"label_key":"disease",'
+            '"metadata":{"phenotype_keys":["Phe_425_11"]}}',
         )
     ]
