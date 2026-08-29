@@ -54,6 +54,9 @@ variant once within an active scope, but drill-downs and exports retain every
 source-specific record. Missing effect alleles, effects, standard errors, sample
 sizes, study ancestry, fine-mapping values, study IDs, and provider rows are recorded
 as not provided in the current MVP summary; they do not make MVP evidence unavailable.
+Source-summary consequence, clinical-significance, disease/trait, source-context,
+ancestry, and metadata fields are exposed explicitly. Any unforeseen compact fields
+remain in a small extras object, so mapped values are not duplicated in every row.
 
 ## Source completeness
 
