@@ -204,6 +204,11 @@ def _process_artifact(task: tuple[Any, ...]) -> dict[str, Any]:
             if source_summary_id in seen_summary_ids:
                 continue
             seen_summary_ids.add(source_summary_id)
+            row_missing_fields = json.loads(missing_fields_json)
+            if entry.get("ancestry") is not None:
+                row_missing_fields = [
+                    field for field in row_missing_fields if field != "ancestry"
+                ]
             writer.writerow(
                 (
                     "association-source-summary:"
@@ -229,7 +234,7 @@ def _process_artifact(task: tuple[Any, ...]) -> dict[str, Any]:
                     representative_source or None,
                     "not_applicable",
                     None,
-                    missing_fields_json,
+                    json.dumps(row_missing_fields, separators=(",", ":")),
                     logical_artifact,
                     json.dumps(
                         {key: value for key, value in entry.items() if value is not None},

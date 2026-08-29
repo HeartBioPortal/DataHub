@@ -19,6 +19,7 @@ def test_index_is_gene_keyed_and_does_not_create_provider_rows(tmp_path: Path) -
         "source": "million_veteran_program",
         "sources": ["million_veteran_program"],
         "p_value": 1e-9,
+        "ancestry": {"European": 1},
     }
     with gzip.open(artifact, "wt", encoding="utf-8") as stream:
         json.dump([payload, payload, {**payload, "sources": ["legacy_cvd_raw"]}], stream)
@@ -40,7 +41,7 @@ def test_index_is_gene_keyed_and_does_not_create_provider_rows(tmp_path: Path) -
             "artifact-1", "million_veteran_program", "CVD", "TTN",
             "variant_index/CVD/TTN.json.gz", "json.gz", stat.st_size,
             stat.st_mtime_ns, "not_applicable", None,
-            json.dumps(["effect_allele", "sample_size"]),
+            json.dumps(["effect_allele", "sample_size", "ancestry"]),
             "retained_compact_variant_index_v1", "gene_scoped_on_demand",
         ],
     )
@@ -69,7 +70,7 @@ def test_index_is_gene_keyed_and_does_not_create_provider_rows(tmp_path: Path) -
     rows = duckdb.connect().execute(
         f"SELECT source, source_display_name, variant_id, record_kind, "
         f"evidence_granularity, provider_detail_status, reported_p_value, "
-        f"retained_source_summary_artifact FROM read_parquet("
+        f"retained_source_summary_artifact, ancestry_json, missing_fields_json FROM read_parquet("
         f"'{serving_root / 'tables/source_summary_associations_by_gene/**/*.parquet'}')"
     ).fetchall()
     assert rows == [
@@ -77,5 +78,6 @@ def test_index_is_gene_keyed_and_does_not_create_provider_rows(tmp_path: Path) -
             "million_veteran_program", "MVP", "rsMVP",
             "source_summary_association", "source_summary", "not_applicable",
             "1e-09", "variant_index/CVD/TTN.json.gz",
+            '{"European":1}', '["effect_allele","sample_size"]',
         )
     ]
