@@ -214,12 +214,16 @@ CREATE TABLE IF NOT EXISTS clinical_assertions (
     clinical_assertion_id VARCHAR PRIMARY KEY,
     variant_id VARCHAR NOT NULL,
     clinical_significance VARCHAR NOT NULL,
-    raw_source_value VARCHAR NOT NULL,
+    normalized_term VARCHAR NOT NULL,
+    display_group VARCHAR NOT NULL,
     assertion_source VARCHAR NOT NULL,
     assertion_version VARCHAR,
     condition_name VARCHAR,
     condition_status VARCHAR NOT NULL,
     provider_detail_status VARCHAR NOT NULL,
+    evidence_granularity VARCHAR NOT NULL,
+    provenance_limitation VARCHAR NOT NULL,
+    raw_source_values_json JSON NOT NULL,
     provider_record_count UBIGINT NOT NULL
 );
 

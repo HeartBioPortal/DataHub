@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-SCHEMA_VERSION = "2.3.0-rc2"
+SCHEMA_VERSION = "2.4.0-rc1"
 
 SOURCE_DETAIL_UNAVAILABLE_FIELDS = (
     "effect_allele",

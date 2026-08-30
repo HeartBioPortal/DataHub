@@ -13,7 +13,7 @@ legacy association serving database during release-candidate validation.
 | `association_records` | Source association evidence | Recoverable legacy rows use `record_kind=source_association_observation` and link to exact provider rows. MVP compact rows use `record_kind=source_summary_association`, `evidence_granularity=source_summary`, source `million_veteran_program`, display name `MVP`, and `provider_detail_status=not_applicable`. Neither contract fills absent fields across records. |
 | `source_summary_artifacts` | Retained MVP gene/dataset artifact | Registers the immutable compact artifact supplying MVP source-summary associations. Provider-row lineage is not applicable, but every retained variant-phenotype summary is valid association evidence. The gene-keyed serving index preserves deterministic record IDs, exact phenotype paths, p-values, variation type and other retained compact fields without creating study/provider records. |
 | `consequence_annotations` | Source/version-scoped annotation | Preserves each consequence/transcript/source combination. The version field is explicit and may be unavailable for legacy snapshots. No lexical minimum or implicit severity selection is performed. |
-| `clinical_assertions` | Source clinical assertion | Preserves each source-reported term independently, with condition and version when recoverable. |
+| `clinical_assertions` | Variant + exact normalized term + assertion source | Preserves all 15 audited legacy ClinVar-derived terms without selecting a representative classification. Each assertion links to every supporting provider row; raw values remain unchanged in provider provenance. Condition, accession, review status, classification date, and ClinVar release are unavailable. |
 | `population_observations` | Source/cohort/allele/build observation | Keeps recoverable association-source frequency fields separate. The API joins the full dbSNP frequency sidecar by rsID and labels the association allele unresolved. |
 | `variant_phenotype_summaries` | Dataset type + gene + exact phenotype path + variant ID | Derived visualization summary with source/association counts and minimum reported p-value plus the supplying record ID. |
 
@@ -23,7 +23,17 @@ Variant Annotation Composition counts distinct `variant_id` values under the
 active CVD/trait phenotype paths and an explicitly selected p-value threshold.
 Variation type contributes one derived or unresolved class per variant. A variant
 may contribute to more than one consequence or clinical-significance term because
-all source-linked annotations are retained.
+all source-linked annotations are retained. Clinical display groups are nonexclusive:
+a variant can contribute to more than one exact term and more than one group. The
+legacy annotations may not refer to the selected HBP phenotype and are not interpreted
+as condition-specific ClinVar assertions or clinical actionability.
+
+Clinical values are parsed from single terms, Python/JSON lists, unquoted bracketed
+lists, comma- or semicolon-delimited values, and audited spelling variants. Recognized
+slash classifications remain atomic. Assertion identity is deterministic over
+`variant_id`, normalized exact term, and assertion source. Repeated identical terms in
+one provider value are deduplicated only in the normalized relationship; the original
+raw value remains in `provider_records` and exports.
 
 The same serialized association-filter object is used for summary, detail, and
 association export. Provider association rows pass an explicit p-value filter only

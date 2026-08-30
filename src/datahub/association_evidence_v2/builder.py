@@ -18,6 +18,13 @@ from typing import Any, Iterable
 
 from datahub.phenotype_paths import PhenotypePathResolver
 
+from .clinical_classification import (
+    CONDITION_STATUS,
+    EVIDENCE_GRANULARITY,
+    PROVENANCE_LIMITATION,
+    display_group_for_term,
+    normalized_clinical_terms,
+)
 from .contracts import (
     ASSOCIATION_RECORD_KIND_PROVIDER,
     ASSOCIATION_RECORD_KIND_SOURCE_SUMMARY,
@@ -161,20 +168,6 @@ def _utc_now() -> str:
 
 def _canonical_json(value: Any) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-
-
-def _clinical_assertion_terms(raw_value: str) -> list[str]:
-    """Return distinct source-reported assertion terms without reclassifying them."""
-    text = str(raw_value or "").strip()
-    if not text or text in {"NA", "[]"}:
-        return []
-    parsed: Any = None
-    try:
-        parsed = json.loads(text.replace("\x27", "\x22"))
-    except (TypeError, ValueError, json.JSONDecodeError):
-        parsed = None
-    values = parsed if isinstance(parsed, list) else [text]
-    return sorted({str(value).strip() for value in values if str(value).strip()})
 
 
 def _configuration_hash(value: dict[str, Any]) -> str:
@@ -983,6 +976,7 @@ GROUP BY association_record_id, trim(gene_id_raw)
             state = json.loads(state_path.read_text())
             if (
                 int(state.get("provider_record_count", -1)) == provider_count
+                and int(state.get("projection_schema_version", -1)) == 2
                 and state.get("partitions_complete")
                 and root.exists()
             ):
@@ -1000,7 +994,7 @@ GROUP BY association_record_id, trim(gene_id_raw)
         self.connection.execute(
             f"""
 COPY (
-    SELECT provider_record_id, association_record_id, variant_id_raw, allele_string_raw,
+    SELECT provider_record_id, association_record_id, source, variant_id_raw, allele_string_raw,
            dbsnp_build_raw, chromosome_raw, hg19_start_raw, hg19_end_raw,
            source_variation_type_raw, gene_id_raw, consequence_raw, putative_impact_raw,
            feature_id_raw, ensembl_transcript_id_raw, ensembl_protein_id_raw, hgvs_p_raw,
@@ -1019,6 +1013,7 @@ COPY (
             raise RuntimeError("Provider variant partitioning produced no Parquet files")
         state = {
             "provider_record_count": provider_count,
+            "projection_schema_version": 2,
             "partitions_complete": True,
             "partition_files": len(files),
             "completed_at": _utc_now(),
@@ -1030,7 +1025,7 @@ COPY (
         return sorted(path for path in root.iterdir() if path.is_dir())
 
     def _partition_phase_state(
-        self, phase: str, provider_count: int
+        self, phase: str, provider_count: int, *, phase_schema_version: int = 1
     ) -> tuple[Path, dict[str, Any]]:
         path = self.checkpoint.path.with_name(
             self.checkpoint.path.stem + f".{phase}.json"
@@ -1040,6 +1035,9 @@ COPY (
             state = json.loads(path.read_text())
             if int(state.get("provider_record_count", -1)) != provider_count:
                 raise RuntimeError(f"{phase} checkpoint provider count mismatch")
+            if int(state.get("phase_schema_version", 1)) != phase_schema_version:
+                state = {}
+        state["phase_schema_version"] = phase_schema_version
         return path, state
 
     @staticmethod
@@ -1315,7 +1313,9 @@ WHERE coalesce(trim(p.variant_id_raw), '') <> ''
         assert self.connection is not None
         provider_count = int(self.connection.execute("SELECT count(*) FROM provider_records").fetchone()[0])
         partitions = self._provider_variant_partitions()
-        state_path, state = self._partition_phase_state("clinical-assertions", provider_count)
+        state_path, state = self._partition_phase_state(
+            "clinical-assertions", provider_count, phase_schema_version=2
+        )
         completed = set(state.get("completed_buckets") or [])
         if not completed:
             self.connection.execute("DELETE FROM clinical_assertion_provider_records")
@@ -1324,27 +1324,31 @@ WHERE coalesce(trim(p.variant_id_raw), '') <> ''
 INSERT INTO clinical_assertions
 SELECT
     'clinical:' || sha256(concat_ws(chr(31), p.variant_id_raw,
-        t.raw_source_value, t.clinical_significance)),
+        t.normalized_term, p.source)),
     p.variant_id_raw,
-    t.clinical_significance,
-    t.raw_source_value,
-    'ClinVar-derived legacy enrichment field',
+    t.normalized_term,
+    t.normalized_term,
+    t.display_group,
+    p.source,
     NULL,
     NULL,
-    'unavailable',
+    ?,
     'available',
-    count(*)
+    ?,
+    ?,
+    to_json(list(DISTINCT t.raw_source_value ORDER BY t.raw_source_value)),
+    count(DISTINCT p.provider_record_id)
 FROM __HBP_VARIANT_SOURCE__ p
 JOIN __clinical_terms t
   ON t.raw_source_value=trim(p.clinical_significance_raw)
 WHERE coalesce(trim(p.variant_id_raw), '') <> ''
-GROUP BY p.variant_id_raw, t.raw_source_value, t.clinical_significance
+GROUP BY p.variant_id_raw, t.normalized_term, t.display_group, p.source
 """
         link_sql = """
 INSERT INTO clinical_assertion_provider_records
-SELECT
+SELECT DISTINCT
     'clinical:' || sha256(concat_ws(chr(31), p.variant_id_raw,
-        t.raw_source_value, t.clinical_significance)),
+        t.normalized_term, p.source)),
     p.provider_record_id,
     p.association_record_id
 FROM __HBP_VARIANT_SOURCE__ p
@@ -1362,22 +1366,29 @@ WHERE coalesce(trim(p.variant_id_raw), '') <> ''
                        WHERE coalesce(trim(clinical_significance_raw), '') NOT IN ('', 'NA', '[]')"""
             ).fetchall()
             term_rows = [
-                (raw_value, term)
+                (raw_value, term, display_group_for_term(term))
                 for (raw_value,) in raw_values
-                for term in _clinical_assertion_terms(raw_value)
+                for term in normalized_clinical_terms(raw_value)
             ]
             self.connection.execute(
                 "CREATE OR REPLACE TEMP TABLE __clinical_terms("
-                "raw_source_value VARCHAR, clinical_significance VARCHAR)"
+                "raw_source_value VARCHAR, normalized_term VARCHAR, display_group VARCHAR)"
             )
             if term_rows:
-                self.connection.executemany("INSERT INTO __clinical_terms VALUES (?, ?)", term_rows)
+                self.connection.executemany(
+                    "INSERT INTO __clinical_terms VALUES (?, ?, ?)", term_rows
+                )
             self.connection.execute("BEGIN")
             try:
                 # Uncheckpointed buckets contain no committed rows.
                 if term_rows:
-                    self.connection.execute(dimension_sql.replace("__HBP_VARIANT_SOURCE__", source_sql))
-                    self.connection.execute(link_sql.replace("__HBP_VARIANT_SOURCE__", source_sql))
+                    self.connection.execute(
+                        dimension_sql.replace("__HBP_VARIANT_SOURCE__", source_sql),
+                        [CONDITION_STATUS, EVIDENCE_GRANULARITY, PROVENANCE_LIMITATION],
+                    )
+                    self.connection.execute(
+                        link_sql.replace("__HBP_VARIANT_SOURCE__", source_sql)
+                    )
                 self.connection.execute("COMMIT")
             except Exception:
                 try:
@@ -1392,7 +1403,9 @@ WHERE coalesce(trim(p.variant_id_raw), '') <> ''
                 LOGGER.info(
                     "Clinical assertion progress buckets=%d/%d assertions=%d",
                     len(completed), len(partitions),
-                    int(self.connection.execute("SELECT count(*) FROM clinical_assertions").fetchone()[0]),
+                    int(self.connection.execute(
+                        "SELECT count(*) FROM clinical_assertions"
+                    ).fetchone()[0]),
                 )
 
     def _build_population_observations(self) -> None:
@@ -2079,6 +2092,10 @@ WHERE e.summary_id IS NULL
             "source_summary_registry_is_first_class": "SELECT count(*)=0 FROM source_summary_artifacts WHERE provider_detail_status<>'not_applicable' OR publication_mode<>'gene_scoped_on_demand'",
             "no_fake_mvp_provider_rows": "SELECT count(*)=0 FROM association_records WHERE source='million_veteran_program' AND record_kind<>'source_summary_association'",
             "clinical_assertion_links_resolve": "SELECT count(*)=0 FROM clinical_assertion_provider_records l LEFT JOIN clinical_assertions c USING(clinical_assertion_id) WHERE c.clinical_assertion_id IS NULL",
+            "clinical_assertion_keys_are_unique": "SELECT count(*)=count(DISTINCT variant_id || chr(31) || normalized_term || chr(31) || assertion_source) FROM clinical_assertions",
+            "clinical_assertions_use_approved_terms": "SELECT count(*)=0 FROM clinical_assertions WHERE normalized_term NOT IN ('Benign', 'Likely benign', 'Benign/Likely benign', 'Pathogenic', 'Likely pathogenic', 'Pathogenic/Likely pathogenic', 'Uncertain significance', 'Conflicting interpretations of pathogenicity', 'association', 'risk factor', 'protective', 'drug response', 'Affects', 'other', 'not provided')",
+            "clinical_assertion_labels_are_not_arrays": "SELECT count(*)=0 FROM clinical_assertions WHERE regexp_matches(normalized_term, '^\\s*\\[')",
+            "clinical_assertions_have_provider_support": "SELECT count(*)=0 FROM clinical_assertions WHERE provider_record_count=0",
             "available_associations_have_provider_links": "SELECT count(*)=0 FROM association_records a WHERE a.provider_detail_status='available' AND NOT EXISTS (SELECT 1 FROM association_record_provider_records l WHERE l.association_record_id=a.association_record_id)",
             "consequence_link_counts_reconcile": """
                 WITH links AS (

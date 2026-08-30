@@ -196,9 +196,29 @@ def test_full_separation_and_provenance_contract(tmp_path: Path) -> None:
     assert all(row[1] == "not_performed" for row in consequences)
 
     assertions = connection.execute(
-        "SELECT clinical_significance FROM clinical_assertions ORDER BY clinical_significance"
+        """SELECT clinical_significance, normalized_term, display_group,
+                  assertion_source, condition_status, evidence_granularity,
+                  provenance_limitation, raw_source_values_json,
+                  provider_record_count
+           FROM clinical_assertions
+           ORDER BY normalized_term, assertion_source"""
     ).fetchall()
-    assert assertions == [("Benign",), ("Pathogenic",)]
+    assert [(row[0], row[3]) for row in assertions] == [
+        ("Benign", "legacy_cvd_raw"),
+        ("Pathogenic", "legacy_cvd_raw"),
+        ("Pathogenic", "legacy_trait_raw"),
+    ]
+    assert all(row[0] == row[1] for row in assertions)
+    assert {row[2] for row in assertions} == {"Benign spectrum", "Pathogenic spectrum"}
+    assert all(row[4] == "unavailable" for row in assertions)
+    assert all(row[5] == "legacy_variant_level_annotation" for row in assertions)
+    assert all("may not refer to the selected HBP phenotype" in row[6] for row in assertions)
+    assert all(json.loads(row[7]) for row in assertions)
+    assert all(row[8] > 0 for row in assertions)
+    assert connection.execute(
+        """SELECT count(*)=count(DISTINCT variant_id || chr(31) || normalized_term || chr(31) || assertion_source)
+           FROM clinical_assertions"""
+    ).fetchone() == (True,)
 
     mvp = connection.execute(
         """
