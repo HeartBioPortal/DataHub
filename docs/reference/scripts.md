@@ -198,6 +198,29 @@ For array jobs, keep `--sleep-seconds` nonzero so parallel partitions do not
 hit Ensembl in the same burst. The shared API client also retries `429 Too Many
 Requests` responses using `Retry-After` when Ensembl provides it.
 
+### `scripts/dataset_specific_scripts/unified/build_structural_variant_gene_index.py`
+
+Builds the read-optimized structural-variant serving index without loading the
+one-gigabyte top-level gene mapping into memory. The SQLite artifact stores one
+compressed payload per normalized gene symbol. Runtime readers open the index
+read-only and fetch only the requested gene; they do not retain payloads in a
+process-wide memory cache.
+
+```bash
+PYTHONPATH=src python scripts/dataset_specific_scripts/unified/build_structural_variant_gene_index.py \
+  --input-json analyzed_data/dbvar/dbvar_structural_variants_nstd229.exons.json.zip \
+  --output-db datamart/structural_variant_gene_payloads.sqlite3 \
+  --progress-interval 100 \
+  --commit-interval 100 \
+  --verbose
+```
+
+The builder writes `<output>.building` and a JSON checkpoint while it runs.
+Use `--resume` after interruption. The final database and SHA-256 manifest are
+promoted only after the complete source object reaches EOF. `--limit` is a smoke
+test and intentionally leaves a non-servable building artifact. The source JSON
+remains the scientific artifact; this index changes retrieval only.
+
 ## Expression scripts
 
 ### `scripts/dataset_specific_scripts/expression/run_expression_pipeline.py`
