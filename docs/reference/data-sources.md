@@ -24,7 +24,7 @@ Configuration entries that are only roadmap candidates are excluded.
 | **Clinical significance annotations** | Legacy ClinVar-derived fields retained in association snapshots | `clinvar.rcv.clinical_significance` | DataHub parses the audited source strings into 15 exact normalized terms while preserving raw values and provider provenance. These are legacy variant-level classifications and are not automatically the classification for the HBP phenotype currently selected. |
 | **Population Frequency** | NCBI dbSNP frequency exports, which carry source-study labels including gnomAD, TOPMed, 1000 Genomes, ALFA, PAGE, ExAC, HapMap, HGDP-CEPH, and others | rsID, study, population/group, sample size, REF/ALT, source-specific frequencies, build, position, release, BioProject/BioSample, and archive/member provenance | HBP first selects association-linked rsIDs, then retrieves source-specific frequency observations. The current linkage is **rsID only**; the tested association allele is unresolved. Rows remain allele-, build-, study-, and population-specific. Approximate map points are curated display centroids, not recruitment locations. |
 | **Structural variation** | NCBI [dbVar](https://www.ncbi.nlm.nih.gov/dbvar/) nstd102/ClinVar seed records and nstd229/TOPMed call-set records; Ensembl or a pinned GTF for gene/transcript overlap context | Source variant/accession, coordinates, type, clinical significance where present, and call-set metadata | DataHub publishes gene-centered SV records and transcript/exon context. One event may appear under multiple genes when it overlaps them. Association filters do not turn this independent layer into GWAS evidence. |
-| **Protein consequence viewer: lollipops** | Ensembl Variant Effect Predictor 114 annotations generated from NCBI dbSNP build 157 GRCh38.p14 identifiers, with inherited SnpEff-derived viewer CSVs retained as a compatibility fallback | rsID, gene, transcript/protein identifiers, protein coordinates, HGVS, Sequence Ontology consequence, REF/ALT, genomic coordinate, MANE marker, and source-row identity | The rsID-preserving v2 builder joins association contexts to supplied VEP rows by **rsID and gene**, retains every supplied annotation row, and never infers identity from amino-acid position. The frontend groups annotations only for display and exposes all retained rsIDs represented by a lollipop. Genes not yet rebuilt continue to use the inherited viewer artifact, where rsID can be unavailable. |
+| **Protein consequence viewer: lollipops** | Ensembl Variant Effect Predictor 114 annotations generated from NCBI dbSNP build 157 GRCh38.p14 identifiers, with inherited SnpEff-derived viewer CSVs retained as a compatibility fallback | rsID, gene, transcript/protein identifiers, protein coordinates, HGVS, Sequence Ontology consequence, REF/ALT, genomic coordinate, MANE marker, and source-row identity | The rsID-preserving v2 builder joins association contexts to supplied VEP rows by **rsID and gene**, retains every supplied annotation row, and never infers identity from amino-acid position. Rows are not collapsed across protein IDs. The frontend groups rows only for display, lists every consequence and rsID represented by a lollipop, and uses an rsID-bearing row for marker color when available. That precedence is not a severity ranking. |
 | **Protein consequence viewer: exon/domain/feature tracks** | [Ensembl REST](https://rest.ensembl.org/), [EMBL-EBI Proteins API](https://www.ebi.ac.uk/proteins/api/doc/), [InterPro](https://www.ebi.ac.uk/interpro/), and UniProt cross-references | Gene/transcript/translation/exon coordinates, canonical transcript, protein length, topology/sequence features, domains, families, motifs, sites, and regions | DataHub builds a separate per-gene `protein_context` payload aligned to protein coordinates. These contextual tracks do not assign the lollipop consequence label; they provide the protein structure/feature context around it. |
 | **Cross-phenotype relationships** | The same published MVP and legacy association/variant-index artifacts used by Association Signal | Gene, phenotype paths, and exact variant IDs | DataHub computes shared variant sets, intersection counts, Jaccard similarity, and overlap measures. This is a release-wide precomputed derivative, not a new external association source and not evidence that two phenotypes are causally related. |
 | **Expression** | Active legacy-compatible CardioQuilt/CREEDS-GEO payload and the separate expression-v3 candidate built from NCBI GEO studies GSE232911, GSE29532, and GSE7084 | Study accession, platform, tissue, contrast, sample counts, fold change, p-values, processing metadata, and direction where available | The active imported expression layer remains distinct from expression v3. Expression v3 creates row-level differential-expression evidence and gene-phenotype summaries only from curation-approved disease-versus-control contrasts. |
@@ -94,6 +94,28 @@ does not select a preferred transcript or consequence severity. Variants without
 a gene-matching protein coordinate, including most intronic, intergenic,
 regulatory, and noncoding variants, remain explicit unresolved association
 rsIDs and are not placed on the protein axis.
+
+### Consequence-label heterogeneity
+
+The scientific comparison key for a protein-position consequence is
+`(gene, rsID, protein_id, protein_position)`. Protein ID is required: the same
+numeric amino-acid position on two isoforms is not one shared coordinate.
+
+A read-only audit on 2026-09-05 found:
+
+- 411,396 exact variant-protein-position groups and zero groups with more than
+  one consequence label;
+- 85 of 364,268 `(gene, rsID, numeric position)` groups with differing labels
+  only when `protein_id` was deliberately omitted, including 82 named-gene
+  groups and three source-placeholder groups;
+- 11,215 exact protein residues containing multiple rsIDs, of which 6,392
+  contained more than one consequence label across those different rsIDs.
+
+The last number describes variant diversity at one residue, not conflicting
+annotation for one rsID. The viewer therefore retains and displays all labels.
+Its primary marker color prefers a source-preserved rsID row over an unresolved
+legacy row, but this is presentation precedence rather than biological or
+clinical severity selection.
 
 The inherited viewer CSV remains visible whether or not a v2 payload exists. Its
 schema omitted rsID before publication, so affected rows are marked unresolved

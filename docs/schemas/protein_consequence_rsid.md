@@ -27,7 +27,9 @@ non-protein and unmatched rsIDs separately.
 The collections are linked by **rsID and gene**. We do not match an rsID from
 amino-acid position, consequence label, or protein change alone. One rsID can
 have multiple allele/transcript consequence rows; one displayed residue can
-therefore represent multiple rsIDs and multiple annotations.
+therefore represent multiple rsIDs and multiple annotations. Protein ID remains
+part of the coordinate identity, so annotations from different proteins are not
+treated as the same exact position merely because their numeric positions match.
 
 ## Annotation source
 
@@ -111,5 +113,36 @@ download use this same hybrid row set. For genes without a v2 payload, the
 legacy rows remain available alone.
 
 The frontend groups markers only for display. Selecting a grouped residue lists
-the union of its retained rsIDs; selecting an expanded dot lists the rsID for
-that exact annotation. Grouping never rewrites the stored data.
+the union of its retained rsIDs and every distinct consequence label; selecting
+an expanded dot lists the rsID for that exact annotation. If a grouped residue
+contains both unresolved legacy rows and source-preserved rsID rows, the marker
+label and color use an rsID-bearing row. The existing source-count field and
+stable row identity resolve ties among eligible rows. This is deterministic
+display precedence, not a consequence-severity rule. Grouping never rewrites the
+stored data.
+
+## Heterogeneity audit
+
+The 2026-09-05 source-index audit used three distinct keys:
+
+| Question | Grouping key | Interpretation |
+| --- | --- | --- |
+| Does one exact variant/protein coordinate carry multiple labels? | `(gene, rsID, protein_id, protein_position_start)` | Exact annotation-label conflict |
+| Does one rsID have different labels at the same numeric position across isoforms? | `(gene, rsID, protein_position_start)` | Cross-isoform numeric-position difference |
+| Do different rsIDs at one residue have different labels? | `(gene, protein_id, protein_position_start)` | Residue-level variant diversity |
+
+Results for the VEP 114 index:
+
+| Measure | Count |
+| --- | ---: |
+| Exact variant-protein-position groups | 411,396 |
+| Exact groups with multiple consequence labels | 0 |
+| Numeric-position groups across isoforms | 364,268 |
+| Numeric-position groups with cross-isoform label differences | 85 (0.023334%) |
+| Exact protein residues with multiple rsIDs | 11,215 |
+| Multi-rsID residues with multiple consequence labels | 6,392 |
+
+The full compact audit is stored with the release staging evidence and contains
+the exact SQL, all 85 cross-isoform numeric-position rows, all 6,392 mixed
+residues, and SHA-256 checksums. The validation genes ANK2, BMPR2, HMGCR, PCSK9,
+and TTN had zero exact variant-protein-position conflicts in this index.
