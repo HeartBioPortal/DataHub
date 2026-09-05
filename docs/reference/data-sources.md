@@ -24,7 +24,7 @@ Configuration entries that are only roadmap candidates are excluded.
 | **Clinical significance annotations** | Legacy ClinVar-derived fields retained in association snapshots | `clinvar.rcv.clinical_significance` | DataHub parses the audited source strings into 15 exact normalized terms while preserving raw values and provider provenance. These are legacy variant-level classifications and are not automatically the classification for the HBP phenotype currently selected. |
 | **Population Frequency** | NCBI dbSNP frequency exports, which carry source-study labels including gnomAD, TOPMed, 1000 Genomes, ALFA, PAGE, ExAC, HapMap, HGDP-CEPH, and others | rsID, study, population/group, sample size, REF/ALT, source-specific frequencies, build, position, release, BioProject/BioSample, and archive/member provenance | HBP first selects association-linked rsIDs, then retrieves source-specific frequency observations. The current linkage is **rsID only**; the tested association allele is unresolved. Rows remain allele-, build-, study-, and population-specific. Approximate map points are curated display centroids, not recruitment locations. |
 | **Structural variation** | NCBI [dbVar](https://www.ncbi.nlm.nih.gov/dbvar/) nstd102/ClinVar seed records and nstd229/TOPMed call-set records; Ensembl or a pinned GTF for gene/transcript overlap context | Source variant/accession, coordinates, type, clinical significance where present, and call-set metadata | DataHub publishes gene-centered SV records and transcript/exon context. One event may appear under multiple genes when it overlaps them. Association filters do not turn this independent layer into GWAS evidence. |
-| **Protein consequence viewer: lollipops** | SnpEff-annotated legacy GWAS rows, an Ensembl-derived variation stream, and NCBI ClinVar/Variation Viewer molecular-consequence enrichment represented in the inherited viewer artifacts | SnpEff: `snpeff.ann.effect`, `snpeff.ann.hgvs_p`, `snpeff.ann.feature_id`, `snpeff.ann.protein.length`; Ensembl: `consequence_terms`, `protein_start`, `amino_acids`, `protein_id`, `protein_length`; NCBI enrichment: protein HGVS and `Molecularconsequence` | The inherited parser converts protein HGVS to amino-acid position/change and publishes compact per-gene/per-phenotype lollipop rows. The active merged viewer artifact preserves mutation label, amino-acid coordinate, protein/transcript identifier, phenotype, PMID, and counts, but not reliable row-level annotator provenance or rsID for every row. Therefore a displayed point must not be described as uniformly VEP-derived or uniformly SnpEff-derived. |
+| **Protein consequence viewer: lollipops** | Ensembl VEP 114 annotations generated from NCBI dbSNP build 157 GRCh38.p14 identifiers, plus inherited SnpEff-annotated GWAS rows, an Ensembl-derived variation stream, and NCBI molecular-consequence enrichment | VEP: rsID, gene, transcript/protein IDs, protein coordinate, HGVS, Sequence Ontology consequence, REF/ALT, genomic coordinate, MANE marker, and source-row identity; inherited rows retain source-specific SnpEff, Ensembl, and NCBI fields where available | The v2 builder joins VEP rows to association context by **rsID and gene**, retains every supplied annotation, and never infers identity from amino-acid position. Inherited compact rows remain separate and can lack reliable row-level annotator provenance or rsID. The frontend groups only for display and exposes all retained rsIDs represented by a lollipop; no point is described as uniformly VEP- or SnpEff-derived. |
 | **Protein consequence viewer: exon/domain/feature tracks** | [Ensembl REST](https://rest.ensembl.org/), [EMBL-EBI Proteins API](https://www.ebi.ac.uk/proteins/api/doc/), [InterPro](https://www.ebi.ac.uk/interpro/), and UniProt cross-references | Gene/transcript/translation/exon coordinates, canonical transcript, protein length, topology/sequence features, domains, families, motifs, sites, and regions | DataHub builds a separate per-gene `protein_context` payload aligned to protein coordinates. These contextual tracks do not assign the lollipop consequence label; they provide the protein structure/feature context around it. |
 | **Cross-phenotype relationships** | The same published MVP and legacy association/variant-index artifacts used by Association Signal | Gene, phenotype paths, and exact variant IDs | DataHub computes shared variant sets, intersection counts, Jaccard similarity, and overlap measures. This is a release-wide precomputed derivative, not a new external association source and not evidence that two phenotypes are causally related. |
 | **Expression** | Active legacy-compatible CardioQuilt/CREEDS-GEO payload and the separate expression-v3 candidate built from NCBI GEO studies GSE232911, GSE29532, and GSE7084 | Study accession, platform, tissue, contrast, sample counts, fold change, p-values, processing metadata, and direction where available | The active imported expression layer remains distinct from expression v3. Expression v3 creates row-level differential-expression evidence and gene-phenotype summaries only from curation-approved disease-versus-control contrasts. |
@@ -74,14 +74,14 @@ absence does not make the MVP association itself unavailable.
 
 ## Protein consequence and protein context
 
-The Protein consequence viewer contains two scientifically different layers:
+The Protein Consequence Viewer contains two scientifically different layers:
 
-1. **Variant lollipops** are compact consequence observations positioned on a
-   protein/transcript coordinate. In legacy GWAS-derived rows, mutation category
-   comes from `snpeff.ann.effect`, amino-acid position/change comes from
-   `snpeff.ann.hgvs_p`, and the feature/protein metadata comes from the associated
-   SnpEff columns. The inherited viewer also contains Ensembl consequence terms
-   and NCBI molecular-consequence enrichment from separate processing paths.
+1. **Variant lollipops** retain inherited compact rows from SnpEff-annotated
+   legacy GWAS data, an Ensembl-derived variation stream, and NCBI
+   molecular-consequence enrichment. When a v2 gene payload is available, the
+   viewer appends Ensembl VEP 114 rows linked by exact rsID and gene. Allele,
+   transcript, protein, HGVS, coordinate, consequence, and source-row identity
+   remain separate; the pipeline never guesses an rsID from amino-acid position.
 2. **Protein context tracks** are separately derived from Ensembl transcript,
    translation, and exon data, EMBL-EBI Proteins/UniProt features, and InterPro
    entries. They locate domains, motifs, topology, low-complexity regions, exons,
@@ -89,24 +89,40 @@ The Protein consequence viewer contains two scientifically different layers:
 
 SnpEff and Ensembl are therefore not interchangeable labels on this chart.
 SnpEff is an annotation tool represented in legacy association/viewer fields;
-Ensembl, EBI Proteins, and InterPro primarily supply the coordinate and feature
-context. The term "VEP-style" may describe Sequence Ontology labels, but DataHub
-does not have evidence that every active lollipop was produced by Ensembl VEP.
+Ensembl VEP supplies the new identity-preserving consequence rows; Ensembl,
+EBI Proteins, and InterPro also supply separate coordinate and feature context.
+The term "VEP-style" must not be used to imply that every inherited lollipop was
+produced by Ensembl VEP.
 
-The active compact viewer schema currently includes:
+The VEP input is version 114 on GRCh38 and was generated from NCBI dbSNP build
+157 GRCh38.p14 identifiers. DataHub retains every row supplied by that input; it
+does not select a preferred transcript or consequence severity. Variants without
+a gene-matching protein coordinate, including most intronic, intergenic,
+regulatory, and noncoding variants, remain explicit unresolved association
+rsIDs and are not placed on the protein axis.
+
+The inherited compact viewer schema includes:
 
 ```text
 amino_acid, mutation, value, pmid, protein_id, max,
 phenotype, index_count, max_count, count
 ```
 
-Because it does not consistently retain `rsID`, annotation source/version, raw
+Because that schema does not consistently retain `rsID`, annotation source/version, raw
 HGVS, or a provider-record identifier, exact per-point provenance is limited.
 Those omissions should be treated as an inherited artifact limitation, not
 filled by inference.
 
-See [Protein Context Schema](../schemas/protein_context.md) for the feature-track
-contract.
+The inherited viewer CSV remains visible whether or not a v2 payload exists. Its
+schema omitted rsID before publication, so affected rows are marked unresolved
+rather than reconstructed from residue or label. For a rebuilt gene, exact
+association-linked VEP rows are appended as separate records; legacy
+SnpEff-derived consequences and new VEP annotations are never fused into an
+implied source record.
+
+See [Protein Consequence rsID Index](../schemas/protein_consequence_rsid.md) for
+the identity, provenance, payload, and fallback contract. See [Protein Context
+Schema](../schemas/protein_context.md) for the feature-track contract.
 
 ## Population-frequency evidence
 

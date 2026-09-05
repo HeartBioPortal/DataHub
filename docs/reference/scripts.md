@@ -151,6 +151,41 @@ python scripts/dataset_specific_scripts/unified/canonicalize_variant_viewer_arti
 The final dry-run after apply should report zero remaining rewrites, drops, and
 unknown phenotype labels.
 
+### `scripts/dataset_specific_scripts/unified/build_protein_consequence_rsid_index.py`
+
+Build the identity-preserving Protein Consequence Viewer artifacts in two steps.
+First, import the finalized VEP CSV once:
+
+```bash
+python scripts/dataset_specific_scripts/unified/build_protein_consequence_rsid_index.py \
+  index-vep \
+  --annotations-csv /data/vep-cache/annotations.csv \
+  --output-db analyzed_data/protein_consequence/v2/vep_annotations.duckdb \
+  --threads 8 \
+  --memory-limit 24GB \
+  --temp-directory /data/DataHub/tmp/protein_consequence \
+  --log-path analyzed_data/protein_consequence/v2/index-vep.log
+```
+
+Then build checkpointed per-gene payloads:
+
+```bash
+python scripts/dataset_specific_scripts/unified/build_protein_consequence_rsid_index.py \
+  build \
+  --variant-index-root analyzed_data/association_new/final/variant_index \
+  --vep-index analyzed_data/protein_consequence/v2/vep_annotations.duckdb \
+  --gene-profile-index secondary_analyses/final/gene_profile/v1/gene_profile.index.jsonl \
+  --output-root analyzed_data/protein_consequence/v2 \
+  --workers 20 \
+  --progress-interval 25 \
+  --log-path analyzed_data/protein_consequence/v2/build.log
+```
+
+The second command resumes from `build-checkpoint.json`. Use `--genes` for a
+bounded validation and `--reset` only when intentionally replacing that output
+root. For HPC execution, use
+`scripts/slurm/build_protein_consequence_rsid_index.sbatch`.
+
 ### `scripts/enrich_structural_variant_exons.py`
 
 Backfill missing canonical transcript exon arrays in a legacy structural variant

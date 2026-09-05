@@ -71,6 +71,7 @@ nav:
       - Expression v3: schemas/expression_v3.md
       - Gene Profile: schemas/gene_profile.md
       - Protein Context: schemas/protein_context.md
+      - Protein Consequence rsID Index: schemas/protein_consequence_rsid.md
       - Structural Variant: schemas/structural_variant.md
       - Population Frequency: schemas/population_frequency.md
       - Drug Discovery: schemas/drug_discovery.md
