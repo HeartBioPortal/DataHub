@@ -28,6 +28,8 @@ import duckdb
 
 SCHEMA_VERSION = "protein_consequence_rsid_v2.0"
 ANNOTATION_CONTRACT = "ensembl_vep_transcript_consequence_v1"
+BUILD_WORKER_DUCKDB_THREADS = 1
+BUILD_WORKER_MEMORY_LIMIT = "2GB"
 RSID_RE = re.compile(r"^rs[0-9]+$", re.IGNORECASE)
 HGVS_PROTEIN_RE = re.compile(
     r"(?:^|:)p\.([A-Za-z]{3}|[A-Z*])(\d+)([A-Za-z]{3}|[A-Z*=])"
@@ -125,6 +127,13 @@ _WORKER_BUILDER: Any = None
 _WORKER_CONNECTION: Any = None
 
 
+def _configure_build_connection(connection: duckdb.DuckDBPyConnection) -> None:
+    """Keep each process bounded when several read-only builders run together."""
+
+    connection.execute(f"SET threads={BUILD_WORKER_DUCKDB_THREADS}")
+    connection.execute(f"SET memory_limit='{BUILD_WORKER_MEMORY_LIMIT}'")
+
+
 def _initialize_build_worker(inputs: BuildInputs, progress_interval: int) -> None:
     global _WORKER_BUILDER, _WORKER_CONNECTION
     _WORKER_BUILDER = ProteinConsequenceRsidBuilder(
@@ -132,6 +141,7 @@ def _initialize_build_worker(inputs: BuildInputs, progress_interval: int) -> Non
         progress_interval=progress_interval,
     )
     _WORKER_CONNECTION = duckdb.connect(str(inputs.vep_index_path), read_only=True)
+    _configure_build_connection(_WORKER_CONNECTION)
 
 
 def _build_gene_worker(item: tuple[int, str]) -> tuple[int, str, dict[str, Any]]:
@@ -552,6 +562,7 @@ class ProteinConsequenceRsidBuilder:
 
         if self.workers == 1:
             connection = duckdb.connect(str(self.inputs.vep_index_path), read_only=True)
+            _configure_build_connection(connection)
             try:
                 for index, gene in pending:
                     gene_started = time.monotonic()
@@ -585,6 +596,11 @@ class ProteinConsequenceRsidBuilder:
             "vep_index_sha256": recorded_or_computed_sha256(self.inputs.vep_index_path),
             "selected_genes_sha256": checkpoint_config["selected_genes_sha256"],
             "output_root": str(self.inputs.output_root.resolve()),
+            "worker_runtime": {
+                "processes": self.workers,
+                "duckdb_threads_per_process": BUILD_WORKER_DUCKDB_THREADS,
+                "duckdb_memory_limit_per_process": BUILD_WORKER_MEMORY_LIMIT,
+            },
             "genes_requested": len(selected),
             "genes_completed": len([gene for gene in selected if gene in completed]),
             "artifact_genes": len(artifact_genes),

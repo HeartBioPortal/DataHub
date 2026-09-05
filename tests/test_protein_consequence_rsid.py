@@ -10,6 +10,7 @@ import pytest
 from datahub.protein_consequence_rsid import (
     BuildInputs,
     ProteinConsequenceRsidBuilder,
+    _configure_build_connection,
     parse_hgvs_protein,
 )
 
@@ -42,6 +43,20 @@ def test_parse_hgvs_protein() -> None:
     assert parse_hgvs_protein("ENSP1:p.Asp50Gly") == ("D/G", 50)
     assert parse_hgvs_protein("p.Gly100=") == ("G/=", 100)
     assert parse_hgvs_protein("") == (None, None)
+
+
+def test_build_connection_uses_bounded_duckdb_settings() -> None:
+    class RecordingConnection:
+        def __init__(self) -> None:
+            self.statements: list[str] = []
+
+        def execute(self, statement: str) -> None:
+            self.statements.append(statement)
+
+    connection = RecordingConnection()
+    _configure_build_connection(connection)
+
+    assert connection.statements == ["SET threads=1", "SET memory_limit='2GB'"]
 
 
 def test_index_retains_every_transcript_annotation(tmp_path: Path) -> None:
