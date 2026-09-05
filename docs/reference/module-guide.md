@@ -161,6 +161,16 @@ This module is responsible for:
 - dropping resource-fork-derived bogus artifacts such as `roke_*`
 - writing a JSON report and checkpoint for reproducible cleanup runs
 
+
+## `protein_consequence_rsid.py`
+
+Builds the rsID-preserving Protein Consequence Viewer serving layer. It imports
+the supplied Ensembl VEP CSV once into an indexed DuckDB lookup, then joins each
+gene association index to annotations by rsID and gene. Association contexts and
+VEP annotations remain separate, and unmatched rsIDs are recorded rather than
+inferred from protein position. Per-gene JSON.GZ output is checkpointed,
+deterministic, checksummed, and resumable.
+
 ## `secondary_analyses/dbsnp_frequency.py`
 
 Builds dbSNP population-frequency handoff artifacts and the final DuckDB index.

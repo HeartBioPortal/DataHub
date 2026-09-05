@@ -190,6 +190,23 @@ Protein Consequence Viewer uses amino-acid positions on a selected protein
 isoform. Protein-context features therefore remain protein-coordinate and
 isoform-aware.
 
+
+## Protein-consequence identity semantics
+
+The rsID-preserving viewer artifact is separate from protein context. It joins
+variant-index association contexts to supplied Ensembl VEP transcript
+consequences by exact rsID and gene. The build does not infer a variant from an
+amino-acid position, does not select a representative transcript, and records
+association rsIDs without a matching protein annotation as unresolved.
+
+The backend retains inherited viewer rows for every gene and appends matching
+v2 rows from `HBP_PROTEIN_CONSEQUENCE_V2_PATH` for rebuilt genes. Legacy rows
+whose old compact schema lost variant identity are marked unresolved. The
+display may group multiple annotations at one residue, but stored records and
+source-preserved rsID lists remain separate.
+
+See [Protein Consequence rsID Index](../schemas/protein_consequence_rsid.md).
+
 ## SGA semantics
 
 SGA is a derived secondary analysis.
