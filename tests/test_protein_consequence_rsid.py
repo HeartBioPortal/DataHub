@@ -38,6 +38,18 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path]:
     return annotations, index
 
 
+def test_gene_discovery_intersects_approved_symbols(tmp_path: Path) -> None:
+    variant_root = tmp_path / "variant_index"
+    _write_variant_index(variant_root, "CVD", "PCSK9", [])
+    _write_variant_index(variant_root, "TRAIT", "OLD_ALIAS", [])
+    builder = ProteinConsequenceRsidBuilder(
+        BuildInputs(variant_root, tmp_path / "unused.duckdb", tmp_path / "output")
+    )
+
+    assert builder.discover_genes() == ["OLD_ALIAS", "PCSK9"]
+    assert builder.discover_genes(["PCSK9", "TTN"]) == ["PCSK9"]
+
+
 def test_parse_hgvs_protein() -> None:
     assert parse_hgvs_protein("ENSP1:p.Asp50Gly") == ("D/G", 50)
     assert parse_hgvs_protein("p.Gly100=") == ("G/=", 100)

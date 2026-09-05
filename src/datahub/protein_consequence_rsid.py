@@ -287,12 +287,15 @@ class ProteinConsequenceRsidBuilder:
         finally:
             connection.close()
 
-    def discover_genes(self) -> list[str]:
+    def discover_genes(self, approved_symbols: Iterable[str] | None = None) -> list[str]:
         genes: set[str] = set()
         for dataset_type in ("CVD", "TRAIT"):
             root = self.inputs.variant_index_root / dataset_type
             if root.exists():
                 genes.update(path.name.removesuffix(".json.gz").upper() for path in root.glob("*.json.gz"))
+        if approved_symbols is not None:
+            approved = {str(symbol).strip().upper() for symbol in approved_symbols if str(symbol).strip()}
+            genes.intersection_update(approved)
         return sorted(genes)
 
     def _load_checkpoint(self) -> dict[str, Any]:
@@ -513,7 +516,8 @@ class ProteinConsequenceRsidBuilder:
             self.reset()
         self.genes_root.mkdir(parents=True, exist_ok=True)
         state = self._load_checkpoint()
-        selected = sorted({str(gene).strip().upper() for gene in (genes or self.discover_genes()) if str(gene).strip()})
+        source_genes = self.discover_genes() if genes is None else genes
+        selected = sorted({str(gene).strip().upper() for gene in source_genes if str(gene).strip()})
         if max_genes is not None:
             selected = selected[: max(0, int(max_genes))]
         checkpoint_config = {
