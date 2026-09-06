@@ -132,6 +132,9 @@ def _initialize_build_worker(inputs: BuildInputs, progress_interval: int) -> Non
         progress_interval=progress_interval,
     )
     _WORKER_CONNECTION = duckdb.connect(str(inputs.vep_index_path), read_only=True)
+    _WORKER_CONNECTION.execute("SET threads=1")
+    _WORKER_CONNECTION.execute("SET memory_limit='2GB'")
+    _WORKER_CONNECTION.execute("PRAGMA disable_progress_bar")
 
 
 def _build_gene_worker(item: tuple[int, str]) -> tuple[int, str, dict[str, Any]]:
@@ -251,6 +254,8 @@ class ProteinConsequenceRsidBuilder:
                     FROM source
                     WHERE regexp_full_match(lower(trim(rsid)), 'rs[0-9]+')
                       AND nullif(trim(gene), '') IS NOT NULL
+                    ORDER BY gene, rsid, transcript_id, protein_id,
+                             protein_position_start, ref_allele, alt_allele, source_row_number
                     """,
                     [str(annotations_csv)],
                 )
@@ -273,6 +278,7 @@ class ProteinConsequenceRsidBuilder:
                 "source_size_bytes": annotations_csv.stat().st_size,
                 "source_sha256": source_sha256,
                 "output_path": str(output_db),
+                "storage_layout": "gene_clustered",
                 "built_at": utc_now(),
                 "rows": int(counts[0]),
                 "distinct_rsids": int(counts[1]),

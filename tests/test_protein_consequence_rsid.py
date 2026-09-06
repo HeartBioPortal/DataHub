@@ -67,6 +67,10 @@ def test_index_retains_every_transcript_annotation(tmp_path: Path) -> None:
         assert connection.execute(
             "SELECT count(DISTINCT annotation_id) FROM vep_annotations WHERE rsid='rs1'"
         ).fetchone()[0] == 3
+        ordered = connection.execute(
+            "SELECT gene, rsid, transcript_id FROM vep_annotations"
+        ).fetchall()
+        assert ordered == sorted(ordered)
     finally:
         connection.close()
 
