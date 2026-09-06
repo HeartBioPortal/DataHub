@@ -14,6 +14,7 @@ import hashlib
 import json
 import logging
 import multiprocessing
+import os
 import re
 import shutil
 import time
@@ -172,6 +173,7 @@ class ProteinConsequenceRsidBuilder:
         self.genes_root = inputs.output_root / "genes"
         self.checkpoint_path = inputs.output_root / "build-checkpoint.json"
         self.manifest_path = inputs.output_root / "manifest.json"
+        self._case_paths: dict[tuple[str, str], Path] | None = None
 
     @staticmethod
     def create_vep_index(
@@ -261,6 +263,8 @@ class ProteinConsequenceRsidBuilder:
                     FROM source
                     WHERE regexp_full_match(lower(trim(rsid)), 'rs[0-9]+')
                       AND nullif(trim(gene), '') IS NOT NULL
+                    ORDER BY gene, rsid, transcript_id, protein_id,
+                             protein_position_start, ref_allele, alt_allele, source_row_number
                     """,
                     [str(annotations_csv)],
                 )
@@ -283,6 +287,7 @@ class ProteinConsequenceRsidBuilder:
                 "source_size_bytes": annotations_csv.stat().st_size,
                 "source_sha256": source_sha256,
                 "output_path": str(output_db),
+                "storage_layout": "gene_clustered",
                 "built_at": utc_now(),
                 "rows": int(counts[0]),
                 "distinct_rsids": int(counts[1]),
@@ -297,12 +302,15 @@ class ProteinConsequenceRsidBuilder:
         finally:
             connection.close()
 
-    def discover_genes(self) -> list[str]:
+    def discover_genes(self, approved_symbols: Iterable[str] | None = None) -> list[str]:
         genes: set[str] = set()
         for dataset_type in ("CVD", "TRAIT"):
             root = self.inputs.variant_index_root / dataset_type
             if root.exists():
                 genes.update(path.name.removesuffix(".json.gz").upper() for path in root.glob("*.json.gz"))
+        if approved_symbols is not None:
+            approved = {str(symbol).strip().upper() for symbol in approved_symbols if str(symbol).strip()}
+            genes.intersection_update(approved)
         return sorted(genes)
 
     def _load_checkpoint(self) -> dict[str, Any]:
@@ -321,7 +329,27 @@ class ProteinConsequenceRsidBuilder:
             shutil.rmtree(self.inputs.output_root)
 
     def _variant_index_path(self, dataset_type: str, gene: str) -> Path:
-        return self.inputs.variant_index_root / dataset_type / f"{gene}.json.gz"
+        exact = self.inputs.variant_index_root / dataset_type / f"{gene}.json.gz"
+        if exact.is_file():
+            return exact
+        if self._case_paths is None:
+            case_paths: dict[tuple[str, str], Path] = {}
+            for dtype in ("CVD", "TRAIT"):
+                directory = self.inputs.variant_index_root / dtype
+                if not directory.is_dir():
+                    continue
+                with os.scandir(directory) as entries:
+                    for entry in entries:
+                        if not entry.is_file() or not entry.name.endswith(".json.gz"):
+                            continue
+                        symbol = entry.name[:-8]
+                        if symbol != symbol.upper():
+                            key = (dtype, symbol.upper())
+                            if key in case_paths:
+                                raise ValueError(f"Ambiguous gene filename: {key}")
+                            case_paths[key] = Path(entry.path)
+            self._case_paths = case_paths
+        return self._case_paths.get((dataset_type, gene), exact)
 
     def _association_contexts(self, gene: str) -> tuple[dict[str, list[dict[str, Any]]], int]:
         contexts: dict[str, dict[tuple[str, str, str], dict[str, Any]]] = defaultdict(dict)
@@ -375,22 +403,19 @@ class ProteinConsequenceRsidBuilder:
         }
         return output, input_rows
 
-    def _annotations(self, connection: duckdb.DuckDBPyConnection, gene: str, rsids: Iterable[str]) -> list[dict[str, Any]]:
-        values = sorted(set(rsids))
-        if not values:
+    def _annotations(self, connection: duckdb.DuckDBPyConnection, gene: str, rsids: Iterable[str] | None = None) -> list[dict[str, Any]]:
+        values = sorted(set(rsids)) if rsids is not None else None
+        if values == []:
             return []
-        connection.execute("CREATE OR REPLACE TEMP TABLE target_rsids(rsid VARCHAR)")
-        connection.executemany("INSERT INTO target_rsids VALUES (?)", [(value,) for value in values])
         rows = connection.execute(
             """
             SELECT a.*
             FROM vep_annotations a
-            JOIN target_rsids t USING (rsid)
-            WHERE a.gene=?
+            WHERE a.gene=? AND (? IS NULL OR a.rsid IN (SELECT unnest(?::VARCHAR[])))
             ORDER BY a.rsid, a.protein_id, a.transcript_id, a.protein_position_start,
                      a.hgvs_protein, a.consequence, a.ref_allele, a.alt_allele
             """,
-            [gene],
+            [gene, values, values],
         ).fetchall()
         columns = [item[0] for item in connection.description]
         annotations: list[dict[str, Any]] = []
@@ -409,9 +434,78 @@ class ProteinConsequenceRsidBuilder:
             annotations.append(row)
         return annotations
 
+    def _projected_contexts(
+        self, connection: duckdb.DuckDBPyConnection, gene: str, protein_rsids: list[str]
+    ) -> tuple[dict[str, list[dict[str, Any]]], int, set[str], int]:
+        paths = [str(path) for dtype in ("CVD", "TRAIT")
+                 if (path := self._variant_index_path(dtype, gene)).is_file()]
+        if not paths:
+            return {}, 0, set(), 0
+        # Project and aggregate in DuckDB; only protein-coordinate contexts enter Python.
+        connection.execute("""
+          CREATE OR REPLACE TEMP TABLE protein_context_input AS
+          SELECT lower(trim(variant_id)) AS rsid,
+            CASE WHEN contains(filename, '/CVD/') THEN 'CVD' ELSE 'TRAIT' END AS dataset_type,
+            phenotype,
+            list_filter(list_transform(coalesce(phenotype_path, []), x -> trim(x)),
+                        x -> x IS NOT NULL AND x <> '') AS phenotype_path,
+            CASE WHEN len(coalesce(sources, [])) > 0 THEN sources
+                 ELSE [coalesce(nullif(source, ''), 'unknown')] END AS sources,
+            try_cast(p_value AS DOUBLE) AS p_value
+          FROM read_json(?, format='array', filename=true,
+            columns={variant_id:'VARCHAR',phenotype:'VARCHAR',phenotype_path:'VARCHAR[]',
+                     sources:'VARCHAR[]',source:'VARCHAR',p_value:'VARCHAR'},
+            maximum_object_size=268435456)
+        """, [paths])
+        input_rows = connection.execute("SELECT count(*) FROM protein_context_input").fetchone()[0]
+        association_rsids = {row[0] for row in connection.execute("""
+            SELECT DISTINCT rsid FROM protein_context_input
+            WHERE regexp_full_match(rsid, 'rs[0-9]+')
+        """).fetchall()}
+        connection.execute("""
+          CREATE OR REPLACE TEMP TABLE protein_context_groups AS
+          SELECT rsid, dataset_type, array_to_string(phenotype_path, ' > ') AS path_key,
+                 trim(coalesce(nullif(source_value, ''), 'unknown')) AS source,
+                 first(phenotype) AS phenotype, first(phenotype_path) AS phenotype_path,
+                 min(p_value) AS minimum_reported_p_value, count(*) AS source_summary_count
+          FROM (SELECT *, unnest(sources) AS source_value FROM protein_context_input)
+          WHERE regexp_full_match(rsid, 'rs[0-9]+')
+          GROUP BY rsid, dataset_type, path_key, source
+        """)
+        context_count = connection.execute("SELECT count(*) FROM protein_context_groups").fetchone()[0]
+        records = connection.execute("""
+          SELECT rsid, dataset_type, path_key, source, phenotype, phenotype_path,
+                 minimum_reported_p_value, source_summary_count
+          FROM protein_context_groups WHERE rsid IN (SELECT unnest(?::VARCHAR[]))
+          ORDER BY rsid, dataset_type, path_key, source
+        """, [protein_rsids]).fetchall()
+        contexts: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        for rsid, dtype, key, source, phenotype, path, p_value, count in records:
+            contexts[rsid].append({
+                "dataset_type": dtype, "phenotype": phenotype or (path[-1] if path else ""),
+                "phenotype_path": path, "phenotype_path_key": key or "", "source": source,
+                "minimum_reported_p_value": p_value, "source_summary_count": count,
+            })
+        connection.execute("DROP TABLE protein_context_groups")
+        connection.execute("DROP TABLE protein_context_input")
+        return dict(contexts), input_rows, association_rsids, context_count
+
     def build_gene(self, connection: duckdb.DuckDBPyConnection, gene: str) -> dict[str, Any]:
-        contexts, input_rows = self._association_contexts(gene)
-        all_annotations = self._annotations(connection, gene, contexts)
+        candidates = self._annotations(connection, gene)
+        protein_candidates = sorted({row['variant_id'] for row in candidates
+                                     if isinstance(row.get('protein_position'), int)
+                                     and row['protein_position'] > 0})
+        if not protein_candidates:
+            return {
+                "status": "no_protein_position_annotations", "path": None, "sha256": None,
+                "protein_consequence_annotations": 0,
+                "association_scope_read": False,
+                "association_rsids": None,
+            }
+        contexts, input_rows, association_rsids, context_count = self._projected_contexts(
+            connection, gene, protein_candidates
+        )
+        all_annotations = [row for row in candidates if row['variant_id'] in association_rsids]
         vep_matched_rsids = {str(row["variant_id"]) for row in all_annotations}
         annotations = [
             row
@@ -460,7 +554,6 @@ class ProteinConsequenceRsidBuilder:
             ]
             for rsid, rows in viewer_contexts.items()
         }
-        association_rsids = set(contexts)
         payload = {
             "schema_version": SCHEMA_VERSION,
             "gene": gene,
@@ -479,7 +572,7 @@ class ProteinConsequenceRsidBuilder:
             "non_protein_variant_ids": sorted(vep_matched_rsids - protein_position_rsids),
             "counts": {
                 "variant_index_rows": input_rows,
-                "association_contexts": sum(len(rows) for rows in contexts.values()),
+                "association_contexts": context_count,
                 "viewer_association_contexts": sum(len(rows) for rows in viewer_contexts.values()),
                 "association_rsids": len(association_rsids),
                 "vep_matched_rsids": len(vep_matched_rsids),
@@ -523,7 +616,8 @@ class ProteinConsequenceRsidBuilder:
             self.reset()
         self.genes_root.mkdir(parents=True, exist_ok=True)
         state = self._load_checkpoint()
-        selected = sorted({str(gene).strip().upper() for gene in (genes or self.discover_genes()) if str(gene).strip()})
+        source_genes = self.discover_genes() if genes is None else genes
+        selected = sorted({str(gene).strip().upper() for gene in source_genes if str(gene).strip()})
         if max_genes is not None:
             selected = selected[: max(0, int(max_genes))]
         checkpoint_config = {
@@ -543,7 +637,11 @@ class ProteinConsequenceRsidBuilder:
         pending: list[tuple[int, str]] = []
         for index, gene in enumerate(selected, start=1):
             previous = completed.get(gene) or {}
-            if previous.get("status") == "no_protein_position_annotations":
+            corrected_case = previous.get("association_rsids") == 0 and any(
+                self._variant_index_path(dtype, gene).name != f"{gene}.json.gz"
+                for dtype in ("CVD", "TRAIT")
+            )
+            if previous.get("status") == "no_protein_position_annotations" and not corrected_case:
                 continue
             if previous.get("path") and Path(previous["path"]).is_file():
                 continue
@@ -555,7 +653,7 @@ class ProteinConsequenceRsidBuilder:
                 self._write_checkpoint(state)
             if index == 1 or index % self.progress_interval == 0 or index == len(selected):
                 self.logger.info(
-                    "Protein consequence build progress: genes=%d/%d gene=%s rsids=%d annotations=%d elapsed=%.1fs",
+                    "Protein consequence build progress: genes=%d/%d gene=%s rsids=%s annotations=%d elapsed=%.1fs",
                     index, len(selected), gene, result["association_rsids"],
                     result["protein_consequence_annotations"], time.monotonic() - started,
                 )

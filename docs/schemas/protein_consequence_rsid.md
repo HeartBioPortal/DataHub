@@ -96,10 +96,45 @@ It is not an error and no protein position is fabricated. `non_protein_variant_i
 contains rsIDs that have a gene-matching VEP row but no positive protein
 coordinate, so they also remain off the lollipop axis.
 
-The release build is limited to approved symbols from the gene-profile v1
-index. A gene with no positive protein-coordinate annotation is recorded in
+With `--gene-profile-index`, the release build uses the intersection of approved
+symbols from the gene-profile v1 index and genes present in the association
+variant index. An explicitly empty selection builds no genes; it does not fall
+back to all indexed genes. Gene lookups accept mixed-case artifact names such
+as `C16orf46.json.gz` without losing their association records. Ambiguous
+mixed-case filenames are rejected rather than silently combined.
+
+A gene with no positive protein-coordinate annotation is recorded in
 the build checkpoint and manifest, but no empty serving payload is published;
 the backend can therefore retain its legacy viewer fallback.
+
+## Bounded build and resume
+
+New VEP indexes are physically ordered by gene, rsID and transcript/allele
+coordinates. This layout improves gene-restricted reads without dropping or
+combining source annotation rows. Existing indexes remain readable but are not
+rewritten automatically; the performance benefit requires an index built with
+the ordered layout. Its build metadata records `storage_layout=gene_clustered`.
+
+The builder first reads the gene's VEP annotations. When no positive protein
+coordinate is available, it does not load the association JSON and checkpoints
+`association_scope_read=false` with `association_rsids=null`. This is an
+unmeasured count, not evidence that the gene has no associations.
+
+For other genes, DuckDB projects and aggregates the association input, and only
+contexts for protein-coordinate rsIDs enter Python. The distinct association
+rsID set and aggregate context count still cover the full gene scope; matched
+non-protein and unmatched rsIDs remain separately recorded. Source and exact
+phenotype paths stay separate. This does not introduce allele matching or a
+new representative transcript rule.
+
+Both serial and parallel builds keep one DuckDB thread and a 2 GB DuckDB
+memory limit per worker, recorded in `worker_runtime`. This is not a total
+process-RSS limit: Python objects and multiple workers require additional host
+memory. Progress logging, deterministic gzip output and checkpoint resume are
+retained. Previously skipped zero-association genes are retried when a
+mixed-case input filename is recovered. Changed selection or input-index
+checksum still requires a new output directory or explicit reset; changing
+code alone does not rebuild existing completed artifacts.
 
 ## Serving behavior
 

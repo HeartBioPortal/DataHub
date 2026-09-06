@@ -97,7 +97,7 @@ def main() -> int:
     else:
         genes = args.genes
         if args.gene_profile_index:
-            if genes:
+            if genes is not None:
                 raise ValueError("Use either --genes or --gene-profile-index, not both")
             genes = []
             with args.gene_profile_index.open("rt", encoding="utf-8") as handle:
@@ -121,6 +121,14 @@ def main() -> int:
             progress_interval=args.progress_interval,
             workers=args.workers,
         )
+        if args.gene_profile_index:
+            approved_count = len(genes)
+            genes = builder.discover_genes(genes)
+            logger.info(
+                "Selected %d association-indexed genes from %d approved HGNC symbols",
+                len(genes),
+                approved_count,
+            )
         result = builder.run(genes, reset=args.reset, max_genes=args.max_genes)
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0
