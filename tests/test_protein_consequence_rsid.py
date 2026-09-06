@@ -56,6 +56,19 @@ def test_parse_hgvs_protein() -> None:
     assert parse_hgvs_protein("") == (None, None)
 
 
+def test_mixed_case_gene_artifact_is_resolved(tmp_path: Path) -> None:
+    variant_root = tmp_path / 'variant_index'
+    _write_variant_index(variant_root, 'CVD', 'C16orf46', [{
+        'variant_id': 'rs1', 'phenotype': 'hypertension',
+        'phenotype_path': ['hypertension'], 'source': 'million_veteran_program'
+    }])
+    builder = ProteinConsequenceRsidBuilder(BuildInputs(variant_root, tmp_path/'unused', tmp_path/'output'))
+    assert builder._variant_index_path('CVD', 'C16ORF46').name == 'C16orf46.json.gz'
+    contexts, count = builder._association_contexts('C16ORF46')
+    assert count == 1
+    assert set(contexts) == {'rs1'}
+
+
 def test_index_retains_every_transcript_annotation(tmp_path: Path) -> None:
     _, index = _fixture(tmp_path)
     connection = duckdb.connect(str(index), read_only=True)

@@ -103,6 +103,23 @@ the backend can therefore retain its legacy viewer fallback.
 
 ## Serving behavior
 
+The VEP index is physically ordered by gene for bounded reads. The per-gene
+builder projects the published variant-index JSON in DuckDB and transfers only
+protein-coordinate association contexts into Python. Each worker uses one
+DuckDB thread and a 2 GB database memory limit. Genes with no supplied positive
+protein coordinate are checkpointed without reading their association files;
+their association counts are left unmeasured. Completed genes are resumable.
+
+The initial chart response shares repeated phenotype metadata and defers the
+larger association-context table. Clicking an rsID requests at most 50 exact
+annotation/context rows per page. The inspector includes the consequence,
+protein change, transcript, source, full phenotype path, minimum reported
+p-value, and PMID when supplied. Missing publication identifiers remain
+unavailable; a PMID from another row at the same residue is never transferred.
+The frontend cancels pending requests and removes timers/listeners when the
+viewer unmounts. Per-gene payloads are read from disk without an in-memory gene
+cache.
+
 The backend always retains matching legacy `variant_viewer` rows. When a gene
 payload exists under `HBP_PROTEIN_CONSEQUENCE_V2_PATH`, it appends the exact
 rsID-and-gene-matched VEP transcript consequences after applying the same CVD
