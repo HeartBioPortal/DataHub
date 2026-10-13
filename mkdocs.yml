@@ -61,6 +61,7 @@ nav:
   - Runbooks:
       - Local Smoke Test: runbooks/local-smoke-test.md
       - Release Checklist: runbooks/release-checklist.md
+      - Association Evidence v2 RC: runbooks/association-evidence-v2-release.md
   - Reference:
       - Data Sources: reference/data-sources.md
       - Module Guide: reference/module-guide.md
@@ -68,6 +69,7 @@ nav:
       - Config Guide: reference/config-guide.md
   - Schemas:
       - Overview: schemas/index.md
+      - Association Evidence v2: schemas/association_evidence_v2.md
       - Expression v3: schemas/expression_v3.md
       - Gene Profile: schemas/gene_profile.md
       - Protein Context: schemas/protein_context.md
