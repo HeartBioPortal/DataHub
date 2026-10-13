@@ -14,6 +14,19 @@ secondary analyses, serving DuckDBs, and data documentation.
 This repo is nested inside the backend tree but is treated as its own repo.
 Check git status here separately.
 
+## Branch and Provenance Discipline
+
+`main` is the DataHub mainline.
+
+- Push pipeline and config changes to GitHub before their artifacts are served
+  in production. Code that produced live data must never exist only on AWS or
+  BigRed.
+- Once a feature branch's artifacts are serving, merge it into `main`.
+- Source provenance (versions, licenses, transformations) belongs in
+  `config/sources/*.json` and must be committed, not left as local edits.
+- Raw data, analyzed artifacts, datamart DuckDBs, and deployment reports are
+  not tracked in git; document their locations instead.
+
 ## Core Commands
 
 - Run tests: `PYTHONPATH=src python -m pytest`
