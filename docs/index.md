@@ -36,6 +36,7 @@ Use the documentation based on what you need:
 - Scientist trying to understand the artifact model: read [Data Sources](reference/data-sources.md), [Data Model](architecture/data-model.md), [Association Pipeline](pipelines/association.md), and [Serving Artifacts](pipelines/serving.md)
 - Someone extending the platform: read [New Source Onboarding](extending/new-source.md) and [Export Manifest Framework](extending/export-manifests.md)
 - Someone preparing a run: use [Local Smoke Test](runbooks/local-smoke-test.md) or [Release Checklist](runbooks/release-checklist.md)
+- Someone planning the next data build: read [Open Work](open-work.md) for the open items and the measurements behind them
 
 ## Core design commitments
 

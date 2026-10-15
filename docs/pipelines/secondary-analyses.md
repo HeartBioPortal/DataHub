@@ -236,6 +236,16 @@ To keep the existing frontend payload contract stable without reintroducing a pa
 
 This is an implementation detail for runtime compatibility. Scientifically, the SGA result is still interpreted as shared rsID identity across CVD/trait phenotype pairs.
 
+### Reading the current release
+
+The current SGA build has no p-value condition: a variant is shared when it is
+reported for both phenotypes. MVP source summaries report the same tested
+variants for many phenotypes, so shared counts describe co-reporting rather
+than co-association, and because each phenotype's stored set holds only its
+shared rsIDs, the overlap coefficient is close to 100% for most pairs. For
+PCSK9 the release holds 8,248 trait–CVD pairs. A significance-restricted build
+is described in [Open Work](../open-work.md#cross-phenotype-relationships-v2).
+
 ## Incremental serving updates
 
 Secondary analyses are meant to update an existing serving DB in place.

@@ -65,6 +65,32 @@ must not be forced into a biallelic MAF interpretation.
 | `dbsnp_frequency_sources` | Per imported archive/source-system load counts. |
 | `dbsnp_frequency_build_metadata` | Build time, paths, total observations, distinct rsIDs, and serialized source summaries. |
 
+## Serving scope
+
+The population-frequency scope endpoint starts from the association rsIDs in the
+active phenotype and p-value scope, orders them by their strongest reported
+p-value, and looks up frequency rows for at most `HBP_DBSNP_QUERY_MAX_RSIDS`
+rsIDs (80 by default). The response `meta` reports:
+
+| Field | Meaning |
+| --- | --- |
+| `total_selected_rsids` | Association rsIDs in scope. |
+| `queried_rsids` | rsIDs looked up in the frequency index. |
+| `covered_rsids` | Queried rsIDs with at least one frequency observation. |
+| `coverage` | `covered_rsids / queried_rsids`. |
+| `truncated` | `true` when the scope holds more rsIDs than were queried. |
+
+For PCSK9 under all indexed evidence: 641 rsIDs in scope, 80 queried, 54
+covered (67.5%). The portal shows coverage as a share of the queried rsIDs and
+states the query limit when `truncated` is set.
+
+Of the 5,485 labels in the population field, 5,425 are PharmGKB accession IDs
+(`PA…`) that dbSNP stores there; 60 are named populations. The
+`population-map-dictionary` endpoint maps 10 broad labels to display groups and
+coordinates. The portal groups the named labels under broad ancestry or region
+groups for navigation only; rows stay label-specific and frequencies are never
+merged across labels. Cohort names without a stated ancestry stay ungrouped.
+
 ## Verified production snapshot
 
 The build metadata in the current production handoff

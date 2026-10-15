@@ -49,6 +49,22 @@ source, a pooled statistical estimate, or stronger evidence by itself. Source
 identifiers and source-specific fields remain necessary to understand what each
 resource contributed.
 
+## Portal display
+
+The portal groups records into one compound per molecule and summarizes
+development status (from DrugBank approval groups), highest trial phase (from
+Open Targets clinical-trial records) and molecule type. Two values are inferred
+and marked as inferred in the display:
+
+- A compound with no reported status and an Open Targets phase 4
+  (post-marketing) trial is shown as approved.
+- A compound with a reported approval and no reported trial phase is counted as
+  phase 4, the Open Targets/ChEMBL convention for approved drugs. Withdrawn
+  compounds are not inferred.
+
+Adverse-event bars use FAERS report counts carried by Open Targets records.
+DrugBank-only compounds carry toxicity text instead.
+
 ## Interpretation boundary
 
 Drug-target links, indications, trial phases, and mechanism descriptions provide

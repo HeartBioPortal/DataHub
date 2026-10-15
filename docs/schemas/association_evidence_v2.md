@@ -274,6 +274,31 @@ Rollback does not transform data. Set `HBP_ASSOC_EVIDENCE_MODEL=v1` (or restore
 the prior service environment) and restart only during an approved deployment
 window. The legacy serving DB remains intact.
 
+## Filtered reads
+
+When a request carries a p-value threshold, the MVP source-summary partition
+read applies it as a DuckDB predicate (`reported_p_value < threshold`, with
+unparseable and NaN values passed through to the Python check, which remains
+authoritative). Compact-artifact entries are identity-hashed only for variants
+that survive the filter. Filtered payloads are byte-identical to the unfiltered
+read followed by the Python filter; this was checked for PCSK9, TTN, NOS3 and
+ANK2 at p < 5e-8 and p < 1e-5.
+
+Cold build times after this change:
+
+| Gene | Threshold | Cold build |
+| --- | --- | --- |
+| TTN | p < 5e-8 | 7.2 s |
+| PCSK9 | p < 5e-8 | 2.2 s |
+| NOS3 | p < 5e-8 | 1.8 s |
+| ANK2 | p < 5e-8 | 1.4 s |
+| ANK2 | p < 1e-5 | 13.0 s |
+
+Repeat requests are served from the disk cache in about 0.02 s. Unfiltered
+dossier summaries for 56 genes come from a precomputed store; other genes build
+on first request. The remaining cold cost is loading each gene's compact MVP
+artifact; see [Open Work](../open-work.md#significance-aware-default-view).
+
 ## Known limitations
 
 - Association REF/ALT/effect-allele identity is unresolved in current AWS inputs.
