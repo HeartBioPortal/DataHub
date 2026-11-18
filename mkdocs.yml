@@ -62,6 +62,7 @@ nav:
       - Local Smoke Test: runbooks/local-smoke-test.md
       - Release Checklist: runbooks/release-checklist.md
       - Association Evidence v2 RC: runbooks/association-evidence-v2-release.md
+      - Gene Dossier Summary Store: runbooks/gene-dossier-summary-store.md
   - Reference:
       - Data Sources: reference/data-sources.md
       - Module Guide: reference/module-guide.md
